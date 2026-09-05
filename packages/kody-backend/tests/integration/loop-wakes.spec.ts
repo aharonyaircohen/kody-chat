@@ -296,3 +296,72 @@ describe("Convex-owned Loop wakes", () => {
     ]);
   });
 });
+
+describe("unchanged schedule deadlines", () => {
+  it("preserves an overdue wake when reconciliation reads an unchanged trigger", async () => {
+    const t = setupWithoutKey();
+    const loops = [
+      {
+        id: "hourly",
+        enabled: true,
+        trigger: { type: "schedule", every: "1h" },
+      },
+    ];
+    await t.mutation(api.loopWakes.replaceRegistrations, {
+      serviceKey: TEST_SERVICE_KEY,
+      tenantId: "audit/repo",
+      loops,
+      updatedAt: "2026-09-05T00:00:00.000Z",
+    });
+    await t.mutation(api.loopWakes.replaceRegistrations, {
+      serviceKey: TEST_SERVICE_KEY,
+      tenantId: "audit/repo",
+      loops,
+      updatedAt: "2026-09-05T01:00:01.000Z",
+    });
+    const claims = await t.mutation(internal.loopWakes.claimDue, {
+      now: "2026-09-05T01:00:02.000Z",
+      limit: 25,
+    });
+    expect(claims).toHaveLength(1);
+    expect(claims[0]?.scheduledFor).toBe("2026-09-05T01:00:00.000Z");
+  });
+  it("reschedules a changed trigger and re-enables a disabled loop", async () => {
+    const t = setupWithoutKey();
+    const common = {
+      serviceKey: TEST_SERVICE_KEY,
+      tenantId: "audit/repo",
+      loopId: "hourly",
+      enabled: true,
+    };
+    await t.mutation(api.loopWakes.syncRegistration, {
+      ...common,
+      trigger: { type: "schedule", every: "1h" },
+      updatedAt: "2026-09-05T00:00:00.000Z",
+    });
+    await t.mutation(api.loopWakes.syncRegistration, {
+      ...common,
+      trigger: { type: "schedule", every: "15m" },
+      updatedAt: "2026-09-05T00:01:00.000Z",
+    });
+    const claims = await t.mutation(internal.loopWakes.claimDue, {
+      now: "2026-09-05T00:15:00.000Z",
+      limit: 25,
+    });
+    expect(claims).toHaveLength(1);
+    await t.mutation(api.loopWakes.syncRegistration, {
+      ...common,
+      enabled: false,
+      updatedAt: "2026-09-05T00:16:00.000Z",
+    });
+    await t.mutation(api.loopWakes.syncRegistration, {
+      ...common,
+      trigger: { type: "schedule", every: "1h" },
+      updatedAt: "2026-09-05T02:01:00.000Z",
+    });
+    const rows = await t.run((ctx) =>
+      ctx.db.query("loopWakeRegistrations").collect(),
+    );
+    expect(rows[0]?.nextDueAt).toBe("2026-09-05T03:00:00.000Z");
+  });
+});

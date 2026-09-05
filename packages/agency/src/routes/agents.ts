@@ -11,7 +11,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import {
-  requireKodyAuth,
+  verifyRepoReadAccess,
+  verifyRepoWriteAccess,
   verifyActorLogin,
   getRequestAuth,
 } from "@kody-ade/base/auth";
@@ -33,7 +34,7 @@ export const revalidate = 0;
 const NO_STORE_HEADERS = { "Cache-Control": "no-store, max-age=0" };
 
 export async function GET(req: NextRequest) {
-  const authResult = await requireKodyAuth(req);
+  const authResult = await verifyRepoReadAccess(req);
   if (authResult instanceof NextResponse) return authResult;
 
   const headerAuth = getRequestAuth(req);
@@ -99,7 +100,10 @@ const createAgentSchema = z.object({
   title: z.string().min(1),
   body: z.string().default(""),
   whenToUse: z.string().trim().max(500).optional(),
-  primaryIntent: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/).optional(),
+  primaryIntent: z
+    .string()
+    .regex(/^[a-z0-9][a-z0-9_-]{0,63}$/)
+    .optional(),
   capabilities: z.array(z.string()).max(50).optional(),
   subagents: z
     .array(z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/))
@@ -109,7 +113,7 @@ const createAgentSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  const authResult = await requireKodyAuth(req);
+  const authResult = await verifyRepoWriteAccess(req);
   if (authResult instanceof NextResponse) return authResult;
 
   const headerAuth = getRequestAuth(req);

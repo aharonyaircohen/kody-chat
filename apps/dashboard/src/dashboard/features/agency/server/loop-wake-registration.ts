@@ -34,26 +34,28 @@ export function buildLoopWakeRegistrationArgs(
   };
 }
 
+export class LoopWakeSyncError extends Error {
+  constructor() {
+    super(
+      "The definition change was saved, but scheduling did not synchronize. Retry the same change.",
+    );
+    this.name = "LoopWakeSyncError";
+  }
+}
+
 export async function syncLoopWakeRegistration(
   input: SyncInput,
   client: MutationClient = createBackendClient(),
 ): Promise<void> {
-  await client.mutation(
-    backendApi.loopWakes.syncRegistration,
-    buildLoopWakeRegistrationArgs({
-      ...input,
-      updatedAt: new Date().toISOString(),
-    }),
-  );
-}
-
-export async function replaceLoopWakeRegistrations(
-  input: { owner: string; repo: string; loops: readonly LoopDefinition[] },
-  client: MutationClient = createBackendClient(),
-): Promise<void> {
-  await client.mutation(backendApi.loopWakes.replaceRegistrations, {
-    tenantId: `${input.owner}/${input.repo}`,
-    loops: input.loops,
-    updatedAt: new Date().toISOString(),
-  });
+  try {
+    await client.mutation(
+      backendApi.loopWakes.syncRegistration,
+      buildLoopWakeRegistrationArgs({
+        ...input,
+        updatedAt: new Date().toISOString(),
+      }),
+    );
+  } catch {
+    throw new LoopWakeSyncError();
+  }
 }

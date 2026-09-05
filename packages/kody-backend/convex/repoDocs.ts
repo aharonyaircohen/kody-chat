@@ -1,6 +1,6 @@
 import { serviceMutation as mutation, serviceQuery as query } from "./lib/auth";
 import { v } from "convex/values";
-import { createAgencyRequestState } from "@kody-ade/agency-domain";
+import { taskLoopRegistration } from "./agencyRequestLoops";
 import { syncLoopRegistration } from "./loopWakes";
 
 const TODO_PREFIX = "todo:";
@@ -12,32 +12,9 @@ async function syncAgencyRequestLoop(
   doc: unknown,
   updatedAt: string,
 ) {
-  if (!kind.startsWith(TODO_PREFIX)) return;
-  const loopId = `agency-request-${kind.slice(TODO_PREFIX.length)}`;
-  let enabled = false;
-  if (doc && typeof doc === "object" && !Array.isArray(doc)) {
-    const agencyRequest = (doc as Record<string, unknown>).agencyRequest;
-    if (agencyRequest) {
-      try {
-        const request = createAgencyRequestState(agencyRequest);
-        enabled =
-          request.execution !== undefined &&
-          ["running", "monitoring", "blocked"].includes(request.phase) &&
-          request.related.some(
-            (ref) => ref.kind === "loop" && ref.id === loopId,
-          );
-      } catch {
-        enabled = false;
-      }
-    }
-  }
-  await syncLoopRegistration(ctx, {
-    tenantId,
-    loopId,
-    enabled,
-    ...(enabled ? { trigger: { type: "schedule" as const, every: "15m" } } : {}),
-    updatedAt,
-  });
+  const registration = taskLoopRegistration(kind, doc);
+  if (!registration) return;
+  await syncLoopRegistration(ctx, { tenantId, ...registration, updatedAt });
 }
 
 // Singleton per-tenant documents keyed by `kind`: dashboard config, system
@@ -178,6 +155,21 @@ export const saveAndRemove = mutation({
       });
     }
     if (removed) await ctx.db.delete(removed._id);
+    await syncAgencyRequestLoop(
+      ctx,
+      args.tenantId,
+      args.saveKind,
+      args.doc,
+      args.updatedAt,
+    );
+    if (removed)
+      await syncAgencyRequestLoop(
+        ctx,
+        args.tenantId,
+        args.removeKind,
+        null,
+        args.updatedAt,
+      );
   },
 });
 
@@ -202,6 +194,13 @@ export const removeAndMaybeSave = mutation({
       )
       .unique();
     if (removed) await ctx.db.delete(removed._id);
+    await syncAgencyRequestLoop(
+      ctx,
+      args.tenantId,
+      args.removeKind,
+      null,
+      args.save?.updatedAt ?? new Date().toISOString(),
+    );
     if (!args.save) return;
     const saved = await ctx.db
       .query("repoDocs")
@@ -222,5 +221,12 @@ export const removeAndMaybeSave = mutation({
         updatedAt: args.save.updatedAt,
       });
     }
+    await syncAgencyRequestLoop(
+      ctx,
+      args.tenantId,
+      args.save.kind,
+      args.save.doc,
+      args.save.updatedAt,
+    );
   },
 });

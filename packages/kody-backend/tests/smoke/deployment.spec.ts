@@ -212,6 +212,64 @@ describe.skipIf(!url || !serviceKey)("deployment smoke", () => {
     });
   });
 
+  it("promotes queued work after a final-step approval decision exactly once", async () => {
+    const now = new Date().toISOString();
+    const common = {
+      tenantId: tenantId,
+      pipelineId: "pipeline",
+      concurrencyKey: "main",
+      steps: [
+        {
+          id: "final",
+          workflowId: "work",
+          decisionFact: "decision",
+          status: "pending" as const,
+        },
+      ],
+      now: now,
+    };
+    await client.mutation(api.pipelineRuns.reserve, {
+      ...common,
+      runId: "active",
+    });
+    await client.mutation(api.pipelineRuns.markDispatched, {
+      tenantId: tenantId,
+      pipelineId: "pipeline",
+      runId: "active",
+      stepIndex: 0,
+      workflowRunId: "work-run",
+      now: now,
+    });
+    await client.mutation(api.pipelineRuns.reserve, {
+      ...common,
+      runId: "waiting",
+    });
+    const args = {
+      tenantId: tenantId,
+      workflowRunId: "work-run",
+      status: "success" as const,
+      output: { decision: "approval" },
+      now: now,
+    };
+    expect(await client.mutation(api.pipelineRuns.advance, args)).toMatchObject(
+      {
+        kind: "start",
+        runId: "waiting",
+        stepIndex: 0,
+      },
+    );
+    expect(
+      (
+        await client.query(api.pipelineRuns.get, {
+          tenantId: tenantId,
+          pipelineId: "pipeline",
+          runId: "waiting",
+        })
+      )?.status,
+    ).toBe("running");
+    expect(await client.mutation(api.pipelineRuns.advance, args)).toBeNull();
+  });
+
   it("cleans up its own rows", async () => {
     const result = await client.mutation(anyApi.importExport.clearRepo, {
       tenantId,

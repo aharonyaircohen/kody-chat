@@ -12,7 +12,7 @@
  *   This is read-only debug visibility for the /instructions page.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { requireKodyAuth, getRequestAuth } from "@kody-ade/base/auth";
+import { verifyRepoReadAccess, getRequestAuth } from "@kody-ade/base/auth";
 import { setGitHubContext, clearGitHubContext } from "../github";
 import { AGENT_KODY_SYSTEM_PROMPT } from "@kody-ade/base/agents-data";
 import { buildSystemPrompt } from "@kody-ade/base/kody-system-prompt";
@@ -24,7 +24,7 @@ export const revalidate = 0;
 const NO_STORE_HEADERS = { "Cache-Control": "no-store, max-age=0" };
 
 export async function GET(req: NextRequest) {
-  const authResult = await requireKodyAuth(req);
+  const authResult = await verifyRepoReadAccess(req);
   if (authResult instanceof NextResponse) return authResult;
 
   const repo = getRequestAuth(req);

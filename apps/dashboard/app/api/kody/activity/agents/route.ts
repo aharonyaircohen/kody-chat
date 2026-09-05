@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { api as backendApi } from "@kody-ade/backend/api";
 import { createBackendClient } from "@kody-ade/backend/client";
-import { getRequestAuth, requireKodyAuth } from "@kody-ade/base/auth";
+import { getRequestAuth, verifyRepoReadAccess } from "@kody-ade/base/auth";
 
 function executionCompletion(
   value: unknown,
@@ -47,7 +47,7 @@ function executionCompletion(
 }
 
 export async function GET(req: NextRequest) {
-  const authError = await requireKodyAuth(req);
+  const authError = await verifyRepoReadAccess(req);
   if (authError instanceof NextResponse) return authError;
   const auth = getRequestAuth(req);
   if (!auth)

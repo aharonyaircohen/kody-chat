@@ -7,7 +7,7 @@
  */
 import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { getRequestAuth, requireKodyAuth } from "@kody-ade/base/auth";
+import { getRequestAuth, verifyRepoWriteAccess } from "@kody-ade/base/auth";
 import { logger } from "@kody-ade/base/logger";
 import { api } from "@kody-ade/backend/api";
 import { createBackendClient } from "@kody-ade/backend/client";
@@ -107,8 +107,8 @@ function encodeGitHubPath(path: string): string {
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  const authError = await requireKodyAuth(req);
-  if (authError) return authError;
+  const authError = await verifyRepoWriteAccess(req);
+  if (authError instanceof NextResponse) return authError;
   const auth = getRequestAuth(req);
   if (!auth) {
     return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
@@ -240,8 +240,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 }
 
 export async function DELETE(req: NextRequest): Promise<NextResponse> {
-  const authError = await requireKodyAuth(req);
-  if (authError) return authError;
+  const authError = await verifyRepoWriteAccess(req);
+  if (authError instanceof NextResponse) return authError;
   const auth = getRequestAuth(req);
   if (!auth) {
     return NextResponse.json({ error: "no_repo_context" }, { status: 400 });

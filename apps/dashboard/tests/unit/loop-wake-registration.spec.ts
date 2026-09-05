@@ -1,11 +1,29 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  LoopWakeSyncError,
   buildLoopWakeRegistrationArgs,
   syncLoopWakeRegistration,
 } from "@dashboard/features/agency/server/loop-wake-registration";
 
 describe("Loop wake registration", () => {
+  it("reports failed schedule synchronization without exposing backend details", async () => {
+    const mutation = vi
+      .fn()
+      .mockRejectedValue(new Error("private-backend-detail"));
+    await expect(
+      syncLoopWakeRegistration(
+        { owner: "acme", repo: "widgets", loopId: "ci-health" },
+        { mutation },
+      ),
+    ).rejects.toThrow(LoopWakeSyncError);
+    await expect(
+      syncLoopWakeRegistration(
+        { owner: "acme", repo: "widgets", loopId: "ci-health" },
+        { mutation },
+      ),
+    ).rejects.toThrow("Retry the same change");
+  });
   it("always carries the schedule when enabling a registration", () => {
     const trigger = Object.freeze({
       type: "schedule" as const,

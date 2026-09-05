@@ -15,7 +15,8 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock("@kody-ade/base/auth", () => ({
-  requireKodyAuth: h.requireKodyAuth,
+  verifyRepoReadAccess: h.requireKodyAuth,
+  verifyRepoWriteAccess: h.requireKodyAuth,
   verifyActorLogin: h.verifyActorLogin,
   getUserOctokit: h.getUserOctokit,
   getRequestAuth: h.getRequestAuth,

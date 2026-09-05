@@ -125,6 +125,7 @@ describe("Brain control routes", () => {
       state: "off",
       reason: "fly_token_missing",
       stored: null,
+      machines: [],
     });
     expect(brainService.resolveBrainService).not.toHaveBeenCalled();
   });

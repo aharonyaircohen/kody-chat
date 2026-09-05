@@ -20,6 +20,8 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock("@kody-ade/base/auth", () => ({
+  verifyRepoReadAccess: vi.fn(),
+  verifyRepoWriteAccess: vi.fn(),
   requireKodyAuth: vi.fn(),
   getRequestAuth: vi.fn(() => ({ owner: "acme", repo: "widgets" })),
   verifyActorLogin: h.verifyActorLogin,

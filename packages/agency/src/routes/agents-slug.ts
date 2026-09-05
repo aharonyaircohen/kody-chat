@@ -11,7 +11,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import {
-  requireKodyAuth,
+  verifyRepoReadAccess,
+  verifyRepoWriteAccess,
   verifyActorLogin,
   getUserOctokit,
   getRequestAuth,
@@ -34,7 +35,7 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string }> },
 ) {
-  const authResult = await requireKodyAuth(req);
+  const authResult = await verifyRepoReadAccess(req);
   if (authResult instanceof NextResponse) return authResult;
 
   const headerAuth = getRequestAuth(req);
@@ -78,10 +79,7 @@ const updateAgentSchema = z.object({
   body: z.string().optional(),
   whenToUse: z.string().trim().max(500).optional(),
   primaryIntent: z
-    .union([
-      z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/),
-      z.literal(""),
-    ])
+    .union([z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/), z.literal("")])
     .optional(),
   capabilities: z.array(z.string()).max(50).optional(),
   subagents: z
@@ -95,7 +93,7 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string }> },
 ) {
-  const authResult = await requireKodyAuth(req);
+  const authResult = await verifyRepoWriteAccess(req);
   if (authResult instanceof NextResponse) return authResult;
 
   const headerAuth = getRequestAuth(req);
@@ -287,7 +285,7 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string }> },
 ) {
-  const authResult = await requireKodyAuth(req);
+  const authResult = await verifyRepoWriteAccess(req);
   if (authResult instanceof NextResponse) return authResult;
 
   const headerAuth = getRequestAuth(req);

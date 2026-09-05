@@ -4,7 +4,8 @@ import { z } from "zod";
 import {
   getRequestAuth,
   getUserOctokit,
-  requireKodyAuth,
+  verifyRepoReadAccess,
+  verifyRepoWriteAccess,
   verifyActorLogin,
 } from "@kody-ade/base/auth";
 import { recordAudit } from "@kody-ade/base/activity/audit";
@@ -69,7 +70,7 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string }> },
 ) {
-  const authError = await requireKodyAuth(req);
+  const authError = await verifyRepoReadAccess(req);
   if (authError instanceof NextResponse) return authError;
   const context = requestContext(req);
   if (!context) {
@@ -106,7 +107,7 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string }> },
 ) {
-  const authError = await requireKodyAuth(req);
+  const authError = await verifyRepoWriteAccess(req);
   if (authError instanceof NextResponse) return authError;
   const context = requestContext(req);
   if (!context) {
@@ -165,7 +166,7 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string }> },
 ) {
-  const authError = await requireKodyAuth(req);
+  const authError = await verifyRepoWriteAccess(req);
   if (authError instanceof NextResponse) return authError;
   const context = requestContext(req);
   if (!context) {
@@ -217,9 +218,7 @@ export async function DELETE(
         context.auth.repo,
         {
           activeCapabilities:
-            nextActiveCapabilities.length > 0
-              ? nextActiveCapabilities
-              : null,
+            nextActiveCapabilities.length > 0 ? nextActiveCapabilities : null,
         },
         `chore(kody): remove store capability ${slug}`,
       );

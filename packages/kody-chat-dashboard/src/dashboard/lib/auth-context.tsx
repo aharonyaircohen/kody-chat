@@ -218,9 +218,9 @@ export function repositoryAuthAfterAdd(
   user: KodyUser | undefined,
   addedAt = Date.now(),
 ): KodyAuth | null {
-  const owner = entry.owner.trim();
-  const repo = entry.repo.trim();
-  const token = entry.token.trim();
+  const owner = typeof entry?.owner === "string" ? entry.owner.trim() : "";
+  const repo = typeof entry?.repo === "string" ? entry.repo.trim() : "";
+  const token = typeof entry?.token === "string" ? entry.token.trim() : "";
   if (!owner || !repo || !token || !user) return null;
 
   const nextEntry: KodyRepoEntry = {

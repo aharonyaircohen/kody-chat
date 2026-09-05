@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { isDeepStrictEqual } from "node:util";
 import {
   getRequestAuth,
   getUserOctokit,
-  requireKodyAuth,
+  verifyRepoReadAccess,
+  verifyRepoWriteAccess,
 } from "@kody-ade/base/auth";
 import { createLoopDefinition } from "@kody-ade/agency-domain";
 import {
@@ -12,8 +14,8 @@ import {
   saveRepositoryLoop,
 } from "@dashboard/lib/repository-loops";
 import {
-  replaceLoopWakeRegistrations,
   syncLoopWakeRegistration,
+  LoopWakeSyncError,
 } from "@dashboard/features/agency/server/loop-wake-registration";
 import {
   readCompanyStoreWorkflowDefinitionFile,
@@ -82,7 +84,7 @@ function isLegacyEventTrigger(
 }
 
 export async function GET(req: NextRequest) {
-  const authError = await requireKodyAuth(req);
+  const authError = await verifyRepoReadAccess(req);
   if (authError instanceof NextResponse) return authError;
   const auth = getRequestAuth(req);
   const octokit = await getUserOctokit(req);
@@ -97,17 +99,12 @@ export async function GET(req: NextRequest) {
     auth.owner,
     auth.repo,
   );
-  await replaceLoopWakeRegistrations({
-    owner: auth.owner,
-    repo: auth.repo,
-    loops: repositoryLoops,
-  });
   const loops = repositoryLoops.map((loop) => ({ ...loop, updatedAt: "" }));
   return NextResponse.json({ loops });
 }
 
 export async function POST(req: NextRequest) {
-  const authError = await requireKodyAuth(req);
+  const authError = await verifyRepoWriteAccess(req);
   if (authError instanceof NextResponse) return authError;
   const auth = getRequestAuth(req);
   const octokit = await getUserOctokit(req);
@@ -137,7 +134,15 @@ export async function POST(req: NextRequest) {
       loop.id,
     );
     if (existing) {
-      return NextResponse.json({ error: "loop_exists" }, { status: 409 });
+      if (!isDeepStrictEqual(existing, loop)) {
+        return NextResponse.json({ error: "loop_exists" }, { status: 409 });
+      }
+      await syncLoopWakeRegistration({
+        owner: auth.owner,
+        repo: auth.repo,
+        loop,
+      });
+      return NextResponse.json({ loop: { ...loop, updatedAt: "" } });
     }
     const updatedAt = "";
     await saveRepositoryLoop(
@@ -156,10 +161,13 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     return NextResponse.json(
       {
-        error: "invalid_loop",
+        error:
+          error instanceof LoopWakeSyncError
+            ? "loop_schedule_sync_failed"
+            : "invalid_loop",
         message: error instanceof Error ? error.message : "Invalid Loop",
       },
-      { status: 400 },
+      { status: error instanceof LoopWakeSyncError ? 503 : 400 },
     );
   }
 }

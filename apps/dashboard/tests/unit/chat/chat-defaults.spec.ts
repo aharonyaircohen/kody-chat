@@ -112,6 +112,9 @@ describe("chat-defaults bundle", () => {
       "node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/tools/agent-tools.ts",
       "node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/tools/agent-admin-tools.ts",
       "node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/tools/capability-tools.ts",
+      "node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/tools/cross-repository-capability-tools.ts",
+      "node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/tools/self-configuration-tools.ts",
+      "node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/tools/blueprint-tools.ts",
       "node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/tools/workflow-tools.ts",
       "node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/tools/agency-lifecycle-tools.ts",
       "node_modules/@kody-ade/workspace/src/tools/commands-tools.ts",
@@ -258,7 +261,7 @@ describe("chat-defaults bundle", () => {
     ).toContain("explicit memory command");
   });
 
-  it("exposes 11 skills — including agency documentation and generic workflow execution", () => {
+  it("exposes the supported skills including self-configuration", () => {
     expect(Object.keys(DEFAULT_SKILLS).sort()).toEqual([
       "author-quality",
       "create-agent",
@@ -270,6 +273,7 @@ describe("chat-defaults bundle", () => {
       "read-agency-documentation",
       "report-advise",
       "run-workflow",
+      "self-configure",
       "todo-planner",
       "vibe",
     ]);

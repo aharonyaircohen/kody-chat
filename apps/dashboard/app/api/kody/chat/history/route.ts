@@ -10,7 +10,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireKodyAuth, getRequestAuth } from "@kody-ade/base/auth";
+import { verifyRepoReadAccess, getRequestAuth } from "@kody-ade/base/auth";
 import { logger } from "@kody-ade/base/logger";
 import {
   backendApi,
@@ -86,8 +86,8 @@ async function readConvexMessages(
 }
 
 export async function GET(req: NextRequest) {
-  const authError = await requireKodyAuth(req);
-  if (authError) return authError;
+  const authError = await verifyRepoReadAccess(req);
+  if (authError instanceof NextResponse) return authError;
 
   const taskId = req.nextUrl.searchParams.get("taskId");
   if (!taskId) {

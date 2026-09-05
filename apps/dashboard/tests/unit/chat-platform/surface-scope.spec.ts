@@ -68,7 +68,9 @@ describe("surface ticket mint/verify", () => {
     expect(verifySurfaceTicket(encode({ ...payload, o: "evil" }))).toBeNull();
     expect(verifySurfaceTicket(encode({ ...payload, r: "other" }))).toBeNull();
     expect(
-      verifySurfaceTicket(encode({ ...payload, e: (payload.e as number) + 60 })),
+      verifySurfaceTicket(
+        encode({ ...payload, e: (payload.e as number) + 60 }),
+      ),
     ).toBeNull();
     expect(
       verifySurfaceTicket(encode({ ...payload, s: "0".repeat(32) })),
@@ -164,11 +166,14 @@ describe("rejectSurfaceScopedRequest (admin-only endpoints)", () => {
 });
 
 describe("client surface tool allowlist", () => {
-  it("stays a conservative read-only subset (documented contract)", () => {
+  it("allows only navigation, reference reads and Guided Flow participation", () => {
     expect([...CLIENT_SURFACE_TOOL_ALLOWLIST].sort()).toEqual([
       "describe_feature",
       "fetch_url",
       "get_position",
+      "guided_flow_context",
+      "guided_flow_read",
+      "guided_flow_start",
       "list_dashboard_features",
       "set_position",
     ]);

@@ -45,7 +45,7 @@ describe("builder createPreviewMachine autostop", () => {
       mock: { calls: Array<[RequestInfo | URL, RequestInit?]> };
     };
     expect(fetchMock.mock.calls[0]?.[0]).toBe(
-      "https://api.machines.dev/v1/apps/kp-test-app/machines?skip_launch=true",
+      "https://api.machines.dev/v1/apps/kp-test-app/machines",
     );
   });
 

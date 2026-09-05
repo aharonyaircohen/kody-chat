@@ -13,7 +13,7 @@ import { createBackendClient } from "@kody-ade/backend/client";
 import {
   getRequestAuth,
   getUserOctokit,
-  requireKodyAuth,
+  verifyRepoWriteAccess,
   verifyActorLogin,
 } from "@kody-ade/base/auth";
 import { consumeStoredAgencyApproval } from "@kody-ade/agency/agency-approvals";
@@ -100,7 +100,7 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const authError = await requireKodyAuth(req);
+  const authError = await verifyRepoWriteAccess(req);
   if (authError instanceof NextResponse) return authError;
 
   const auth = getRequestAuth(req);

@@ -27,6 +27,10 @@ vi.mock("@kody-ade/backend/client", () => ({
 }));
 
 vi.mock("@kody-ade/base/auth", () => ({
+  verifyRepoReadAccess: (...a: unknown[]) =>
+    mocks.requireKodyAuth(...(a as [])),
+  verifyRepoWriteAccess: (...a: unknown[]) =>
+    mocks.requireKodyAuth(...(a as [])),
   requireKodyAuth: (...a: unknown[]) => mocks.requireKodyAuth(...(a as [])),
   getRequestAuth: (...a: unknown[]) => mocks.getRequestAuth(...(a as [])),
 }));

@@ -1,5 +1,15 @@
 export const LIVE_UI_JOURNEYS = Object.freeze([
   {
+    id: "loops-real-persistence",
+    file: "tests/e2e/loops-real-persistence.e2e.spec.ts",
+    title: "refreshing real Loops preserves task monitoring and its deadline",
+  },
+  {
+    id: "repository-secrets-real-persistence",
+    file: "tests/e2e/repository-secrets-real.e2e.spec.ts",
+    title: "saves, reloads, reveals, and deletes a real repository secret",
+  },
+  {
     id: "activity-agents-real",
     file: "tests/e2e/activity-agents-real.e2e.spec.ts",
     title: "shows inspectable MCP runs, calls, work, approvals, and execution",

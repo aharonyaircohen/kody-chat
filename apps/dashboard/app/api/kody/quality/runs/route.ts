@@ -10,7 +10,7 @@ import { GET as getQualityResource } from "@kody-ade/kody-chat-dashboard/routes/
 import {
   getRequestAuth,
   getUserOctokit,
-  requireKodyAuth,
+  verifyRepoWriteAccess,
   verifyActorLogin,
 } from "@kody-ade/base/auth";
 import { workflowRunAction } from "@kody-ade/agency/workflow-run-approval";
@@ -188,7 +188,7 @@ async function ensureQualityWorkflow(req: NextRequest): Promise<void> {
 }
 
 export async function POST(req: NextRequest) {
-  const authError = await requireKodyAuth(req);
+  const authError = await verifyRepoWriteAccess(req);
   if (authError instanceof NextResponse) return authError;
   const auth = getRequestAuth(req);
   if (!auth)

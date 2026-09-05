@@ -4,9 +4,8 @@ import { encrypt, isVaultConfigured } from "@kody-ade/base/vault/crypto";
 import { isInternalKodyCredential } from "@kody-ade/base/auth/internal-credentials";
 import {
   getRequestAuth,
-  getUserOctokit,
-  requireKodyAuth,
-  verifyActorLogin,
+  verifyRepoReadAccess,
+  verifyRepoWriteAccess,
 } from "@kody-ade/base/auth";
 import { listSecretMetadata, readVault } from "@kody-ade/base/vault/store";
 import { upsertSecret } from "@kody-ade/base/vault/mutations";
@@ -37,13 +36,14 @@ function unavailable() {
 export async function GET(req: NextRequest) {
   const repository = getRequestAuth(req);
   if (repository) {
-    const authError = await requireKodyAuth(req);
-    if (authError) return authError;
+    const access = await verifyRepoReadAccess(req);
+    if (access instanceof NextResponse) return access;
     if (!isVaultConfigured()) return unavailable();
-    const octokit = await getUserOctokit(req);
-    if (!octokit)
-      return NextResponse.json({ error: "no_octokit" }, { status: 401 });
-    const { doc } = await readVault(octokit, repository.owner, repository.repo);
+    const { doc } = await readVault(
+      access.octokit,
+      access.auth.owner,
+      access.auth.repo,
+    );
     return NextResponse.json(
       { secrets: listSecretMetadata(doc) },
       { headers: NO_STORE_HEADERS },
@@ -71,24 +71,19 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const repository = getRequestAuth(req);
   if (repository) {
-    const authError = await requireKodyAuth(req);
-    if (authError) return authError;
+    const access = await verifyRepoWriteAccess(req);
+    if (access instanceof NextResponse) return access;
     if (!isVaultConfigured()) return unavailable();
     const parsed = schema.safeParse(await req.json().catch(() => null));
     if (!parsed.success)
       return NextResponse.json({ error: "validation_error" }, { status: 400 });
-    const verified = await verifyActorLogin(req, undefined);
-    if (verified instanceof NextResponse) return verified;
-    const octokit = await getUserOctokit(req);
-    if (!octokit)
-      return NextResponse.json({ error: "no_octokit" }, { status: 401 });
     const result = await upsertSecret({
-      octokit,
-      owner: repository.owner,
-      repo: repository.repo,
+      octokit: access.octokit,
+      owner: access.auth.owner,
+      repo: access.auth.repo,
       name: parsed.data.name,
       value: parsed.data.value,
-      actorLogin: verified.identity.login,
+      actorLogin: access.actorLogin,
     });
     return NextResponse.json({ ok: true, secrets: result.secrets });
   }

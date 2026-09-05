@@ -23,7 +23,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import {
-  requireKodyAuth,
+  verifyRepoWriteAccess,
   getUserOctokit,
   getRequestAuth,
   verifyActorLogin,
@@ -44,7 +44,7 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ slug: string }> },
 ) {
-  const authError = await requireKodyAuth(req);
+  const authError = await verifyRepoWriteAccess(req);
   if (authError instanceof NextResponse) return authError;
 
   const { slug } = await params;

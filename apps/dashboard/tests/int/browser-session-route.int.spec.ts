@@ -50,7 +50,11 @@ const browserReadiness = vi.hoisted(() => ({
   ensure: vi.fn(async () => undefined),
 }));
 
-vi.mock("@kody-ade/base/auth", () => auth);
+vi.mock("@kody-ade/base/auth", () => ({
+  ...auth,
+  verifyRepoReadAccess: auth.requireKodyAuth,
+  verifyRepoWriteAccess: auth.requireKodyAuth,
+}));
 vi.mock("@kody-ade/fly/infrastructure/server-context", () => context);
 vi.mock("@kody-ade/fly/infrastructure/browser", () => ({
   getBrowserProvider: () => provider,

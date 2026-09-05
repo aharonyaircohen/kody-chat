@@ -17,7 +17,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import {
-  requireKodyAuth,
+  verifyRepoReadAccess,
+  verifyRepoWriteAccess,
   verifyActorLogin,
   getRequestAuth,
 } from "@kody-ade/base/auth";
@@ -70,7 +71,7 @@ const bodySchema = z
 
 /** GET — full capability trust stats + recent log for the /trust page. */
 export async function GET(req: NextRequest) {
-  const authResult = await requireKodyAuth(req);
+  const authResult = await verifyRepoReadAccess(req);
   if (authResult instanceof NextResponse) return authResult;
 
   const headerAuth = getRequestAuth(req);
@@ -98,7 +99,7 @@ export async function GET(req: NextRequest) {
 
 /** POST — apply one trust override (reset / graduate / degrade) to a capability. */
 export async function POST(req: NextRequest) {
-  const authResult = await requireKodyAuth(req);
+  const authResult = await verifyRepoWriteAccess(req);
   if (authResult instanceof NextResponse) return authResult;
 
   const headerAuth = getRequestAuth(req);

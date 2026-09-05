@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   getRequestAuth,
   getUserOctokit,
-  requireKodyAuth,
+  verifyRepoWriteAccess,
 } from "@kody-ade/base/auth";
 import { createLoopDefinition } from "@kody-ade/agency-domain";
 import {
@@ -10,7 +10,10 @@ import {
   readRepositoryLoop,
   saveRepositoryLoop,
 } from "@dashboard/lib/repository-loops";
-import { syncLoopWakeRegistration } from "@dashboard/features/agency/server/loop-wake-registration";
+import {
+  syncLoopWakeRegistration,
+  LoopWakeSyncError,
+} from "@dashboard/features/agency/server/loop-wake-registration";
 import {
   readCompanyStoreWorkflowDefinitionFile,
   readWorkflowDefinitionFile,
@@ -33,7 +36,7 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const authError = await requireKodyAuth(req);
+  const authError = await verifyRepoWriteAccess(req);
   if (authError instanceof NextResponse) return authError;
   const { id } = await params;
   const resolved = context(req, id);
@@ -102,10 +105,13 @@ export async function PATCH(
   } catch (error) {
     return NextResponse.json(
       {
-        error: "invalid_loop",
+        error:
+          error instanceof LoopWakeSyncError
+            ? "loop_schedule_sync_failed"
+            : "invalid_loop",
         message: error instanceof Error ? error.message : "Invalid Loop",
       },
-      { status: 400 },
+      { status: error instanceof LoopWakeSyncError ? 503 : 400 },
     );
   }
 }
@@ -114,7 +120,7 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const authError = await requireKodyAuth(req);
+  const authError = await verifyRepoWriteAccess(req);
   if (authError instanceof NextResponse) return authError;
   const { id } = await params;
   const resolved = context(req, id);
@@ -132,10 +138,18 @@ export async function DELETE(
     id,
     `chore(kody): remove loop ${id}`,
   );
-  await syncLoopWakeRegistration({
-    owner: resolved.owner,
-    repo: resolved.repo,
-    loopId: id,
-  });
+  try {
+    await syncLoopWakeRegistration({
+      owner: resolved.owner,
+      repo: resolved.repo,
+      loopId: id,
+    });
+  } catch (error) {
+    if (!(error instanceof LoopWakeSyncError)) throw error;
+    return NextResponse.json(
+      { error: "loop_schedule_sync_failed", message: error.message },
+      { status: 503 },
+    );
+  }
   return NextResponse.json({ success: true });
 }

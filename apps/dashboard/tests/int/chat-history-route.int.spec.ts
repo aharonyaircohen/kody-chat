@@ -20,7 +20,11 @@ const convex = vi.hoisted(() => ({
   query: vi.fn(),
 }));
 
-vi.mock("@kody-ade/base/auth", () => auth);
+vi.mock("@kody-ade/base/auth", () => ({
+  ...auth,
+  verifyRepoReadAccess: auth.requireKodyAuth,
+  verifyRepoWriteAccess: auth.requireKodyAuth,
+}));
 vi.mock("@dashboard/lib/backend/convex-backend", () => ({
   getConvexClient: () => convex,
   backendApi: { conversations: { get: "conversations.get" } },

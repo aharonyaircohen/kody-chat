@@ -53,6 +53,7 @@ const convex = vi.hoisted(() => {
 });
 
 vi.mock("@kody-ade/base/auth", () => ({
+  verifyRepoWriteAccess: auth.requireKodyAuth,
   requireKodyAuth: auth.requireKodyAuth,
   verifyRepoReadAccess: auth.verifyRepoReadAccess,
   getRequestAuth: auth.getRequestAuth,
@@ -234,7 +235,6 @@ describe("GET /api/kody/company/backend/export", () => {
     expect(res.status).toBe(401);
     expect(convex.query).not.toHaveBeenCalled();
   });
-
 });
 
 describe("POST /api/kody/company/backend/import", () => {

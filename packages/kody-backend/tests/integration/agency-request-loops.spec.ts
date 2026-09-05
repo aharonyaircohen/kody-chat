@@ -152,3 +152,90 @@ describe("agency request runtime Loops", () => {
     ).resolves.toEqual([]);
   });
 });
+
+describe("task-owned wake lifecycle", () => {
+  const kind = "todo:build-healthy-ci";
+  const loopId = "agency-request-build-healthy-ci";
+  it("keeps task schedules when an Engine snapshot omits a running task", async () => {
+    const t = setup();
+    await t.mutation(api.repoDocs.save, {
+      tenantId: TENANT,
+      kind,
+      doc: todo("monitoring", [{ kind: "loop", id: loopId }]),
+      updatedAt: NOW,
+    });
+    await t.mutation(api.loopWakes.replaceRegistrations, {
+      tenantId: TENANT,
+      loops: [],
+      updatedAt: "2026-08-14T01:00:00.000Z",
+    });
+    const rows = await t.run((ctx) =>
+      ctx.db.query("loopWakeRegistrations").collect(),
+    );
+    expect(rows.map((row) => row.loopId)).toEqual([loopId]);
+    expect(rows[0]?.nextDueAt).toBe("2026-08-14T00:15:00.000Z");
+  });
+  it("does not let a snapshot override the task-owned schedule", async () => {
+    const t = setup();
+    await t.mutation(api.repoDocs.save, {
+      tenantId: TENANT,
+      kind,
+      doc: todo("monitoring", [{ kind: "loop", id: loopId }]),
+      updatedAt: NOW,
+    });
+    await t.mutation(api.loopWakes.replaceRegistrations, {
+      tenantId: TENANT,
+      loops: [
+        {
+          id: loopId,
+          enabled: true,
+          trigger: { type: "schedule", every: "1d" },
+        },
+      ],
+      updatedAt: NOW,
+    });
+    const rows = await t.run((ctx) =>
+      ctx.db.query("loopWakeRegistrations").collect(),
+    );
+    expect(rows[0]?.trigger).toEqual({ type: "schedule", every: "15m" });
+  });
+  it("synchronizes atomic saves and removals of task documents", async () => {
+    const t = setup();
+    const doc = todo("monitoring", [{ kind: "loop", id: loopId }]);
+    await t.mutation(api.repoDocs.saveAndRemove, {
+      tenantId: TENANT,
+      saveKind: kind,
+      doc,
+      updatedAt: NOW,
+      removeKind: "old-draft",
+    });
+    expect(
+      await t.run((ctx) => ctx.db.query("loopWakeRegistrations").collect()),
+    ).toHaveLength(1);
+    await t.mutation(api.repoDocs.removeAndMaybeSave, {
+      tenantId: TENANT,
+      removeKind: kind,
+    });
+    expect(
+      await t.run((ctx) => ctx.db.query("loopWakeRegistrations").collect()),
+    ).toHaveLength(0);
+    await t.mutation(api.repoDocs.removeAndMaybeSave, {
+      tenantId: TENANT,
+      removeKind: "draft",
+      save: { kind, doc, updatedAt: NOW },
+    });
+    expect(
+      await t.run((ctx) => ctx.db.query("loopWakeRegistrations").collect()),
+    ).toHaveLength(1);
+    await t.mutation(api.repoDocs.saveAndRemove, {
+      tenantId: TENANT,
+      saveKind: "archive",
+      doc,
+      updatedAt: NOW,
+      removeKind: kind,
+    });
+    expect(
+      await t.run((ctx) => ctx.db.query("loopWakeRegistrations").collect()),
+    ).toHaveLength(0);
+  });
+});

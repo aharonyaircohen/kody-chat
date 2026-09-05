@@ -10,7 +10,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import {
-  requireKodyAuth,
+  verifyRepoReadAccess,
+  verifyRepoWriteAccess,
   verifyActorLogin,
   getUserOctokit,
   getRequestAuth,
@@ -31,7 +32,7 @@ export const revalidate = 0;
 const NO_STORE_HEADERS = { "Cache-Control": "no-store, max-age=0" };
 
 export async function GET(req: NextRequest) {
-  const authResult = await requireKodyAuth(req);
+  const authResult = await verifyRepoReadAccess(req);
   if (authResult instanceof NextResponse) return authResult;
 
   const headerAuth = getRequestAuth(req);
@@ -92,7 +93,7 @@ const createCommandSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  const authResult = await requireKodyAuth(req);
+  const authResult = await verifyRepoWriteAccess(req);
   if (authResult instanceof NextResponse) return authResult;
 
   const headerAuth = getRequestAuth(req);

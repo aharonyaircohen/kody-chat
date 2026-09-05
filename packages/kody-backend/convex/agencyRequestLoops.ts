@@ -9,6 +9,43 @@ import { serviceQuery as query } from "./lib/auth";
 const TODO_PREFIX = "todo:";
 const LOOP_PREFIX = "agency-request-";
 
+/** The Todo document, not a scheduler snapshot, owns its monitoring intent. */
+export function taskLoopRegistration(kind: string, doc: unknown) {
+  if (!kind.startsWith(TODO_PREFIX)) return null;
+  const loopId = `${LOOP_PREFIX}${kind.slice(TODO_PREFIX.length)}`;
+  let enabled = false;
+  if (doc && typeof doc === "object" && !Array.isArray(doc)) {
+    const value = (doc as Record<string, unknown>).agencyRequest;
+    if (value) {
+      try {
+        const request = createAgencyRequestState(value);
+        enabled =
+          request.execution !== undefined &&
+          ["running", "monitoring", "blocked"].includes(request.phase) &&
+          request.related.some(
+            (ref) => ref.kind === "loop" && ref.id === loopId,
+          );
+      } catch {
+        enabled = false;
+      }
+    }
+  }
+  return {
+    loopId,
+    enabled,
+    ...(enabled
+      ? { trigger: { type: "schedule" as const, every: "15m" } }
+      : {}),
+  };
+}
+
+/** An id prefix only locates the candidate; an actual Todo establishes ownership. */
+export function taskKindForLoop(loopId: string): string | null {
+  return loopId.startsWith(LOOP_PREFIX)
+    ? `${TODO_PREFIX}${loopId.slice(LOOP_PREFIX.length)}`
+    : null;
+}
+
 export const list = query({
   args: { tenantId: v.string() },
   handler: async (ctx, { tenantId }) => {

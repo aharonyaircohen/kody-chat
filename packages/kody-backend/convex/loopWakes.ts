@@ -9,6 +9,7 @@ import {
   type MutationCtx,
 } from "./_generated/server";
 import { serviceMutation as mutation } from "./lib/auth";
+import { taskKindForLoop, taskLoopRegistration } from "./agencyRequestLoops";
 
 const DISPATCH_BATCH_SIZE = 25;
 const MAX_ATTEMPTS = 3;
@@ -50,7 +51,17 @@ export async function syncLoopRegistration(
     if (!args.trigger || args.trigger.type !== "schedule") {
       throw new Error("Scheduled Loop trigger is required");
     }
-    const nextDueAt = nextLoopRunAt(args.trigger, new Date(args.updatedAt));
+    const storedTrigger = existing?.trigger as
+      Extract<Trigger, { type: "schedule" }> | undefined;
+    const unchanged =
+      storedTrigger?.type === "schedule" &&
+      storedTrigger.every === args.trigger.every &&
+      storedTrigger.at?.time === args.trigger.at?.time &&
+      storedTrigger.at?.timezone === args.trigger.at?.timezone;
+    const nextDueAt =
+      unchanged && existing?.nextDueAt
+        ? existing.nextDueAt
+        : nextLoopRunAt(args.trigger, new Date(args.updatedAt));
     if (existing) {
       await ctx.db.patch(existing._id, {
         trigger: args.trigger,
@@ -87,6 +98,24 @@ export const syncRegistration = mutation({
   handler: syncLoopRegistration,
 });
 
+async function syncOwnedTaskRegistration(
+  ctx: MutationCtx,
+  tenantId: string,
+  loopId: string,
+  updatedAt: string,
+): Promise<boolean> {
+  const kind = taskKindForLoop(loopId);
+  if (!kind) return false;
+  const task = await ctx.db
+    .query("repoDocs")
+    .withIndex("by_kind", (q) => q.eq("tenantId", tenantId).eq("kind", kind))
+    .unique();
+  if (!task) return false;
+  const registration = taskLoopRegistration(kind, task.doc)!;
+  await syncLoopRegistration(ctx, { tenantId, ...registration, updatedAt });
+  return true;
+}
+
 export const replaceRegistrations = mutation({
   args: {
     tenantId: v.string(),
@@ -110,6 +139,17 @@ export const replaceRegistrations = mutation({
       .withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
       .collect();
     for (const registration of existing) {
+      if (
+        await syncOwnedTaskRegistration(
+          ctx,
+          args.tenantId,
+          registration.loopId,
+          args.updatedAt,
+        )
+      ) {
+        desired.delete(registration.loopId);
+        continue;
+      }
       const trigger = desired.get(registration.loopId);
       if (trigger) {
         desired.delete(registration.loopId);
@@ -130,6 +170,15 @@ export const replaceRegistrations = mutation({
       }
     }
     for (const [loopId, trigger] of desired) {
+      if (
+        await syncOwnedTaskRegistration(
+          ctx,
+          args.tenantId,
+          loopId,
+          args.updatedAt,
+        )
+      )
+        continue;
       await syncLoopRegistration(ctx, {
         tenantId: args.tenantId,
         loopId,

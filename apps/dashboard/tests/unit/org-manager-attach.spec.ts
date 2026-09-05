@@ -9,17 +9,14 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { repositoryAuthAfterAdd } from "@dashboard/lib/auth-context";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const ORG_MANAGER_SOURCE = readFileSync(
-  resolve(__dirname, "../../src/dashboard/features/admin/components/OrgManager.tsx"),
-  "utf8",
-);
-const AUTH_CONTEXT_SOURCE = readFileSync(
   resolve(
     __dirname,
-    "../../../../packages/kody-chat-dashboard/src/dashboard/lib/auth-context.tsx",
+    "../../src/dashboard/features/admin/components/OrgManager.tsx",
   ),
   "utf8",
 );
@@ -43,8 +40,36 @@ describe("OrgManager attach repository", () => {
     );
   });
 
-  it("guards auth-context against malformed repo entries", () => {
-    expect(AUTH_CONTEXT_SOURCE).toMatch(/Skipping malformed repository entry/);
-    expect(AUTH_CONTEXT_SOURCE).toMatch(/entry\.owner\?\.trim\(\) \?\? ""/);
-  });
+  it.each([undefined, null, 42, ""])(
+    "rejects an invalid repository owner (%s) without crashing",
+    (owner) => {
+      const entry = { owner, repo: "widgets", token: "test", repoUrl: "" };
+      expect(
+        repositoryAuthAfterAdd(
+          null,
+          entry as Parameters<typeof repositoryAuthAfterAdd>[1],
+          { login: "alice", avatar_url: "", id: 1 },
+        ),
+      ).toBeNull();
+    },
+  );
+  it.each(["repo", "token"] as const)(
+    "rejects a missing %s without crashing",
+    (field) => {
+      const entry = {
+        owner: "acme",
+        repo: "widgets",
+        token: "test",
+        repoUrl: "",
+      };
+      delete (entry as Partial<typeof entry>)[field];
+      expect(
+        repositoryAuthAfterAdd(null, entry, {
+          login: "alice",
+          avatar_url: "",
+          id: 1,
+        }),
+      ).toBeNull();
+    },
+  );
 });

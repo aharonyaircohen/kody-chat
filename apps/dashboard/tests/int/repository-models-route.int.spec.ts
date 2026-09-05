@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 const mocks = vi.hoisted(() => ({
   requireKodyAuth: vi.fn(),
@@ -11,7 +11,8 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@kody-ade/base/auth", () => ({
-  requireKodyAuth: mocks.requireKodyAuth,
+  verifyRepoReadAccess: mocks.requireKodyAuth,
+  verifyRepoWriteAccess: mocks.requireKodyAuth,
   getRequestAuth: mocks.getRequestAuth,
   getUserOctokit: mocks.getUserOctokit,
 }));
@@ -43,7 +44,9 @@ const MODEL = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.requireKodyAuth.mockResolvedValue(null);
+  mocks.requireKodyAuth.mockResolvedValue({
+    auth: { owner: "acme", repo: "website" },
+  });
   mocks.getRequestAuth.mockReturnValue({ owner: "acme", repo: "website" });
   mocks.getRepository.mockResolvedValue({ data: { id: 1 } });
   mocks.getUserOctokit.mockResolvedValue({
@@ -67,7 +70,7 @@ describe("repository chat models API", () => {
     await expect(response.json()).resolves.toMatchObject({ models: [MODEL] });
   });
 
-  it("lets an authenticated repository user save the shared list", async () => {
+  it("lets a verified repository writer save the shared list", async () => {
     const response = await PUT(
       new NextRequest("http://localhost/api/kody/repository-models", {
         method: "PUT",
@@ -89,13 +92,18 @@ describe("repository chat models API", () => {
   });
 
   it("rejects a selected repository the user cannot access", async () => {
-    mocks.getRepository.mockRejectedValueOnce(new Error("not found"));
+    mocks.requireKodyAuth.mockResolvedValueOnce(
+      NextResponse.json(
+        { error: "repository_not_found_or_inaccessible" },
+        { status: 404 },
+      ),
+    );
 
     const response = await GET(
       new NextRequest("http://localhost/api/kody/repository-models"),
     );
 
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(404);
     expect(mocks.query).not.toHaveBeenCalled();
   });
 });

@@ -11,7 +11,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import {
-  requireKodyAuth,
+  verifyRepoReadAccess,
+  verifyRepoWriteAccess,
   verifyActorLogin,
   getUserOctokit,
   getRequestAuth,
@@ -35,7 +36,7 @@ const NO_STORE_HEADERS = { "Cache-Control": "no-store, max-age=0" };
 const AGENT_TOKEN_RE = /^(\*|[a-z0-9][a-z0-9_-]{0,63})$/;
 
 export async function GET(req: NextRequest) {
-  const authResult = await requireKodyAuth(req);
+  const authResult = await verifyRepoReadAccess(req);
   if (authResult instanceof NextResponse) return authResult;
 
   const headerAuth = getRequestAuth(req);
@@ -84,7 +85,7 @@ const createContextSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  const authResult = await requireKodyAuth(req);
+  const authResult = await verifyRepoWriteAccess(req);
   if (authResult instanceof NextResponse) return authResult;
 
   const headerAuth = getRequestAuth(req);

@@ -2,9 +2,16 @@ import "server-only";
 
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { getRequestAuth } from "@kody-ade/base/auth";
+import {
+  getRequestAuth,
+  verifyRepoReadAccess,
+  verifyRepoWriteAccess,
+} from "@kody-ade/base/auth";
 import { userTenantIdFor } from "@dashboard/lib/backend/convex-backend";
-import { repositoryScopeFor, personalScopeFor } from "@dashboard/lib/kody-scope";
+import {
+  repositoryScopeFor,
+  personalScopeFor,
+} from "@dashboard/lib/kody-scope";
 import { requireKodyUser } from "./kody-user";
 
 export async function resolveKodyRequestScope(req: NextRequest) {
@@ -23,15 +30,16 @@ export async function resolveKodyRequestScope(req: NextRequest) {
     } as const;
   }
 
+  const access =
+    req.method === "GET" || req.method === "HEAD"
+      ? await verifyRepoReadAccess(req)
+      : await verifyRepoWriteAccess(req);
+  if (access instanceof NextResponse) return access;
   return {
     user,
-    scope: repositoryScopeFor(
-      user.id,
-      repository.owner,
-      repository.repo,
-    ),
-    tenantId: `${repository.owner}/${repository.repo}`,
+    scope: repositoryScopeFor(user.id, access.auth.owner, access.auth.repo),
+    tenantId: `${access.auth.owner}/${access.auth.repo}`,
     personalTenantId,
-    repository,
+    repository: access.auth,
   } as const;
 }

@@ -606,3 +606,53 @@ describe("pipeline runs", () => {
     });
   });
 });
+
+it("promotes queued work after a final-step approval decision exactly once", async () => {
+  const t = setup();
+  const common = {
+    tenantId: TENANT,
+    pipelineId: "pipeline",
+    concurrencyKey: "main",
+    steps: [
+      {
+        id: "final",
+        workflowId: "work",
+        decisionFact: "decision",
+        status: "pending" as const,
+      },
+    ],
+    now: NOW,
+  };
+  await t.mutation(api.pipelineRuns.reserve, { ...common, runId: "active" });
+  await t.mutation(api.pipelineRuns.markDispatched, {
+    tenantId: TENANT,
+    pipelineId: "pipeline",
+    runId: "active",
+    stepIndex: 0,
+    workflowRunId: "work-run",
+    now: NOW,
+  });
+  await t.mutation(api.pipelineRuns.reserve, { ...common, runId: "waiting" });
+  const args = {
+    tenantId: TENANT,
+    workflowRunId: "work-run",
+    status: "success" as const,
+    output: { decision: "approval" },
+    now: NOW,
+  };
+  expect(await t.mutation(api.pipelineRuns.advance, args)).toMatchObject({
+    kind: "start",
+    runId: "waiting",
+    stepIndex: 0,
+  });
+  expect(
+    (
+      await t.query(api.pipelineRuns.get, {
+        tenantId: TENANT,
+        pipelineId: "pipeline",
+        runId: "waiting",
+      })
+    )?.status,
+  ).toBe("running");
+  expect(await t.mutation(api.pipelineRuns.advance, args)).toBeNull();
+});

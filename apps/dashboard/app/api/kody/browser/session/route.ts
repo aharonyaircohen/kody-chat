@@ -11,7 +11,11 @@ import { createHash, randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import { requireKodyAuth, verifyActorLogin } from "@kody-ade/base/auth";
+import {
+  verifyRepoReadAccess,
+  verifyRepoWriteAccess,
+  verifyActorLogin,
+} from "@kody-ade/base/auth";
 import { api as backendApi } from "@kody-ade/backend/api";
 import { createBackendClient } from "@kody-ade/backend/client";
 import { logger } from "@kody-ade/base/logger";
@@ -241,8 +245,8 @@ async function requestAuthority(req: NextRequest, actorLogin?: string) {
 }
 
 export async function GET(req: NextRequest) {
-  const authError = await requireKodyAuth(req);
-  if (authError) return authError;
+  const authError = await verifyRepoReadAccess(req);
+  if (authError instanceof NextResponse) return authError;
   const authority = await requestAuthority(
     req,
     req.nextUrl.searchParams.get("actorLogin") ?? undefined,
@@ -277,8 +281,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const authError = await requireKodyAuth(req);
-  if (authError) return authError;
+  const authError = await verifyRepoWriteAccess(req);
+  if (authError instanceof NextResponse) return authError;
   let body: unknown;
   try {
     body = await req.json();

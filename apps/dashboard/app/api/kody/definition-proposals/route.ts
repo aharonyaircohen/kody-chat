@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getRequestAuth, requireKodyAuth } from "@kody-ade/base/auth";
+import { getRequestAuth, verifyRepoReadAccess } from "@kody-ade/base/auth";
 import { api } from "@kody-ade/backend/api";
 import { createBackendClient } from "@kody-ade/backend/client";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
-  const authError = await requireKodyAuth(req);
+  const authError = await verifyRepoReadAccess(req);
   if (authError instanceof NextResponse) return authError;
   const auth = getRequestAuth(req);
   if (!auth)

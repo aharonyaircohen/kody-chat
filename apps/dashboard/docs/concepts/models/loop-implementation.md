@@ -12,6 +12,20 @@ Status: **Repository and Todo-derived Loops execute through the Engine scheduler
   repository
 
 The Dashboard can list, create, update, and delete the simple Loop definition.
+Listing is read-only. Definition writes synchronize that Loop's Convex wake
+registration; Todo saves synchronize their own monitoring registration in the
+same transaction. Unchanged schedules retain their current deadline, including
+an overdue deadline.
+
+A definition write can succeed while wake synchronization fails. The API reports
+that partial outcome with `loop_schedule_sync_failed` and allows retrying the same
+change. An identical create retry synchronizes the schedule without committing
+the definition again. Recover existing missing registrations explicitly after
+deployment; opening the page does not repair schedules.
+
+The Engine's bulk registration API remains compatible with its published client.
+It preserves registrations owned by existing Todos and derives their schedule
+from the Todo, even when a repository snapshot omits them.
 
 ## Engine
 

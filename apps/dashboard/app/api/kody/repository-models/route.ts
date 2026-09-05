@@ -6,9 +6,8 @@ import {
 } from "@kody-ade/base/variables/models";
 import { ModelsWriteSchema } from "@kody-ade/base/variables/mutations";
 import {
-  getRequestAuth,
-  getUserOctokit,
-  requireKodyAuth,
+  verifyRepoReadAccess,
+  verifyRepoWriteAccess,
 } from "@kody-ade/base/auth";
 import { logger } from "@kody-ade/base/logger";
 import {
@@ -43,31 +42,12 @@ async function repositoryContext(
 ): Promise<
   { auth: { owner: string; repo: string } } | { error: NextResponse }
 > {
-  const authError = await requireKodyAuth(req);
-  if (authError) return { error: authError as NextResponse } as const;
-  const auth = getRequestAuth(req);
-  if (!auth) {
-    return {
-      error: NextResponse.json({ error: "no_repo_context" }, { status: 400 }),
-    } as const;
-  }
-  const octokit = await getUserOctokit(req);
-  if (!octokit) {
-    return {
-      error: NextResponse.json({ error: "no_octokit" }, { status: 401 }),
-    } as const;
-  }
-  try {
-    await octokit.rest.repos.get({ owner: auth.owner, repo: auth.repo });
-  } catch {
-    return {
-      error: NextResponse.json(
-        { error: "repository_access_required" },
-        { status: 403 },
-      ),
-    } as const;
-  }
-  return { auth } as const;
+  const access =
+    req.method === "GET"
+      ? await verifyRepoReadAccess(req)
+      : await verifyRepoWriteAccess(req);
+  if (access instanceof NextResponse) return { error: access };
+  return { auth: access.auth };
 }
 
 export async function GET(req: NextRequest): Promise<NextResponse> {

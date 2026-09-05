@@ -112,28 +112,43 @@ test.describe("Master live user journeys", () => {
   }) => {
     test.setTimeout(180_000);
     const { owner, repo } = parseRepo(TEST_REPO);
-    await page.goto(`${BASE_URL}/tasks`, { waitUntil: "domcontentloaded" });
-    await page.evaluate(() => localStorage.clear());
-    await page.reload({ waitUntil: "domcontentloaded" });
-
-    await expect(
-      page.getByRole("heading", { name: /connect a repository/i }),
-    ).toBeVisible();
+    page.setDefaultTimeout(30_000);
+    await page.goto(`${BASE_URL}/chat`, { waitUntil: "domcontentloaded" });
+    await page.getByTitle("Switch repository", { exact: true }).click();
+    const addButton = page.getByRole("button", {
+      name: "Add repository",
+      exact: true,
+    });
+    if (await addButton.isVisible()) await addButton.click();
     await page.getByLabel(/^repository$/i).fill(TEST_REPO);
     await page.getByLabel(/personal access token/i).fill(TEST_TOKEN);
-    await page.getByRole("button", { name: /connect repository/i }).click();
-
-    await expect(page).toHaveURL(new RegExp(`/repo/${owner}/${repo}(?:/|$)`), {
-      timeout: 120_000,
+    const validated = page.waitForResponse(
+      (response) =>
+        response.url().endsWith("/api/kody/repos/add") &&
+        response.request().method() === "POST",
+    );
+    await page
+      .getByRole("button", { name: /^(connect|add) repository$/i })
+      .click();
+    expect((await validated).status()).toBe(200);
+    await expect
+      .poll(async () => {
+        const response = await page.request.get(
+          `${BASE_URL}/api/kody/account/repositories`,
+        );
+        if (!response.ok()) return false;
+        const body = await response.json();
+        return (
+          body.auth?.repos?.some(
+            (entry: { owner: string; repo: string }) =>
+              entry.owner === owner && entry.repo === repo,
+          ) ?? false
+        );
+      })
+      .toBe(true);
+    await page.goto(`${BASE_URL}/repo/${owner}/${repo}/chat`, {
+      waitUntil: "domcontentloaded",
     });
-    expect(
-      await page.evaluate(() => {
-        const raw = localStorage.getItem("kody_auth");
-        if (!raw) return null;
-        const auth = JSON.parse(raw) as { owner?: string; repo?: string };
-        return { owner: auth.owner, repo: auth.repo };
-      }),
-    ).toEqual({ owner, repo });
 
     await page.reload({ waitUntil: "domcontentloaded" });
     await expect(page.getByRole("button", { name: repo })).toBeVisible({

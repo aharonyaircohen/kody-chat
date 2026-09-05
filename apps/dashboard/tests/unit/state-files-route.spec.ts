@@ -15,7 +15,11 @@ const refs = vi.hoisted(() => ({
   repoDocGet: Symbol("repoDocs:get"),
 }));
 
-vi.mock("@kody-ade/base/auth", () => auth);
+vi.mock("@kody-ade/base/auth", () => ({
+  ...auth,
+  verifyRepoReadAccess: auth.requireKodyAuth,
+  verifyRepoWriteAccess: auth.requireKodyAuth,
+}));
 vi.mock("@kody-ade/backend/api", () => ({
   api: {
     workflowRuns: { get: refs.workflowGet },

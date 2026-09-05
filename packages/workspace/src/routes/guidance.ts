@@ -3,7 +3,8 @@ import { z } from "zod";
 import {
   getRequestAuth,
   getUserOctokit,
-  requireKodyAuth,
+  verifyRepoReadAccess,
+  verifyRepoWriteAccess,
   verifyActorLogin,
 } from "@kody-ade/base/auth";
 import { normalizeSlug } from "@kody-ade/base/slug";
@@ -92,7 +93,7 @@ function failure(
 export function createGuidanceCollectionHandlers(kind: GuidanceKind) {
   return {
     async GET(req: NextRequest) {
-      const auth = await requireKodyAuth(req);
+      const auth = await verifyRepoReadAccess(req);
       if (auth instanceof NextResponse) return auth;
       setRequestContext(req);
       try {
@@ -107,7 +108,7 @@ export function createGuidanceCollectionHandlers(kind: GuidanceKind) {
       }
     },
     async POST(req: NextRequest) {
-      const auth = await requireKodyAuth(req);
+      const auth = await verifyRepoWriteAccess(req);
       if (auth instanceof NextResponse) return auth;
       setRequestContext(req);
       try {
@@ -148,7 +149,7 @@ export function createGuidanceDetailHandlers(kind: GuidanceKind) {
       req: NextRequest,
       context: { params: Promise<{ slug: string }> },
     ) {
-      const auth = await requireKodyAuth(req);
+      const auth = await verifyRepoReadAccess(req);
       if (auth instanceof NextResponse) return auth;
       setRequestContext(req);
       try {
@@ -170,7 +171,7 @@ export function createGuidanceDetailHandlers(kind: GuidanceKind) {
       req: NextRequest,
       context: { params: Promise<{ slug: string }> },
     ) {
-      const auth = await requireKodyAuth(req);
+      const auth = await verifyRepoWriteAccess(req);
       if (auth instanceof NextResponse) return auth;
       setRequestContext(req);
       try {
@@ -200,7 +201,7 @@ export function createGuidanceDetailHandlers(kind: GuidanceKind) {
       req: NextRequest,
       context: { params: Promise<{ slug: string }> },
     ) {
-      const auth = await requireKodyAuth(req);
+      const auth = await verifyRepoWriteAccess(req);
       if (auth instanceof NextResponse) return auth;
       setRequestContext(req);
       try {

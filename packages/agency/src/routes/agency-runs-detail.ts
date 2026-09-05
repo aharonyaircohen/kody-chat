@@ -9,16 +9,13 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   getRequestAuth,
   getUserOctokit,
-  requireKodyAuth,
+  verifyRepoReadAccess,
 } from "@kody-ade/base/auth";
 import { readAgencyRunDetail } from "../agency-runs";
-import {
-  clearGitHubContext,
-  setGitHubContext,
-} from "../github";
+import { clearGitHubContext, setGitHubContext } from "../github";
 
 export async function GET(req: NextRequest) {
-  const authError = await requireKodyAuth(req);
+  const authError = await verifyRepoReadAccess(req);
   if (authError instanceof NextResponse) return authError;
 
   const headerAuth = getRequestAuth(req);

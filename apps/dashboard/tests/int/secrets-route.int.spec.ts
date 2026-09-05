@@ -21,10 +21,15 @@ vi.mock("@kody-ade/base/auth", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@kody-ade/base/auth")>();
   return {
     ...actual,
-    requireKodyAuth: vi.fn(async () => null),
-    getUserOctokit: vi.fn(async () => ({})),
-    verifyActorLogin: vi.fn(async () => ({
-      identity: { login: "alice", githubId: 1, avatar_url: "" },
+    verifyRepoReadAccess: vi.fn(async () => ({
+      auth: { owner: "acme", repo: "app" },
+      octokit: {},
+      actorLogin: "alice",
+    })),
+    verifyRepoWriteAccess: vi.fn(async () => ({
+      auth: { owner: "acme", repo: "app" },
+      octokit: {},
+      actorLogin: "alice",
     })),
   };
 });

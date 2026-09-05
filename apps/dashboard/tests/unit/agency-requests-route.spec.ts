@@ -43,11 +43,16 @@ vi.mock("@kody-ade/workspace/github", () => github);
 
 const strategies = vi.hoisted(() => ({
   readStoreStrategy: vi.fn(async () => ({
-    blueprint: { id: "healthy-ci" },
+    blueprint: { id: "healthy-ci", version: 1 },
     instructions: "Build native CI",
   })),
 }));
 vi.mock("@dashboard/lib/store-strategies", () => strategies);
+
+const installations = vi.hoisted(() => ({
+  saveBlueprintInstallation: vi.fn(async () => undefined),
+}));
+vi.mock("@dashboard/lib/blueprint-installations", () => installations);
 
 import { POST } from "../../app/api/kody/agency-requests/route";
 
@@ -109,6 +114,14 @@ describe("agency request route", () => {
     const response = await POST(request(body));
 
     expect(response.status).toBe(201);
+    expect(installations.saveBlueprintInstallation).toHaveBeenCalledWith({
+      owner: "acme",
+      repo: "widgets",
+      blueprintId: "healthy-ci",
+      blueprintVersion: 1,
+      status: "installing",
+      requestId: validBody.source.effectId,
+    });
     const ports = manager.submitAgencyRequest.mock.calls[0]![1]!;
     await expect(ports.resolveBlueprint("healthy-ci")).resolves.toMatchObject({
       blueprint: { id: "healthy-ci" },

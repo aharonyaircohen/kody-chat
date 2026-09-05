@@ -375,7 +375,11 @@ export const advance = serviceMutation({
           activeWorkflowRunId: undefined,
           updatedAt: args.now,
         });
-        return { kind: "done" as const };
+        return (
+          (await promoteQueuedRun(ctx, run, args.now)) ?? {
+            kind: "done" as const,
+          }
+        );
       }
       await ctx.db.patch(run._id, {
         status: "waiting-approval",

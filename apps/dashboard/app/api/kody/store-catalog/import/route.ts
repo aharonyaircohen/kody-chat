@@ -12,7 +12,7 @@ import { z } from "zod";
 import {
   getRequestAuth,
   getUserOctokit,
-  requireKodyAuth,
+  verifyRepoWriteAccess,
   verifyActorLogin,
 } from "@kody-ade/base/auth";
 import {
@@ -929,8 +929,8 @@ function errorResponse(error: unknown) {
 }
 
 async function handle(req: NextRequest, remove: boolean) {
-  const authError = await requireKodyAuth(req);
-  if (authError) return authError;
+  const authError = await verifyRepoWriteAccess(req);
+  if (authError instanceof NextResponse) return authError;
   const auth = getRequestAuth(req);
   if (!auth) {
     return NextResponse.json({ error: "no_repo_context" }, { status: 400 });

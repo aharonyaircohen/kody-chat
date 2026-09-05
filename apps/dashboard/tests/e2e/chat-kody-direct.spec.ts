@@ -133,6 +133,12 @@ test.describe("Kody direct agent", () => {
           currentRepoIndex: -1,
         }),
       );
+      // The mounted host restores account-owned connections, so seed the
+      // account fixture as well as the legacy browser mirror.
+      localStorage.setItem(
+        "kody_e2e_account_auth",
+        localStorage.getItem("kody_auth")!,
+      );
     }, TEST_TOKEN);
 
     let requestHeaders: Record<string, string> = {};

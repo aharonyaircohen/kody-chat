@@ -14,7 +14,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { requireKodyAuth, getUserOctokit } from "@kody-ade/base/auth";
+import { verifyRepoWriteAccess, getUserOctokit } from "@kody-ade/base/auth";
 
 const bodySchema = z.object({
   /** `owner/repo`, `owner/repo/path/to/skill`, or a github.com URL. */
@@ -43,7 +43,7 @@ function parseSource(
 }
 
 export async function POST(req: NextRequest) {
-  const authResult = await requireKodyAuth(req);
+  const authResult = await verifyRepoWriteAccess(req);
   if (authResult instanceof NextResponse) return authResult;
 
   try {

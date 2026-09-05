@@ -409,6 +409,9 @@ describe("live UI gate manifest", () => {
 
   it("wires every implemented live journey into the gate", () => {
     expect(LIVE_UI_SPECS).toEqual([
+      "tests/e2e/loops-real-persistence.e2e.spec.ts",
+      "tests/e2e/repository-secrets-real.e2e.spec.ts",
+      "tests/e2e/activity-agents-real.e2e.spec.ts",
       "tests/e2e/memory-real.e2e.spec.ts",
       "tests/e2e/memory-llm-real.e2e.spec.ts",
       "tests/e2e/file-manager-real.e2e.spec.ts",
@@ -424,10 +427,10 @@ describe("live UI gate manifest", () => {
       "tests/e2e/master-journeys-real.e2e.spec.ts",
       "tests/e2e/views-real-browser-live.e2e.spec.ts",
     ]);
-    expect(EXPECTED_LIVE_UI_TESTS).toBe(25);
-    expect(LIVE_UI_JOURNEYS).toHaveLength(25);
+    expect(EXPECTED_LIVE_UI_TESTS).toBe(28);
+    expect(LIVE_UI_JOURNEYS).toHaveLength(28);
     expect(new Set(LIVE_UI_JOURNEYS.map((journey) => journey.id)).size).toBe(
-      25,
+      28,
     );
   });
 

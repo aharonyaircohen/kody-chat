@@ -57,6 +57,8 @@ describe("kody-chat company activation", () => {
       "claim-next-backlog-issue",
       "reproduce",
       "plan",
+      "comment-reviewed-issue-pull-request",
+      "comment-stopped-issue-resolution",
     ]);
     expect(config.company.activeWorkflows).toEqual([
       "ci-repair",
@@ -113,7 +115,10 @@ describe("kody-chat company activation", () => {
   it("runs Bug Flow once per hour without merge ownership", () => {
     const loop = JSON.parse(
       readFileSync(
-        resolve(repoRoot, ".kody-engine/definitions/loops/bug-resolution/loop.json"),
+        resolve(
+          repoRoot,
+          ".kody-engine/definitions/loops/bug-resolution/loop.json",
+        ),
         "utf8",
       ),
     );

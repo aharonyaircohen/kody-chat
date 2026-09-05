@@ -10,13 +10,10 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   getRequestAuth,
   getUserOctokit,
-  requireKodyAuth,
+  verifyRepoReadAccess,
 } from "@kody-ade/base/auth";
 import { listAgencyRuns } from "../agency-runs";
-import {
-  clearGitHubContext,
-  setGitHubContext,
-} from "../github";
+import { clearGitHubContext, setGitHubContext } from "../github";
 
 function parseLimit(req: NextRequest): number {
   const raw = Number(req.nextUrl.searchParams.get("limit") ?? 50);
@@ -25,7 +22,7 @@ function parseLimit(req: NextRequest): number {
 }
 
 export async function GET(req: NextRequest) {
-  const authError = await requireKodyAuth(req);
+  const authError = await verifyRepoReadAccess(req);
   if (authError instanceof NextResponse) return authError;
 
   const headerAuth = getRequestAuth(req);

@@ -43,7 +43,11 @@ const backend = vi.hoisted(() => ({
   mutation: vi.fn(),
 }));
 
-vi.mock("@kody-ade/base/auth", () => auth);
+vi.mock("@kody-ade/base/auth", () => ({
+  ...auth,
+  verifyRepoReadAccess: auth.requireKodyAuth,
+  verifyRepoWriteAccess: auth.requireKodyAuth,
+}));
 vi.mock("@dashboard/lib/github-client", () => githubClient);
 vi.mock("@dashboard/lib/activity/audit", () => audit);
 vi.mock("@dashboard/lib/cto/trust-store", () => ({

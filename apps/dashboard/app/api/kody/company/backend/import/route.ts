@@ -11,7 +11,7 @@ import { z } from "zod";
 import { ConvexHttpClient } from "convex/browser";
 import { api as backendApi } from "@kody-ade/backend/api";
 
-import { getRequestAuth, requireKodyAuth } from "@kody-ade/base/auth";
+import { getRequestAuth, verifyRepoWriteAccess } from "@kody-ade/base/auth";
 import { withEscapedKeys } from "@kody-ade/backend/client";
 import { REPO_SCOPED_TABLES } from "@kody-ade/backend/table-registry";
 
@@ -53,7 +53,7 @@ function chunk<T>(items: readonly T[], size: number): T[][] {
 }
 
 export async function POST(req: NextRequest) {
-  const authResult = await requireKodyAuth(req);
+  const authResult = await verifyRepoWriteAccess(req);
   if (authResult instanceof NextResponse) return authResult;
 
   const headerAuth = getRequestAuth(req);

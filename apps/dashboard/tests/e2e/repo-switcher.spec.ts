@@ -321,3 +321,56 @@ test("waits for account persistence before leaving the connect form", async ({
     page.getByRole("button", { name: "connected-repo", exact: true }),
   ).toBeVisible();
 });
+
+test("rejects a malformed validated repository without replacing account connections", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await mockAccountRepositories(page, authFor([repos[0]!]));
+  await page.route("**/api/kody/repos/add", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        repository: {
+          fullName: "incomplete-owner",
+          htmlUrl: "https://github.com/incomplete-owner",
+        },
+        user,
+        webhook: { ok: true },
+      }),
+    }),
+  );
+  await page.goto(`${BASE_URL}/repo/OrgOne/RepoOne/tasks`);
+  await page.getByRole("button", { name: "RepoOne", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Add repository", exact: true })
+    .click();
+  await page
+    .getByRole("textbox", { name: "Repository", exact: true })
+    .fill("acme/new-repo");
+  let saves = 0;
+  page.on("request", (request) => {
+    if (
+      request.url().endsWith("/api/kody/account/repositories") &&
+      request.method() !== "GET"
+    )
+      saves++;
+  });
+  await page
+    .getByRole("button", { name: "Add repository", exact: true })
+    .click();
+  await expect(
+    page.getByText(
+      "Repository was validated but could not be saved. Try again.",
+    ),
+  ).toBeVisible();
+  expect(saves).toBe(0);
+  expect(errors).toEqual([]);
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: "RepoOne", exact: true }),
+  ).toBeVisible();
+});
