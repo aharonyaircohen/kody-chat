@@ -55,8 +55,6 @@ vi.mock("@kody-ade/fly/infrastructure/server-context", () => context);
 vi.mock("@kody-ade/fly/infrastructure/browser", () => ({
   getBrowserProvider: () => provider,
   ensureBrowserSessionReady: browserReadiness.ensure,
-}));
-vi.mock("@kody-ade/fly/plugin/browsers", () => ({
   browserAppName: () => "kody-browser-acme-app",
   getBrowserMachineDiagnostic: machineDiagnostic.get,
 }));

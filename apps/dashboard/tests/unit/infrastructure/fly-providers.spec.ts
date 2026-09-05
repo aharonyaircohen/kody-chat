@@ -45,6 +45,7 @@ import {
   browserAppName,
   flyBrowserProvider,
 } from "@kody-ade/fly/plugin/browsers";
+import { browserAppName as publicBrowserAppName } from "@kody-ade/fly/infrastructure/browser";
 import { flyServerProvider } from "@kody-ade/fly/plugin/servers";
 import { createInfrastructureRegistry } from "@kody-ade/base/infrastructure/registry";
 import type { FlyContext } from "@kody-ade/fly/plugin/runners/context";
@@ -176,6 +177,18 @@ describe("fly infrastructure providers", () => {
       browserAppName({ owner: "acme", repo: "widgets", actorId: "octocat" }),
     ).not.toBe(
       browserAppName({ owner: "acme", repo: "other", actorId: "octocat" }),
+    );
+  });
+
+  it("exposes browser app naming through the public application facade", () => {
+    expect(
+      publicBrowserAppName({
+        owner: "acme",
+        repo: "widgets",
+        actorId: "octocat",
+      }),
+    ).toBe(
+      browserAppName({ owner: "acme", repo: "widgets", actorId: "octocat" }),
     );
   });
 
