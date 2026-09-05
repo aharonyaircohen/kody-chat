@@ -262,6 +262,15 @@ test("bookmarks, browser controls, picker, URL saving, and stream state stay ali
   await expect(page).toHaveURL(/\/preview\/example-com-docs-2-[a-z0-9]+$/);
   await expect(page.locator("[data-remote-browser-surface]")).toBeVisible();
 
+  // Verify and dismiss save feedback before using the toolbar beneath it.
+  // Hovering a toast pauses its timer, so clicking through it can wait forever.
+  const savedNotice = page.locator("[data-sonner-toast]").filter({
+    hasText: 'Saved "example.com docs 2"',
+  });
+  await expect(savedNotice).toBeVisible();
+  await savedNotice.getByRole("button", { name: "Close toast" }).click();
+  await expect(savedNotice).toBeHidden();
+
   await page.getByLabel("Refresh preview").click();
   await expect
     .poll(() => actions.some((action) => action.type === "reload"))

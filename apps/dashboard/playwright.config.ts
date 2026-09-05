@@ -6,6 +6,15 @@ import { config as loadDotenv } from "dotenv";
 // these via repo secrets and won't find a .env file — that's fine.
 loadDotenv({ path: ".env", override: false });
 
+const local = process.env.PW_LOCAL === "1";
+const production = process.env.PW_PRODUCTION === "1";
+const localBaseUrl = production
+  ? "http://127.0.0.1:3344"
+  : "http://127.0.0.1:3333";
+// Some journeys read BASE_URL directly. Keep them and Playwright on the same
+// target, even when .env contains a deployed URL.
+if (local) process.env.BASE_URL = localBaseUrl;
+
 /**
  * Playwright E2E test configuration.
  *
@@ -27,25 +36,24 @@ export default defineConfig({
   /* Reporter — GitHub Actions annotate failures inline */
   reporter: process.env.CI ? [["github"], ["html"]] : [["list"]],
 
-  /* PW_LOCAL=1 (test:e2e:local / test:gate scripts) starts the dev server and
-     targets it, overriding any deployed BASE_URL from .env. Without PW_LOCAL,
-     deployed-URL runs remain the backstop mode — no local server started. */
-  webServer: process.env.PW_LOCAL
+  /* Local checks own their target. Production checks start a separate server
+     and fail if its port is occupied. Deployed checks start no local server. */
+  webServer: local
     ? {
-        command:
-          process.env.PW_PRODUCTION === "1" ? "pnpm start" : "pnpm dev",
-        url: "http://127.0.0.1:3333",
-        reuseExistingServer: true,
+        command: production
+          ? "pnpm exec next start --hostname 127.0.0.1 --port 3344"
+          : "pnpm dev",
+        url: localBaseUrl,
+        reuseExistingServer: !production,
         timeout: 120_000,
       }
     : undefined,
 
   use: {
     /* Target URL — set via BASE_URL env var */
-    baseURL:
-      process.env.PW_LOCAL === "1"
-        ? "http://127.0.0.1:3333"
-        : (process.env.BASE_URL ?? "http://127.0.0.1:3333"),
+    baseURL: local
+      ? localBaseUrl
+      : (process.env.BASE_URL ?? "http://127.0.0.1:3333"),
 
     /* Capture trace on first retry for debugging */
     trace: "on-first-retry",

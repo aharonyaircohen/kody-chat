@@ -55,6 +55,12 @@ pnpm --filter kody-dashboard test:e2e:gate
 Use the canonical dashboard URL shape:
 `http://localhost:3333/repo/<owner>/<repo>/...`.
 
+The production browser gate uses its own loopback server on port `3344`,
+started from the fresh build. It never reuses an existing server: an occupied
+gate port must fail the run. Playwright's base URL and tests reading `BASE_URL`
+both point to that server. Development checks remain on `3333`; deployed
+checks without `PW_LOCAL=1` retain the supplied candidate `BASE_URL`.
+
 The canonical browser gate is necessary but not sufficient for critical
 user-facing work because several specs intentionally mock their APIs.
 
