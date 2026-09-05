@@ -37,7 +37,7 @@ class FakeSocket implements TerminalClientSocket {
   }
 }
 
-function setup() {
+function setup(schedule?: (callback: () => void, delayMs: number) => number) {
   const sockets: FakeSocket[] = [];
   const requests: Array<Record<string, unknown>> = [];
   const events: unknown[] = [];
@@ -67,10 +67,12 @@ function setup() {
       sockets.push(socket);
       return socket;
     },
-    schedule: (callback) => {
-      callback();
-      return 1;
-    },
+    schedule:
+      schedule ??
+      ((callback) => {
+        callback();
+        return 1;
+      }),
     cancelSchedule: () => {},
     onEvent: (event) => events.push(event),
     onState: (state) => states.push(state),
@@ -79,6 +81,68 @@ function setup() {
 }
 
 describe("TerminalSessionClient", () => {
+  it("retries a Fly tunnel timeout without requiring setup or losing session identity", async () => {
+    const pending: Array<() => void> = [];
+    const harness = setup((callback) => {
+      pending.push(callback);
+      return pending.length;
+    });
+    await harness.client.connect();
+    harness.sockets[0].message({
+      type: "input-rejected",
+      message:
+        'Error: tunnel unavailable: Error contacting Fly.io API when probing "personal": timed out (context deadline exceeded)',
+    });
+    expect(harness.client.getState()).toMatchObject({
+      connection: "connecting",
+      issue: null,
+    });
+    expect(pending).toHaveLength(1);
+    harness.sockets[0].drop();
+    expect(pending).toHaveLength(1);
+    pending.shift()!();
+    await Promise.resolve();
+    harness.sockets[1].message({
+      type: "state",
+      sessionId: "terminal-1",
+      generation: 1,
+      state: "ready",
+    });
+    expect(harness.client.getState()).toMatchObject({
+      connection: "connected",
+      issue: null,
+    });
+    expect(harness.requests[1]).toMatchObject({
+      chatSessionId: "conversation-1",
+    });
+    expect(harness.requests[1]).not.toHaveProperty("resetSession");
+  });
+
+  it("stops repeated Fly timeouts with a retry action rather than setup", async () => {
+    const pending: Array<() => void> = [];
+    const harness = setup((callback) => {
+      pending.push(callback);
+      return pending.length;
+    });
+    await harness.client.connect();
+    for (let attempt = 0; attempt < 5; attempt++) {
+      harness.sockets[attempt].message({
+        type: "input-rejected",
+        message: "tunnel unavailable: context deadline exceeded",
+      });
+      if (attempt < 4) {
+        pending.shift()!();
+        await Promise.resolve();
+      }
+    }
+    expect(pending).toHaveLength(0);
+    expect(harness.requests).toHaveLength(5);
+    expect(harness.client.getState()).toMatchObject({
+      connection: "error",
+      issue: { action: "retry" },
+    });
+  });
+
   it("clears the connected shell with a typed command, without injecting input or restarting", async () => {
     const harness = setup();
     expect(harness.client.clear()).toBe(false);

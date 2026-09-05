@@ -302,6 +302,14 @@ export class TerminalSessionClient {
         const message = parseMessage(data);
         if (!message || message.kind === "pong") return;
         if (message.kind === "rejected") {
+          if (
+            /tunnel unavailable|timed? out|context deadline exceeded|ECONNRESET|ETIMEDOUT|network is unreachable|connection refused/i.test(
+              message.message,
+            )
+          ) {
+            this.retry(message.message);
+            return;
+          }
           if (!this.session) {
             this.startupBlocked = true;
             this.publish("error", message.message, {
