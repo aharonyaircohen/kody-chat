@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const runner = vi.hoisted(() => ({
   spawnRunner: vi.fn(),
@@ -73,6 +73,10 @@ function flyContext(overrides: Partial<FlyContext> = {}): FlyContext {
 describe("fly infrastructure providers", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    flyPreview.listMachines.mockReset();
   });
 
   it("declare brand-neutral runtime areas and capabilities", () => {
@@ -274,6 +278,50 @@ describe("fly infrastructure providers", () => {
     );
   });
 
+  it("starts a replacement that finishes its update in the stopped state", async () => {
+    const machine = (state: string, image: string) => ({
+      id: "browser-machine-1",
+      state,
+      region: "fra",
+      config: {
+        image,
+        guest: { cpu_kind: "shared", cpus: 2, memory_mb: 2_048 },
+        env: { KODY_BROWSER_ACTOR_ID: "octocat" },
+      },
+    });
+    flyPreview.appExists.mockResolvedValue(true);
+    flyPreview.listMachines
+      .mockResolvedValueOnce([
+        machine("suspended", "registry.example/kody-browser:old"),
+      ])
+      .mockResolvedValueOnce([
+        machine("replacing", "registry.example/kody-browser:sha-123"),
+      ])
+      .mockResolvedValueOnce([
+        machine("stopped", "registry.example/kody-browser:sha-123"),
+      ]);
+
+    await flyBrowserProvider.createSession({
+      owner: "acme",
+      repo: "widgets",
+      actorId: "octocat",
+      sessionId: "session-1",
+      initialUrl: "https://example.com",
+      image: "registry.example/kody-browser:sha-123",
+      config: { token: "fly-token", orgSlug: "personal", defaultRegion: "fra" },
+      verifyKey: "verify-key-1",
+    });
+
+    expect(flyPreview.startMachine).toHaveBeenCalledWith(
+      expect.any(String),
+      "browser-machine-1",
+      expect.objectContaining({ token: "fly-token" }),
+    );
+    expect(flyPreview.waitForMachineStarted).toHaveBeenCalledAfter(
+      flyPreview.startMachine,
+    );
+  });
+
   it("reuses the browser Machine when only the requested URL changes", async () => {
     flyPreview.appExists.mockResolvedValue(true);
     flyPreview.listMachines.mockResolvedValue([
@@ -353,11 +401,7 @@ describe("fly infrastructure providers", () => {
       verifyKey: "verify-key-1",
     });
 
-    expect(flyPreview.waitForMachineStarted).toHaveBeenCalledWith(
-      expect.any(String),
-      "browser-machine-1",
-      expect.objectContaining({ token: "fly-token" }),
-    );
+    expect(flyPreview.waitForMachineStarted).not.toHaveBeenCalled();
     expect(flyPreview.listMachines).toHaveBeenCalledTimes(2);
     expect(flyPreview.updateMachineDefinition).not.toHaveBeenCalled();
     expect(flyPreview.startMachine).not.toHaveBeenCalled();

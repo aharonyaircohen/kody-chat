@@ -28,8 +28,26 @@ import {
 export { getMachineDiagnostic as getBrowserMachineDiagnostic };
 
 const BROWSER_READY_TIMEOUT_MS = 60_000;
+const BROWSER_MACHINE_TRANSITION_TIMEOUT_MS = 60_000;
 const BROWSER_MACHINE_CPUS = 2;
 const BROWSER_MACHINE_MEMORY_MB = 2_048;
+
+async function waitForBrowserMachineReplacement(
+  appName: string,
+  machineId: string,
+  config: FlyPreviewConfig,
+): Promise<Awaited<ReturnType<typeof listMachines>>[number]> {
+  const deadline = Date.now() + BROWSER_MACHINE_TRANSITION_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    const machine = (await listMachines(appName, config)).find(
+      (candidate) => candidate.id === machineId,
+    );
+    if (!machine) throw new Error("browser_machine_not_found");
+    if (machine.state !== "replacing") return machine;
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  throw new Error("browser_machine_transition_timeout");
+}
 
 export async function ensureBrowserSessionReady(
   session: FlyBrowserSession,
@@ -253,10 +271,13 @@ export const flyBrowserProvider: FlyBrowserProvider = {
     let existing = machines.find(
       (machine) => browserMachineActor(machine) === input.actorId,
     );
-    if (
-      existing &&
-      (existing.state === "replacing" || existing.state === "starting")
-    ) {
+    if (existing?.state === "replacing") {
+      existing = await waitForBrowserMachineReplacement(
+        appName,
+        existing.id,
+        input.config,
+      );
+    } else if (existing?.state === "starting") {
       await waitForMachineStarted(appName, existing.id, input.config);
       machines = await listMachines(appName, input.config);
       existing = machines.find(
@@ -321,22 +342,31 @@ export const flyBrowserProvider: FlyBrowserProvider = {
         (candidate) => browserMachineActor(candidate) === input.actorId,
       );
       if (!existing) throw new Error("browser_machine_not_found");
+      if (existing.state === "replacing") {
+        existing = await waitForBrowserMachineReplacement(
+          appName,
+          existing.id,
+          input.config,
+        );
+      }
     }
 
     if (existing && existing.state !== "started") {
-      if (existing.state !== "starting" && existing.state !== "replacing") {
+      if (existing.state !== "starting") {
         await startMachine(appName, existing.id, input.config);
       }
       await waitForMachineStarted(appName, existing.id, input.config);
     }
 
+    const activeMachine = existing ?? machine;
+
     return {
       providerId: "fly",
       sessionId: input.sessionId,
       appName,
-      machineId: machine.id,
-      state: machine.state,
-      region: machine.region,
+      machineId: activeMachine.id,
+      state: activeMachine.state,
+      region: activeMachine.region,
       endpoint: flyHostname(appName),
       config: input.config,
     };
