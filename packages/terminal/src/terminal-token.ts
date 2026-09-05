@@ -25,6 +25,7 @@ export interface TerminalBridgeClaims {
   afterRevision?: number;
   activityLimitMs?: number | null;
   localExec?: boolean;
+  workspace?: "machine" | "repository";
   flyToken: string;
   ghcrToken?: string;
   cols: number;
@@ -45,6 +46,7 @@ export interface MintTerminalBridgeTokenInput {
   afterRevision?: number;
   activityLimitMs?: number | null;
   localExec?: boolean;
+  workspace?: "machine" | "repository";
   flyToken: string;
   ghcrToken?: string;
   cols?: number;
@@ -119,6 +121,7 @@ export function mintTerminalBridgeToken(
     afterRevision: input.afterRevision,
     activityLimitMs: input.activityLimitMs,
     localExec: input.localExec,
+    workspace: input.workspace,
     flyToken: input.flyToken,
     ghcrToken: input.ghcrToken,
     cols: input.cols ?? 120,

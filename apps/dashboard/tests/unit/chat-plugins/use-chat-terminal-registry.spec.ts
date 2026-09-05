@@ -296,6 +296,14 @@ beforeEach(() => {
   windowListeners.clear();
   auth.headers = {};
   stubWindow();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ machines: [] }),
+    })),
+  );
 });
 
 afterEach(() => {
@@ -328,9 +336,10 @@ describe("useChatTerminalRegistry defaults", () => {
 });
 
 describe("useChatTerminalRegistry registration", () => {
-  it("openTerminalMode mounts a local terminal for the active session", () => {
+  it("openTerminalMode mounts a local terminal for the active session", async () => {
     const { result } = mountRegistry();
     const opened = (result.current as Registry).openTerminalMode();
+    await flushMicrotasks();
 
     expect(opened).toBe("chat-1");
     const registry = result.current as Registry;
@@ -369,9 +378,10 @@ describe("useChatTerminalRegistry registration", () => {
     ]);
   });
 
-  it("keeps a single mounted terminal when the same target is opened twice", () => {
+  it("keeps a single mounted terminal when the same target is opened twice", async () => {
     const { result } = mountRegistry();
     (result.current as Registry).openTerminalMode();
+    await flushMicrotasks();
     const afterFirst = (result.current as Registry).mountedTerminals;
 
     (result.current as Registry).openTerminalMode();
@@ -381,9 +391,10 @@ describe("useChatTerminalRegistry registration", () => {
     expect(afterFirst).toHaveLength(1);
   });
 
-  it("selectTarget('brain') mounts the semantic Brain terminal alongside local", () => {
+  it("selectTarget('brain') mounts the semantic Brain terminal alongside local", async () => {
     const { result } = mountRegistry();
     (result.current as Registry).openTerminalMode();
+    await flushMicrotasks();
     (result.current as Registry).selectTarget("brain");
 
     const registry = result.current as Registry;
@@ -399,9 +410,10 @@ describe("useChatTerminalRegistry registration", () => {
     });
   });
 
-  it("ignores unknown target selections", () => {
+  it("ignores unknown target selections", async () => {
     const { result } = mountRegistry();
     (result.current as Registry).openTerminalMode();
+    await flushMicrotasks();
     (result.current as Registry).selectTarget("gone-app:gone-machine");
 
     const registry = result.current as Registry;
@@ -465,13 +477,15 @@ describe("useChatTerminalRegistry persistence", () => {
 });
 
 describe("useChatTerminalRegistry pruning", () => {
-  it("keeps stale entries until sessions hydrate, then prunes unknown sessions", () => {
+  it("keeps stale entries until sessions hydrate, then prunes unknown sessions", async () => {
     const seeded = mountRegistry({
       sessions: [session("chat-1"), session("chat-gone")],
     });
     (seeded.result.current as Registry).openTerminalMode();
+    await flushMicrotasks();
     seeded.rerenderWith({ activeSessionId: "chat-gone" });
     (seeded.result.current as Registry).openTerminalMode();
+    await flushMicrotasks();
     seeded.unmount();
 
     // Restore with an EMPTY, un-hydrated session list: nothing pruned.
@@ -497,15 +511,21 @@ describe("useChatTerminalRegistry pruning", () => {
 });
 
 describe("useChatTerminalRegistry Fly inventory", () => {
-  it("resolves an empty inventory without fetching when unauthenticated", async () => {
-    const fetchMock = vi.fn();
+  it("loads the personal Brain using the account cookie without a repository token", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ machines: [BRAIN_MACHINE] }),
+    }));
     vi.stubGlobal("fetch", fetchMock);
     const { result } = mountRegistry();
 
     await (result.current as Registry).refreshFlyMachines();
 
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect((result.current as Registry).terminalMachines).toEqual([]);
+    expect(fetchMock).toHaveBeenCalledWith("/api/kody/brain/status");
+    expect((result.current as Registry).terminalMachines).toEqual([
+      BRAIN_MACHINE,
+    ]);
     expect((result.current as Registry).flyInventoryError).toBeNull();
   });
 
@@ -522,9 +542,7 @@ describe("useChatTerminalRegistry Fly inventory", () => {
     await (result.current as Registry).refreshFlyMachines();
     await flushMicrotasks();
 
-    expect(fetchMock).toHaveBeenCalledWith("/api/kody/fly/machines", {
-      headers: { "x-kody-token": "t" },
-    });
+    expect(fetchMock).toHaveBeenCalledWith("/api/kody/brain/status");
     expect((result.current as Registry).terminalMachines).toEqual([
       BRAIN_MACHINE,
     ]);

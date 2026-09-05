@@ -18,7 +18,6 @@ import {
   isTerminalMachineStartable,
   isTerminalMachineTransitioning,
   resolveTerminalTargetMachine,
-  selectTerminalTarget,
   terminalActivityLimitForTarget,
   terminalBridgeSessionIdForTarget,
   type TerminalTargetInput,
@@ -28,6 +27,8 @@ import { mintTerminalBridgeToken } from "@kody-ade/terminal/terminal-token";
 import {
   serverProviderHostname,
   startServerProviderMachine,
+  type ServerProviderMachineRow,
+  type ServerProviderConfig,
 } from "../infrastructure/server-machines";
 import {
   serverProviderConfigFromContext,
@@ -94,7 +95,9 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function wakeServerProviderMachineThroughEdge(app: string): Promise<void> {
+async function wakeServerProviderMachineThroughEdge(
+  app: string,
+): Promise<void> {
   try {
     await globalThis.fetch(`https://${serverProviderHostname(app)}/healthz`, {
       redirect: "manual",
@@ -184,7 +187,7 @@ export async function startTerminalSession(input: {
   }
 
   const brainRequested = data.target === "brain" || data.feature === "brain";
-  let { inventory, savedBrain } = await loadTerminalInventoryAuthority(
+  const { inventory, savedBrain } = await loadTerminalInventoryAuthority(
     req,
     cfg,
     {
@@ -231,6 +234,41 @@ export async function startTerminalSession(input: {
   if (!requested) {
     throw targetError("machine_not_found");
   }
+  return connectTerminalMachine({
+    scope: context,
+    cfg: terminalFlyConfigForMachine(cfg, requested, savedBrain),
+    machine: requested,
+    data,
+    warnings: brainWarnings,
+    refreshMachine: async () => {
+      const refreshed = await loadTerminalInventoryAuthority(
+        req,
+        cfg,
+        {
+          brainRequested: requested.feature === "brain",
+          app: requested.app,
+          machineId: requested.machineId,
+        },
+        context,
+      );
+      return resolveTerminalTargetMachine(refreshed.inventory, requested);
+    },
+  });
+}
+
+/** Connect an already-authorized machine using the caller's credential authority. */
+export async function connectTerminalMachine(input: {
+  scope: { owner: string; repo: string };
+  workspace?: "machine" | "repository";
+  cfg: ServerProviderConfig;
+  machine: ServerProviderMachineRow;
+  data: StartTerminalSessionData;
+  refreshMachine: () => Promise<ServerProviderMachineRow | null>;
+  warnings?: RemoteRuntimeWarning[];
+}) {
+  const { scope: context, cfg: selectedCfg, data, refreshMachine } = input;
+  const brainWarnings = input.warnings ?? [];
+  let requested = input.machine;
   if (!isTerminalFeatureAllowed(requested.feature)) {
     throw targetError("machine_not_terminal_capable");
   }
@@ -244,15 +282,10 @@ export async function startTerminalSession(input: {
         { app: requested.app, machineId: requested.machineId },
         "terminal: waking machine",
       );
-      const requestedCfg = terminalFlyConfigForMachine(
-        cfg,
-        requested,
-        savedBrain,
-      );
       await startServerProviderMachineForTarget(
         requested.app,
         requested.machineId,
-        requestedCfg,
+        selectedCfg,
       );
     } else {
       logger.info(
@@ -265,41 +298,23 @@ export async function startTerminalSession(input: {
       );
     }
     await wakeServerProviderMachineThroughEdge(requested.app);
-    const selectedInput = {
-      app: requested.app,
-      machineId: requested.machineId,
-    };
     for (let attempt = 0; attempt < WAKE_POLL_ATTEMPTS; attempt++) {
       if (attempt > 0) await sleep(WAKE_POLL_INTERVAL_MS);
-      const refreshed = await loadTerminalInventoryAuthority(
-        req,
-        cfg,
-        {
-          brainRequested: requested.feature === "brain",
-          app: requested.app,
-          machineId: requested.machineId,
-        },
-        context,
-      );
-      inventory = refreshed.inventory;
-      savedBrain = refreshed.savedBrain ?? savedBrain;
-      const next = resolveTerminalTargetMachine(inventory, selectedInput);
-      if (next && isTerminalMachineLive(next.state)) break;
+      const next = await refreshMachine();
+      if (
+        !next ||
+        next.app !== requested.app ||
+        next.machineId !== requested.machineId
+      ) {
+        throw targetError("machine_not_found");
+      }
+      requested = next;
+      if (isTerminalMachineLive(requested.state)) break;
     }
   }
-
-  const selected = selectTerminalTarget(inventory, {
-    app: requested.app,
-    machineId: requested.machineId,
-  });
-  if (!selected.ok) {
-    throw targetError(selected.error);
+  if (!isTerminalMachineLive(requested.state)) {
+    throw targetError("machine_not_running");
   }
-  const selectedCfg = terminalFlyConfigForMachine(
-    cfg,
-    selected.machine,
-    savedBrain,
-  );
   const bridge = await findServerProviderTerminalBridgeForTarget(selectedCfg);
   if (!bridge) {
     throw new TerminalSessionError(
@@ -309,25 +324,26 @@ export async function startTerminalSession(input: {
     );
   }
   const activityLimitMs = terminalActivityLimitForTarget(
-    selected.machine.feature,
+    requested.feature,
     data.activityLimitMs,
   );
   const now = Math.floor(Date.now() / 1000);
   const bridgeSessionId = terminalBridgeSessionIdForTarget({
     owner: context.owner,
     repo: context.repo,
-    app: selected.machine.app,
-    machineId: selected.machine.machineId,
-    feature: selected.machine.feature,
+    app: requested.app,
+    machineId: requested.machineId,
+    feature: requested.feature,
     requestedChatSessionId: data.chatSessionId,
   });
   const token = mintTerminalBridgeToken({
     owner: context.owner,
     repo: context.repo,
-    app: selected.machine.app,
+    workspace: input.workspace,
+    app: requested.app,
     orgSlug: selectedCfg.orgSlug,
-    machineId: selected.machine.machineId,
-    privateAddress: selected.machine.privateAddress,
+    machineId: requested.machineId,
+    privateAddress: requested.privateAddress,
     chatSessionId: bridgeSessionId,
     conversationId: data.chatSessionId ?? bridgeSessionId,
     afterRevision: data.afterRevision,
@@ -342,9 +358,9 @@ export async function startTerminalSession(input: {
 
   return {
     ok: true,
-    app: selected.machine.app,
-    machineId: selected.machine.machineId,
-    label: selected.machine.label,
+    app: requested.app,
+    machineId: requested.machineId,
+    label: requested.label,
     bridgeApp: bridge.app,
     sessionId: bridgeSessionId,
     session: {
@@ -356,7 +372,7 @@ export async function startTerminalSession(input: {
       },
       target: {
         kind: "brain" as const,
-        runtimeId: selected.machine.machineId,
+        runtimeId: requested.machineId,
       },
     },
     expiresAt: new Date((now + 120) * 1000).toISOString(),

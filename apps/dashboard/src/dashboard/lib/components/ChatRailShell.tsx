@@ -149,6 +149,7 @@ import { isPersonalDashboardPath } from "@dashboard/lib/kody-scope";
 // Order matches the pre-Step-6 built-in registration order: terminal,
 // commands, then vibe.
 const PERSONAL_CHAT_PLUGINS = [
+  { plugin: terminalChatPlugin },
   // Live transport (Convex chatEvents subscription) — inert without
   // NEXT_PUBLIC_CONVEX_URL; the live runner then keeps interval polling.
   { plugin: liveEventsChatPlugin },
@@ -160,7 +161,6 @@ const PERSONAL_CHAT_PLUGINS = [
 ];
 
 const REPOSITORY_CHAT_PLUGINS = [
-  { plugin: terminalChatPlugin },
   { plugin: vibeChatPlugin },
   // Tasks page-plugin (phase 2 step 3 pilot) — contributes the "tasks"
   // panel view the flipped layout renders in place of the raw /tasks route

@@ -156,7 +156,7 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
     }, [selectedText]);
 
     return (
-      <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[#050608]">
+      <div className="isolate flex h-full min-h-0 flex-col overflow-hidden bg-[#050608]">
         {topToolbar && (
           <div className="flex min-h-12 items-center border-b border-border bg-background px-3 py-2">
             {topToolbar}

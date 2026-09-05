@@ -22,7 +22,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 90;
 
-const Body = z
+export const TerminalSessionRequestSchema = z
   .object({
     target: z.literal("brain").optional(),
     app: z.string().min(1).max(120).optional(),
@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: "invalid_json" }, { status: 400 });
   }
-  const parsed = Body.safeParse(body);
+  const parsed = TerminalSessionRequestSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
       { error: "validation_error", details: parsed.error.format() },

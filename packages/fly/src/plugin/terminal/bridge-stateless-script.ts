@@ -189,6 +189,7 @@ function openRequest(claims, afterRevision) {
       },
     },
     cwd: "/workspace/repo",
+    workspace: claims.workspace,
     afterRevision,
     cols: claims.cols || 120,
     rows: claims.rows || 36,

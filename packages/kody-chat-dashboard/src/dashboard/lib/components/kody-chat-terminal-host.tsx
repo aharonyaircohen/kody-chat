@@ -468,7 +468,11 @@ export function useTerminalHost({
   // state: no toggle when the surface hides terminal mode, pins an agent,
   // or runs vibe.
   const chatModeToggle =
-    !hideTerminalMode && !lockedAgentId && !vibeMode ? (
+    !hideTerminalMode &&
+    !lockedAgentId &&
+    !vibeMode &&
+    pluginRegistry.resolveDisplayMode([TERMINAL_DISPLAY_MODE]) ===
+      TERMINAL_DISPLAY_MODE ? (
       <Suspense fallback={null}>
         <TerminalModeToggle
           chatMode={chatMode}

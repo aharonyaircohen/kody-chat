@@ -43,6 +43,7 @@ export async function GET(req: NextRequest) {
       state: "off",
       reason: "fly_token_missing",
       stored: null,
+      machines: [],
     });
   }
 
@@ -60,6 +61,7 @@ export async function GET(req: NextRequest) {
         stored: overview.stored,
         runtime: overview.runtime,
         drift: overview.drift,
+        machines: [],
       });
     }
     return NextResponse.json({
@@ -73,6 +75,7 @@ export async function GET(req: NextRequest) {
       stored: overview.stored,
       runtime: overview.runtime,
       drift: overview.drift,
+      machines: overview.service.machine ? [overview.service.machine] : [],
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

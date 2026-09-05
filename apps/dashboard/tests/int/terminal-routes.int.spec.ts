@@ -222,7 +222,9 @@ vi.mock("@kody-ade/base/logger", () => ({
 }));
 
 import { registerBrainHostHooks } from "@kody-ade/brain/register";
-import { POST as sessionPOST } from "../../app/api/kody/terminal/session/route";
+// The mounted personal Brain route is covered by brain-terminal-personal-route.int.spec.ts.
+// Keep provider compatibility coverage on its own exported route.
+import { POST as sessionPOST } from "@kody-ade/fly/routes/terminal-session";
 import { POST as statusPOST } from "../../app/api/kody/terminal/status/route";
 
 function makeSessionReq(body: unknown): NextRequest {
@@ -475,7 +477,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("POST /api/kody/terminal/session", () => {
+describe("Fly provider terminal session compatibility", () => {
   it("mints a stable Brain-scoped terminal token", async () => {
     const res = await sessionPOST(
       makeSessionReq({

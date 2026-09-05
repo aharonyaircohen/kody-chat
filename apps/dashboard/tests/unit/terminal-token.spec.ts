@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { runInNewContext } from "node:vm";
+import { TERMINAL_BRIDGE_STATELESS_SCRIPT } from "@kody-ade/fly/plugin/terminal/bridge-stateless-script";
 
 import {
   mintTerminalBridgeToken,
@@ -8,6 +10,36 @@ import {
 const SECRET = "test-master-secret";
 
 describe("terminal bridge token", () => {
+  it("carries the personal workspace through encryption and the gateway open request", () => {
+    const token = mintTerminalBridgeToken({
+      owner: "account",
+      repo: "personal-brain",
+      app: "brain-app",
+      workspace: "machine",
+      flyToken: "private-token",
+      chatSessionId: "session",
+      secret: SECRET,
+    });
+    const claims = verifyTerminalBridgeToken(token, { secret: SECRET });
+    const start = TERMINAL_BRIDGE_STATELESS_SCRIPT.indexOf(
+      "function openRequest(",
+    );
+    const end = TERMINAL_BRIDGE_STATELESS_SCRIPT.indexOf(
+      "function parseAgentEvent(",
+      start,
+    );
+    const request = runInNewContext(
+      TERMINAL_BRIDGE_STATELESS_SCRIPT.slice(start, end) +
+        "\nopenRequest(claims, 0)",
+      { claims },
+    );
+    expect(request.workspace).toBe("machine");
+    expect(request.session.scope).toMatchObject({
+      owner: "account",
+      repo: "personal-brain",
+    });
+    expect(JSON.stringify(request)).not.toContain("private-token");
+  });
   it("round-trips encrypted launch claims", () => {
     const token = mintTerminalBridgeToken({
       owner: "acme",

@@ -445,8 +445,9 @@ export function KodyChat({
   // ─── Chat plugin platform (Step 4 mechanics, Step 6 injection) ───
   // One registry PER MOUNT (plan H4: ChatRailShell mounts KodyChat twice;
   // plugin manifests are global pure data, instantiation is per mount).
-  // `plugins`/`capabilityGrant` are mount-time config — read once in the
-  // useState initializer, never re-registered on re-render.
+  // The persistent rail changes plugin composition when navigating between
+  // personal and repository pages. Rebuild the registry when that configuration
+  // changes, without remounting chat or clearing its conversation and draft.
   // KodyChat owns ONLY the registration mechanics; the HOST surface passes
   // its plugin list (Step 6 / M6 — per-surface imports, so /client sheds
   // admin plugin code): ChatRailShell registers terminal + commands + vibe,
@@ -456,7 +457,7 @@ export function KodyChat({
   // registry-sorted by `order` regardless.
   // With no plugins at all the registry is inert: slots render nothing and
   // the send-middleware chain passes through.
-  const [pluginRegistry] = useState(() => {
+  const pluginRegistry = useMemo(() => {
     const registry = createChatPluginRegistry();
     const grant = capabilityGrant ?? FULL_GRANT;
     for (const entry of plugins ?? []) {
@@ -464,7 +465,7 @@ export function KodyChat({
       trace({ kind: "plugin:register", detail: entry.plugin.id });
     }
     return registry;
-  });
+  }, [plugins, capabilityGrant]);
   // Terminal-intent hand-off: the terminal plugin's send middleware
   // dispatches this effect SYNCHRONOUSLY during runSendMiddleware, so
   // sendMessage reads the ref right after the chain returns.
