@@ -62,6 +62,7 @@ describe("settings navigation", () => {
 
   it("groups content entries, models, and settings into one side-panel section", () => {
     expect(sectionHrefs(SETTINGS_NAV_SECTIONS, "Content")).toEqual([
+      "/connections",
       "/content/entries",
       "/content/models",
       "/content/settings",

@@ -6,40 +6,28 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
-  getOctokit: vi.fn(() => ({ id: "octokit" })),
-  getOwner: vi.fn(() => "aharonyaircohen"),
-  getRepo: vi.fn(() => "Kody-Dashboard"),
-  readBackendDoc: vi.fn(),
-  writeBackendDoc: vi.fn(),
-  deleteBackendDoc: vi.fn(),
+  loadState: vi.fn(),
+  saveState: vi.fn(),
 }));
 
-vi.mock("@kody-ade/brain/github", () => ({
-  getOctokit: state.getOctokit,
-  getOwner: state.getOwner,
-  getRepo: state.getRepo,
-}));
-
-vi.mock("@kody-ade/base/backend/repo-docs", () => ({
-  deleteBackendDoc: state.deleteBackendDoc,
-  readBackendDoc: state.readBackendDoc,
-  writeBackendDoc: state.writeBackendDoc,
+vi.mock("@kody-ade/brain/personal-services", () => ({
+  getPersonalBrainServices: () => ({
+    resolveUser: async () => ({ id: "user-alice", label: "Alice" }),
+    loadState: state.loadState,
+    saveState: state.saveState,
+  }),
 }));
 
 describe("Brain image store", () => {
   beforeEach(() => {
     vi.resetModules();
-    state.getOctokit.mockReturnValue({ id: "octokit" });
-    state.getOwner.mockReturnValue("aharonyaircohen");
-    state.getRepo.mockReturnValue("Kody-Dashboard");
-    state.readBackendDoc.mockReset();
-    state.writeBackendDoc.mockReset();
-    state.deleteBackendDoc.mockReset();
+    state.loadState.mockReset();
+    state.saveState.mockReset();
   });
 
   it("reads the per-user Brain image record from Convex", async () => {
-    state.readBackendDoc.mockResolvedValue({
-      content: JSON.stringify({
+    state.loadState.mockResolvedValue({
+      ...{
         version: 1,
         imageRef: "ghcr.io/alice/kody-brain-snapshot:20260625",
         createdAt: "2026-06-25T10:00:00.000Z",
@@ -51,9 +39,7 @@ describe("Brain image store", () => {
             updatedAt: "2026-06-25T10:00:00.000Z",
           },
         ],
-      }),
-      sha: "sha",
-      etag: "etag",
+      },
     });
     const { readBrainImage } = await import("@kody-ade/brain/store");
 
@@ -65,59 +51,48 @@ describe("Brain image store", () => {
         }),
       ],
     });
-    expect(state.readBackendDoc).toHaveBeenCalledWith(
-      { id: "octokit" },
-      "aharonyaircohen",
-      "Kody-Dashboard",
-      "users/alice/data/brain-image.json",
-      expect.objectContaining({ scope: "root" }),
+    expect(state.loadState).toHaveBeenCalledWith(
+      "user-alice",
+      "images",
     );
   });
 
   it("does not retry a missing Convex document through another adapter", async () => {
-    state.readBackendDoc.mockResolvedValueOnce(null);
+    state.loadState.mockResolvedValueOnce(null);
     const { readBrainImage } = await import("@kody-ade/brain/store");
 
     await expect(readBrainImage("Alice", "token")).resolves.toBeNull();
-    expect(state.readBackendDoc).toHaveBeenNthCalledWith(
+    expect(state.loadState).toHaveBeenNthCalledWith(
       1,
-      { id: "octokit" },
-      "aharonyaircohen",
-      "Kody-Dashboard",
-      "users/alice/data/brain-image.json",
-      expect.objectContaining({ scope: "root" }),
+      "user-alice",
+      "images",
     );
-    expect(state.readBackendDoc).toHaveBeenCalledTimes(1);
+    expect(state.loadState).toHaveBeenCalledTimes(1);
   });
 
   it("reads the stored Brain app from user-level state", async () => {
-    state.readBackendDoc.mockResolvedValue({
-      content: JSON.stringify({
+    state.loadState.mockResolvedValue({
+      ...{
         version: 1,
         appName: "kody-brain-alice",
         orgSlug: "personal",
         createdAt: "2026-06-25T10:00:00.000Z",
-      }),
-      sha: "sha",
-      etag: "etag",
+      },
     });
     const { readBrainApp } = await import("@kody-ade/brain/store");
 
     await expect(readBrainApp("Alice", "token")).resolves.toMatchObject({
       appName: "kody-brain-alice",
     });
-    expect(state.readBackendDoc).toHaveBeenCalledWith(
-      { id: "octokit" },
-      "aharonyaircohen",
-      "Kody-Dashboard",
-      "users/alice/data/brain.json",
-      expect.objectContaining({ scope: "root" }),
+    expect(state.loadState).toHaveBeenCalledWith(
+      "user-alice",
+      "app",
     );
   });
 
   it("writes the stored Brain app to user-level state", async () => {
-    state.readBackendDoc.mockResolvedValue(null);
-    state.writeBackendDoc.mockResolvedValue({ sha: "new-sha" });
+    state.loadState.mockResolvedValue(null);
+    state.saveState.mockResolvedValue({ sha: "new-sha" });
     const { writeBrainApp } = await import("@kody-ade/brain/store");
 
     await writeBrainApp("Alice", "token", {
@@ -127,39 +102,34 @@ describe("Brain image store", () => {
       createdAt: "2026-06-25T10:00:00.000Z",
     });
 
-    expect(state.writeBackendDoc).toHaveBeenCalledWith(
-      expect.objectContaining({
-        path: "users/alice/data/brain.json",
-        message: "feat(brain): record brain app for Alice",
-        scope: "root",
-      }),
+    expect(state.saveState).toHaveBeenCalledWith(
+      "user-alice",
+      "app",
+      expect.objectContaining({ version: 1 }),
     );
   });
 
   it("clears the user-level Brain app document once", async () => {
-    state.readBackendDoc.mockResolvedValueOnce({
+    state.loadState.mockResolvedValueOnce({
       sha: "root-sha",
       content: "{}",
     });
-    state.deleteBackendDoc.mockResolvedValue(undefined);
+    state.saveState.mockResolvedValue(undefined);
     const { clearBrainApp } = await import("@kody-ade/brain/store");
 
     await clearBrainApp("Alice", "token");
 
-    expect(state.deleteBackendDoc).toHaveBeenCalledWith(
-      expect.objectContaining({
-        path: "users/alice/data/brain.json",
-        message: "feat(brain): clear brain app for Alice",
-        sha: "root-sha",
-        scope: "root",
-      }),
+    expect(state.saveState).toHaveBeenCalledWith(
+      "user-alice",
+      "app",
+      null,
     );
-    expect(state.deleteBackendDoc).toHaveBeenCalledTimes(1);
+    expect(state.saveState).toHaveBeenCalledTimes(1);
   });
 
   it("writes the per-user Brain image record without touching brain.json", async () => {
-    state.readBackendDoc.mockResolvedValue(null);
-    state.writeBackendDoc.mockResolvedValue({ sha: "new-sha" });
+    state.loadState.mockResolvedValue(null);
+    state.saveState.mockResolvedValue({ sha: "new-sha" });
     const { writeBrainImage } = await import("@kody-ade/brain/store");
 
     await writeBrainImage("Alice", "token", {
@@ -176,18 +146,16 @@ describe("Brain image store", () => {
       ],
     });
 
-    expect(state.writeBackendDoc).toHaveBeenCalledWith(
-      expect.objectContaining({
-        path: "users/alice/data/brain-image.json",
-        message: "feat(brain): record brain image for Alice",
-        scope: "root",
-      }),
+    expect(state.saveState).toHaveBeenCalledWith(
+      "user-alice",
+      "images",
+      expect.objectContaining({ version: 1 }),
     );
   });
 
   it("writes catalog-only Brain images without inventing selected or running state", async () => {
-    state.readBackendDoc.mockResolvedValue(null);
-    state.writeBackendDoc.mockResolvedValue({ sha: "new-sha" });
+    state.loadState.mockResolvedValue(null);
+    state.saveState.mockResolvedValue({ sha: "new-sha" });
     const { writeBrainImage } = await import("@kody-ade/brain/store");
 
     await writeBrainImage("Alice", "token", {
@@ -203,9 +171,7 @@ describe("Brain image store", () => {
       ],
     });
 
-    const content = JSON.parse(
-      (state.writeBackendDoc.mock.calls[0]?.[0] as { content: string }).content,
-    ) as {
+    const content = state.saveState.mock.calls[0]?.[2] as {
       imageRef?: string;
       runningImageRef?: string;
       runningApp?: string;
@@ -218,9 +184,9 @@ describe("Brain image store", () => {
   });
 
   it("selects a saved Brain image without deleting the image list", async () => {
-    state.readBackendDoc
+    state.loadState
       .mockResolvedValueOnce({
-        content: JSON.stringify({
+        ...{
           version: 1,
           imageRef: "ghcr.io/alice/kody-brain-snapshot:old",
           createdAt: "2026-06-25T10:00:00.000Z",
@@ -237,11 +203,10 @@ describe("Brain image store", () => {
               updatedAt: "2026-06-25T10:00:00.000Z",
             },
           ],
-        }),
-        sha: "sha",
+        },
       })
       .mockResolvedValueOnce({ sha: "sha", content: "{}" });
-    state.writeBackendDoc.mockResolvedValue({ sha: "new-sha" });
+    state.saveState.mockResolvedValue({ sha: "new-sha" });
     const { selectBrainImage } = await import("@kody-ade/brain/store");
 
     await expect(
@@ -261,9 +226,9 @@ describe("Brain image store", () => {
   });
 
   it("refreshes stale image cache before rejecting a selected image", async () => {
-    state.readBackendDoc
+    state.loadState
       .mockResolvedValueOnce({
-        content: JSON.stringify({
+        ...{
           version: 1,
           imageRef: "ghcr.io/alice/kody-brain-snapshot:old",
           createdAt: "2026-06-25T10:00:00.000Z",
@@ -275,13 +240,10 @@ describe("Brain image store", () => {
               updatedAt: "2026-06-25T10:00:00.000Z",
             },
           ],
-        }),
-        sha: "old-sha",
-        etag: "old-etag",
+        },
       })
-      .mockRejectedValueOnce({ status: 304 })
       .mockResolvedValueOnce({
-        content: JSON.stringify({
+        ...{
           version: 1,
           imageRef: "ghcr.io/alice/kody-brain-snapshot:old",
           createdAt: "2026-06-25T10:00:00.000Z",
@@ -298,12 +260,10 @@ describe("Brain image store", () => {
               updatedAt: "2026-06-25T10:00:00.000Z",
             },
           ],
-        }),
-        sha: "new-sha",
-        etag: "new-etag",
+        },
       })
       .mockResolvedValueOnce({ sha: "new-sha", content: "{}" });
-    state.writeBackendDoc.mockResolvedValue({ sha: "written-sha" });
+    state.saveState.mockResolvedValue({ sha: "written-sha" });
     const { readBrainImage, selectBrainImage } =
       await import("@kody-ade/brain/store");
 
@@ -318,20 +278,17 @@ describe("Brain image store", () => {
       imageRef: "ghcr.io/alice/kody-brain-snapshot:new",
     });
 
-    expect(state.readBackendDoc).toHaveBeenNthCalledWith(
-      3,
-      { id: "octokit" },
-      "aharonyaircohen",
-      "Kody-Dashboard",
-      "users/alice/data/brain-image.json",
-      { scope: "root", headers: undefined },
+    expect(state.loadState).toHaveBeenNthCalledWith(
+      2,
+      "user-alice",
+      "images",
     );
   });
 
   it("removes a deleted Brain image from dashboard metadata", async () => {
-    state.readBackendDoc
+    state.loadState
       .mockResolvedValueOnce({
-        content: JSON.stringify({
+        ...{
           version: 1,
           imageRef: "ghcr.io/alice/kody-brain-snapshot:new",
           createdAt: "2026-06-25T10:00:00.000Z",
@@ -348,11 +305,10 @@ describe("Brain image store", () => {
               updatedAt: "2026-06-25T10:00:00.000Z",
             },
           ],
-        }),
-        sha: "sha",
+        },
       })
       .mockResolvedValueOnce({ sha: "sha", content: "{}" });
-    state.writeBackendDoc.mockResolvedValue({ sha: "new-sha" });
+    state.saveState.mockResolvedValue({ sha: "new-sha" });
     const { deleteBrainImage } = await import("@kody-ade/brain/store");
 
     await expect(
@@ -369,17 +325,15 @@ describe("Brain image store", () => {
         }),
       ],
     });
-    const content = JSON.parse(
-      (state.writeBackendDoc.mock.calls[0]?.[0] as { content: string }).content,
-    ) as { forgottenImageRefs?: string[] };
+    const content = state.saveState.mock.calls[0]?.[2] as { forgottenImageRefs?: string[] };
     expect(content.forgottenImageRefs).toBeUndefined();
   });
 
   it("does not create metadata when a deleted image was only discovered remotely", async () => {
-    state.readBackendDoc
+    state.loadState
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce(null);
-    state.writeBackendDoc.mockResolvedValue({ sha: "new-sha" });
+    state.saveState.mockResolvedValue({ sha: "new-sha" });
     const { deleteBrainImage } = await import("@kody-ade/brain/store");
 
     await expect(
@@ -389,13 +343,13 @@ describe("Brain image store", () => {
         "ghcr.io/alice/kody-brain-snapshot:discovered",
       ),
     ).resolves.toBeNull();
-    expect(state.writeBackendDoc).not.toHaveBeenCalled();
+    expect(state.saveState).not.toHaveBeenCalled();
   });
 
   it("marks a selected Brain image as running after apply succeeds", async () => {
-    state.readBackendDoc
+    state.loadState
       .mockResolvedValueOnce({
-        content: JSON.stringify({
+        ...{
           version: 1,
           imageRef: "ghcr.io/alice/kody-brain-snapshot:new",
           createdAt: "2026-06-25T10:00:00.000Z",
@@ -407,11 +361,10 @@ describe("Brain image store", () => {
               updatedAt: "2026-06-26T10:00:00.000Z",
             },
           ],
-        }),
-        sha: "sha",
+        },
       })
       .mockResolvedValueOnce({ sha: "sha", content: "{}" });
-    state.writeBackendDoc.mockResolvedValue({ sha: "new-sha" });
+    state.saveState.mockResolvedValue({ sha: "new-sha" });
     const { markBrainImageRunning } = await import("@kody-ade/brain/store");
 
     await expect(
@@ -428,9 +381,7 @@ describe("Brain image store", () => {
       runningMachineId: "machine-new",
     });
 
-    const content = JSON.parse(
-      (state.writeBackendDoc.mock.calls[0]?.[0] as { content: string }).content,
-    ) as { runningImageRef?: string; runningMachineId?: string };
+    const content = state.saveState.mock.calls[0]?.[2] as { runningImageRef?: string; runningMachineId?: string };
     expect(content.runningImageRef).toBe(
       "ghcr.io/alice/kody-brain-snapshot:new",
     );
@@ -438,9 +389,9 @@ describe("Brain image store", () => {
   });
 
   it("marks an applied saved Brain image as selected and running", async () => {
-    state.readBackendDoc
+    state.loadState
       .mockResolvedValueOnce({
-        content: JSON.stringify({
+        ...{
           version: 1,
           imageRef: "ghcr.io/alice/kody-brain-snapshot:old",
           createdAt: "2026-06-25T10:00:00.000Z",
@@ -458,11 +409,10 @@ describe("Brain image store", () => {
               updatedAt: "2026-06-26T10:00:00.000Z",
             },
           ],
-        }),
-        sha: "sha",
+        },
       })
       .mockResolvedValueOnce({ sha: "sha", content: "{}" });
-    state.writeBackendDoc.mockResolvedValue({ sha: "new-sha" });
+    state.saveState.mockResolvedValue({ sha: "new-sha" });
     const { markBrainImageRunning } = await import("@kody-ade/brain/store");
 
     await expect(
@@ -477,9 +427,7 @@ describe("Brain image store", () => {
       runningImageRef: "ghcr.io/alice/kody-brain-snapshot:new",
     });
 
-    const content = JSON.parse(
-      (state.writeBackendDoc.mock.calls[0]?.[0] as { content: string }).content,
-    ) as {
+    const content = state.saveState.mock.calls[0]?.[2] as {
       imageRef?: string;
       runningImageRef?: string;
       forgottenImageRefs?: string[];
@@ -494,7 +442,7 @@ describe("Brain image store", () => {
   it("accepts GHCR image refs", async () => {
     const { writeBrainImage } = await import("@kody-ade/brain/store");
 
-    state.readBackendDoc.mockResolvedValue(null);
+    state.loadState.mockResolvedValue(null);
     await expect(
       writeBrainImage("Alice", "token", {
         version: 1,
@@ -533,12 +481,12 @@ describe("Brain image store", () => {
         images: [],
       }),
     ).rejects.toThrow("Invalid Brain image record");
-    expect(state.writeBackendDoc).not.toHaveBeenCalled();
+    expect(state.saveState).not.toHaveBeenCalled();
   });
 
   it("writes and clears an in-progress Brain image save job", async () => {
-    state.readBackendDoc.mockResolvedValueOnce(null);
-    state.writeBackendDoc.mockResolvedValue({ sha: "job-sha" });
+    state.loadState.mockResolvedValueOnce(null);
+    state.saveState.mockResolvedValue({ sha: "job-sha" });
     const { writeBrainImageSave, clearBrainImageSave } =
       await import("@kody-ade/brain/store");
 
@@ -559,26 +507,22 @@ describe("Brain image store", () => {
       updatedAt: "2026-06-25T10:00:00.000Z",
     });
 
-    expect(state.writeBackendDoc).toHaveBeenCalledWith(
-      expect.objectContaining({
-        path: "users/alice/data/brain-image-save.json",
-        message: "feat(brain): record brain image save job for Alice",
-        scope: "root",
-      }),
+    expect(state.saveState).toHaveBeenCalledWith(
+      "user-alice",
+      "image-save",
+      expect.objectContaining({ version: 1 }),
     );
 
-    state.readBackendDoc.mockResolvedValueOnce({
+    state.loadState.mockResolvedValueOnce({
       sha: "job-sha",
       content: "{}",
     });
-    state.deleteBackendDoc.mockResolvedValueOnce(undefined);
+    state.saveState.mockResolvedValueOnce(undefined);
     await clearBrainImageSave("Alice", "token");
-    expect(state.deleteBackendDoc).toHaveBeenCalledWith(
-      expect.objectContaining({
-        path: "users/alice/data/brain-image-save.json",
-        message: "feat(brain): clear brain image save job for Alice",
-        scope: "root",
-      }),
+    expect(state.saveState).toHaveBeenCalledWith(
+      "user-alice",
+      "image-save",
+      null,
     );
   });
 });

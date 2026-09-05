@@ -1,4 +1,38 @@
 import type { ChatModel } from "@kody-ade/base/variables/models";
+import { PROVIDER_PRESETS } from "@kody-ade/base/variables/models";
+
+export const OPENCODE_FREE_MODEL_ID = "opencode-free";
+export const OPENCODE_FREE_PICKER_MODEL = Object.freeze({
+  id: OPENCODE_FREE_MODEL_ID,
+  label: "OpenCode Free",
+  enabled: true,
+  default: false,
+  automatic: false,
+});
+
+export function openCodeChatModels(
+  entries: readonly {
+    id: string;
+    label: string;
+    adapter: "openai-compatible" | "openai-responses";
+  }[],
+): ChatModel[] {
+  return entries.map((entry) => ({
+    id: `opencode-free/${entry.id}`,
+    label: entry.label,
+    provider: "opencode-free",
+    protocol: "openai",
+    baseURL: PROVIDER_PRESETS["opencode-free"].baseURL,
+    adapterBaseURL: PROVIDER_PRESETS["opencode-free"].adapterBaseURL,
+    adapter: entry.adapter,
+    modelName: entry.id,
+    apiKeySecret: "",
+    enabled: true,
+    default: false,
+    automatic: false,
+    engineDefault: false,
+  }));
+}
 
 /**
  * @fileType utility

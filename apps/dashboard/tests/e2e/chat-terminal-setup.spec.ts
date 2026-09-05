@@ -28,10 +28,11 @@ async function seedAuth(page: Page): Promise<void> {
   });
 }
 
-for (const scenario of ["ready", "setup", "timeout"] as const) {
+for (const scenario of ["ready", "setup", "timeout", "transport"] as const) {
   const needsSetup = scenario === "setup";
   const transientTimeout = scenario === "timeout";
-  test(`opens terminal after navigating from personal credentials without resetting the draft${needsSetup ? " after machine replacement" : transientTimeout ? " after a Fly tunnel timeout" : ""}`, async ({
+  const transientTransport = scenario === "transport";
+  test(`opens terminal after navigating from personal credentials without resetting the draft${needsSetup ? " after machine replacement" : transientTimeout ? " after a Fly tunnel timeout" : transientTransport ? " after a typed transport failure" : ""}`, async ({
     page,
   }) => {
     const errors: string[] = [];
@@ -100,7 +101,7 @@ for (const scenario of ["ready", "setup", "timeout"] as const) {
       });
     });
     await page.routeWebSocket("ws://terminal.test/session", (socket) => {
-      const ready = setupDone && !(transientTimeout && sessionRequests === 1);
+      const ready = setupDone && !((transientTimeout || transientTransport) && sessionRequests === 1);
       const sessionId = ready && needsSetup ? "terminal-2" : "terminal-1";
       let revision = 0;
       let cleared = false;
@@ -136,7 +137,8 @@ for (const scenario of ["ready", "setup", "timeout"] as const) {
                 }
               : {
                   type: "input-rejected",
-                  message: transientTimeout
+                  code: needsSetup ? "terminal_agent_missing" : transientTransport ? "terminal_transport_unavailable" : undefined,
+                  message: transientTransport ? "Provider temporarily unavailable" : transientTimeout
                     ? 'Error: tunnel unavailable: Error contacting Fly.io API when probing "personal": timed out (context deadline exceeded)'
                     : "Terminal agent is unavailable",
                 },

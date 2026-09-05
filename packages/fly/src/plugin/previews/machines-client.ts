@@ -22,6 +22,8 @@
  *   - runners share one `kody-runner` app; previews can't.
  */
 
+import { prepareMachineSsh } from "../../ssh/machine-config";
+
 const FLY_MACHINES_BASE = "https://api.machines.dev/v1";
 const FLY_GRAPHQL = "https://api.fly.io/graphql";
 const REQUEST_TIMEOUT_MS = 30_000;
@@ -34,6 +36,8 @@ export interface FlyPreviewConfig {
 }
 
 export interface CreatePreviewMachineInput {
+  /** Runtime image account; defaults to root for the bundled preview images. */
+  sshUsername?: string;
   appName: string;
   region: string;
   image: string;
@@ -301,11 +305,20 @@ export async function createMachine(
   // Fly's registry is eventually consistent: a freshly-pushed manifest
   // can return MANIFEST_UNKNOWN for a few seconds. Retry on that
   // specific class of error.
+  const payload = {
+    ...body,
+    config: await prepareMachineSsh({
+      app: input.appName,
+      config: body.config,
+      cfg,
+      username: input.sshUsername,
+    }),
+  };
   let lastErr: Error | null = null;
   for (let attempt = 0; attempt < 6; attempt++) {
     const res = await flyFetch(
       `${FLY_MACHINES_BASE}/apps/${encodeURIComponent(input.appName)}/machines`,
-      { method: "POST", body: JSON.stringify(body) },
+      { method: "POST", body: JSON.stringify(payload) },
       cfg.token,
     );
     if (res.ok) {

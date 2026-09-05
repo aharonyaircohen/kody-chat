@@ -33,7 +33,7 @@ describe("guided flow registry", () => {
     expect(onboarding).toMatchObject({
       id: "onboarding",
       title: "Get started with Kody",
-      version: 4,
+      version: 5,
       completionRouteId: "chat",
     });
     const initializeStep = onboarding?.steps.find(

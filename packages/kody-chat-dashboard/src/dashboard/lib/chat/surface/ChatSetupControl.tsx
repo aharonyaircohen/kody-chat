@@ -131,6 +131,24 @@ export function ChatSetupControl(props: ChatSetupControlProps) {
   const summary = `${primarySummary} · ${secondarySummary}`;
   const toggleSection = (next: ChatSetupSection) =>
     setSection((current) => (current === next ? null : next));
+  const modelGroups = [
+    {
+      label: "",
+      entries: props.modelEntries.filter((entry) => !entry.modelGroup),
+    },
+    {
+      label: "Built-in models",
+      entries: props.modelEntries.filter(
+        (entry) => entry.modelGroup === "built-in",
+      ),
+    },
+    {
+      label: "Your models",
+      entries: props.modelEntries.filter(
+        (entry) => entry.modelGroup === "user",
+      ),
+    },
+  ].filter((group) => group.entries.length > 0);
 
   return (
     <div className="relative min-w-0">
@@ -202,21 +220,39 @@ export function ChatSetupControl(props: ChatSetupControlProps) {
             ariaLabel="Model"
           />
           {section === "model" ? (
-            <div role="listbox" className="mb-1 border-b pb-1">
-              {props.modelEntries.map((entry) => (
-                <Choice
-                  key={entry.key}
-                  selected={
-                    entry.agentId === props.selectedAgentId &&
-                    (entry.modelId ?? null) === props.selectedModelId
-                  }
-                  onClick={() => props.onSelectModel(entry)}
+            <div
+              role="listbox"
+              aria-label="Models"
+              className="mb-1 max-h-[50dvh] overflow-y-auto border-b pb-1"
+            >
+              {modelGroups.map((group) => (
+                <div
+                  key={group.label || "connections"}
+                  role="group"
+                  aria-label={group.label || "Connections"}
+                  className={group.label ? "mt-2 border-t pt-2" : undefined}
                 >
-                  <span className="block font-medium">{entry.name}</span>
-                  <span className="block text-xs text-muted-foreground">
-                    {entry.description}
-                  </span>
-                </Choice>
+                  {group.label ? (
+                    <div className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      {group.label}
+                    </div>
+                  ) : null}
+                  {group.entries.map((entry) => (
+                    <Choice
+                      key={entry.key}
+                      selected={
+                        entry.agentId === props.selectedAgentId &&
+                        (entry.modelId ?? null) === props.selectedModelId
+                      }
+                      onClick={() => props.onSelectModel(entry)}
+                    >
+                      <span className="block font-medium">{entry.name}</span>
+                      <span className="block text-xs text-muted-foreground">
+                        {entry.description}
+                      </span>
+                    </Choice>
+                  ))}
+                </div>
               ))}
               <RepoScopedLink
                 href="/models"

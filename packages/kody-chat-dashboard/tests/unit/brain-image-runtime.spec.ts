@@ -61,7 +61,7 @@ describe("Brain image runtime helpers", () => {
     });
 
     expect(command).toContain("skopeo login ghcr.io");
-    expect(command).toContain("flyctl auth docker");
+    expect(command).toContain("skopeo login registry.fly.io");
     expect(command).toContain("skopeo copy --all");
     expect(command).toContain(
       '"docker://$source_image" "docker://$runtime_image"',

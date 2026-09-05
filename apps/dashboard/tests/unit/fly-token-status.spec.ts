@@ -36,11 +36,11 @@ describe("Fly token status", () => {
     expect(managerSource).not.toContain("Local/server fallback");
   });
 
-  it("shares the repo-token gate with Brain Images", () => {
+  it("lets the personal Brain API own image access independently of repo credentials", () => {
     expect(managerSource).toContain("useFlyTokenStatus");
-    expect(brainImagesSource).toContain("useFlyTokenStatus");
-    expect(brainImagesSource).toContain("Fly token required");
-    expect(brainImagesSource).toContain("flyTokenStatus.configured");
+    expect(brainImagesSource).not.toContain("useFlyTokenStatus");
+    expect(brainImagesSource).toContain("/api/kody/brain/image");
+    expect(brainImagesSource).not.toContain("flyTokenStatus.configured");
   });
 
   it("keeps the dashboard route as a thin Fly package boundary", () => {

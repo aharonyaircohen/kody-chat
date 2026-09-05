@@ -18,6 +18,9 @@ aliases:
   - preview environment
   - element picker
   - fly preview
+  - SSH
+  - download SSH config
+  - remote machine
 ---
 
 # Views and Previews
@@ -39,6 +42,7 @@ Use Views to inspect, discuss, or interact with a running website. For a request
 - Record, save, replay, and send inspector macros to Chat.
 - Upload supported files through preview controls where the active environment enables it.
 - Open, copy, refresh, or destroy tracked Fly previews; inspect live machines and activity.
+- On `/fly/machines`, use **Download SSH config** beside a machine to download its OpenSSH settings and private login key. New machines using the SSH-enabled Kody images are configured during creation; there is no separate preparation or connection step in Kody. The download does not connect to the machine.
 - For task Pull Request previews, inspect changes and comments and use available Approve, Fix, Cancel, or merge-related actions.
 
 ## Requirements and permissions
@@ -60,6 +64,14 @@ Use Views to inspect, discuss, or interact with a running website. For a request
 - A branch preview does not automatically disappear without the relevant lifecycle cleanup; PR-less previews need manual visibility and destruction.
 - Approving a UI does not prove tests pass unless the real merge/CI path confirms it.
 - Preview context cannot substitute for missing source files or live tool results.
+
+## SSH downloads
+
+Your personal Brain is listed using Personal Credentials, independently of the repository’s Fly setup. Other machines use the repository’s Fly credentials.
+
+The downloaded ZIP contains a machine-specific folder with `config`, `identity`, `known_hosts`, and `README.txt`. On a Mac, place that folder in `~/.ssh/kody/` and add `Include ~/.ssh/kody/*/config` to `~/.ssh/config` once. Then select its host name in the desktop app’s SSH connections. Downloading alone does not install settings on the Mac. OpenSSH and openssl must be available locally.
+
+The private key grants access to this machine; never paste it into chat. Kody never includes the Fly account token. Download requires verified login and authorized machine access; browser and Brain keys are limited to their owning user. Old machines without SSH configuration show the download button disabled. A custom image must include OpenSSH and the Kody startup hook. Do not claim the desktop app is connected merely because the download succeeded.
 
 ## Known limitations
 

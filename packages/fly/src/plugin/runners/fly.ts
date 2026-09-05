@@ -17,6 +17,7 @@
  */
 
 import { logger } from "@kody-ade/base/logger";
+import { prepareMachineSsh } from "../../ssh/machine-config";
 import type { EngineExecutionRequest } from "@kody-ade/engine-contracts";
 
 const FLY_API_BASE = "https://api.machines.dev/v1";
@@ -255,6 +256,14 @@ export async function spawnRunner(
   };
 
   const url = `${FLY_API_BASE}/apps/${encodeURIComponent(app)}/machines`;
+  const payload = {
+    ...body,
+    config: await prepareMachineSsh({
+      app,
+      config: body.config,
+      cfg: { token, orgSlug: "personal", defaultRegion: region },
+    }),
+  };
   let res: Response;
   try {
     res = await fetch(url, {
@@ -263,7 +272,7 @@ export async function spawnRunner(
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(payload),
       signal: AbortSignal.timeout(SPAWN_TIMEOUT_MS),
     });
   } catch (err) {

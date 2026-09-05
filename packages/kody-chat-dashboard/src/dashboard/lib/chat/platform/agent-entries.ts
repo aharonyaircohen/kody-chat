@@ -16,6 +16,7 @@ import {
   chatModelScopeFromId,
   storedChatModelId,
 } from "@kody-ade/base/variables/models";
+import { isBuiltInChatModelId, OPENCODE_FREE_MODEL_ID } from "../model-catalog";
 
 /** A single selectable row in the chat agent picker. */
 export interface ChatDropdownEntry {
@@ -34,6 +35,7 @@ export interface ChatDropdownEntry {
   reasoning: ModelReasoning | null;
   /** Runtime command selected for a personal Brain model. */
   runtime?: string;
+  modelGroup?: "built-in" | "user";
 }
 
 /** A chat model from the configured + embedded catalog. */
@@ -119,6 +121,7 @@ export function buildAgentList(
           icon: brain.icon,
           reasoning: null,
           runtime: model.runtime,
+          modelGroup: "user" as const,
         })),
       );
     } else {
@@ -155,12 +158,18 @@ export function buildAgentList(
   for (const m of models) {
     if (m.enabled === false) continue;
     const scope = m.scope ?? chatModelScopeFromId(m.id) ?? undefined;
+    const builtIn =
+      isBuiltInChatModelId(m.id) || m.id === OPENCODE_FREE_MODEL_ID;
     entries.push({
       key: `kody:${m.id}`,
       agentId: "kody",
       modelId: m.id,
       name: m.label,
-      description: `${scope === "repo" ? "Repo" : scope === "personal" ? "Personal" : "Built in"} · ${storedChatModelId(m.id)}`,
+      modelGroup: builtIn ? "built-in" : "user",
+      description:
+        m.id === "opencode-free"
+          ? "Automatically tries available free models · Chats may be used for training"
+          : `${scope === "repo" ? "Repository · " : ""}${storedChatModelId(m.id)}`,
       icon: kody.icon,
       reasoning: resolveReasoning(m),
     });

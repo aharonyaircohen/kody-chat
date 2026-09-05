@@ -108,6 +108,11 @@ export function rowsForFlyApp(
       orgSlug: override?.orgSlug,
       app,
       machineId: m.id,
+      sshConfigured:
+        Array.isArray(m.config?.files) &&
+        m.config.files.some(
+          (file) => file.guest_path === "/etc/kody-ssh/access.enc",
+        ),
       privateAddress: m.privateAddress,
       name: m.name,
       state: m.state,

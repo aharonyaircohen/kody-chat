@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
+  Download,
   Loader2,
   Pause,
   Play,
@@ -48,6 +49,7 @@ interface FlyMachinesTableProps {
 // Display order + friendly group titles.
 const FEATURE_ORDER: ServerProviderFeature[] = [
   "preview",
+  "app",
   "runner",
   "brain",
   "browser",
@@ -109,6 +111,7 @@ export function FlyMachinesTable({
 
   const [inv, setInv] = useState<ServerProviderInventory | null>(null);
   const [loading, setLoading] = useState(false);
+  const [inventoryError, setInventoryError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<ServerProviderMachineRow | null>(null);
   const [busyFeature, setBusyFeature] = useState<ServerProviderFeature | null>(
@@ -118,19 +121,46 @@ export function FlyMachinesTable({
     useState<ServerProviderFeature | null>(null);
 
   const refresh = useCallback(async () => {
-    if (!hasAuth || !flyTokenConfigured) {
+    if (!hasAuth) {
       setInv(null);
       return;
     }
     setLoading(true);
+    setInventoryError(null);
     try {
-      const res = await fetch("/api/kody/fly/machines", { headers });
-      if (!res.ok) {
-        setInv(null);
-        return;
-      }
-      setInv((await res.json()) as ServerProviderInventory);
+      const [repositoryResponse, brainResponse] = await Promise.all([
+        flyTokenConfigured
+          ? fetch("/api/kody/fly/machines", { headers }).catch(() => null)
+          : null,
+        fetch("/api/kody/brain/status", { headers }).catch(() => null),
+      ]);
+      if (flyTokenConfigured && !repositoryResponse?.ok)
+        setInventoryError("Repository machines could not be loaded.");
+      else if (!brainResponse?.ok)
+        setInventoryError("Personal Brain could not be loaded.");
+      const repository = repositoryResponse?.ok
+        ? ((await repositoryResponse.json()) as ServerProviderInventory)
+        : null;
+      const brain = brainResponse?.ok
+        ? ((await brainResponse.json()) as {
+            machines?: ServerProviderMachineRow[];
+          })
+        : null;
+      const machines = [
+        ...(repository?.machines ?? []).filter(
+          (machine) => machine.feature !== "brain",
+        ),
+        ...(brain?.machines ?? []),
+      ];
+      setInv({
+        machines,
+        total: machines.length,
+        running: machines.filter((machine) =>
+          isServerProviderMachineRunning(machine.state),
+        ).length,
+      });
     } catch {
+      setInventoryError("Machines could not be loaded.");
       setInv(null);
     } finally {
       setLoading(false);
@@ -140,6 +170,38 @@ export function FlyMachinesTable({
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  async function downloadSsh(row: ServerProviderMachineRow) {
+    setBusyId(row.machineId);
+    try {
+      const response = await fetch("/api/kody/fly/machines/ssh", {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({ app: row.app, machineId: row.machineId }),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error ?? "Could not download SSH settings");
+      }
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `kody-${row.app}-${row.machineId}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast.success("SSH settings downloaded");
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Could not download SSH settings",
+      );
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   async function act(
     row: ServerProviderMachineRow,
@@ -154,6 +216,12 @@ export function FlyMachinesTable({
               headers: { ...headers, "Content-Type": "application/json" },
               body: JSON.stringify({ appName: row.app }),
             })
+          : row.feature === "brain"
+            ? await fetch(action === "start" ? "/api/kody/brain/resume" : "/api/kody/brain/suspend", {
+                method: "POST",
+                headers: { ...headers, "Content-Type": "application/json" },
+                body: JSON.stringify({ appName: row.app }),
+              })
           : await fetch("/api/kody/fly/machines/action", {
               method: "POST",
               headers: { ...headers, "Content-Type": "application/json" },
@@ -193,7 +261,7 @@ export function FlyMachinesTable({
       const { results, okCount, failCount } = await batchSuspendRunning(
         rows,
         async (row) => {
-          const res = await fetch("/api/kody/fly/machines/action", {
+          const res = await fetch(row.feature === "brain" ? "/api/kody/brain/suspend" : "/api/kody/fly/machines/action", {
             method: "POST",
             headers: { ...headers, "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -252,7 +320,7 @@ export function FlyMachinesTable({
             size="sm"
             variant="ghost"
             onClick={refresh}
-            disabled={loading || !flyTokenConfigured}
+            disabled={loading || !hasAuth}
             className="ml-auto h-7 px-2 text-white/50 hover:text-white/80"
             title="Refresh"
           >
@@ -264,13 +332,20 @@ export function FlyMachinesTable({
           </Button>
         </div>
 
-        {!flyTokenConfigured && (
-          <p className="text-[11px] text-amber-300/80 italic">
-            Add FLY_API_TOKEN to the repo Secrets vault to list machines.
+        {inventoryError && (
+          <p role="alert" className="text-xs text-amber-300">
+            {inventoryError}
           </p>
         )}
 
-        {flyTokenConfigured && inv && groups.length === 0 && !loading && (
+        {!flyTokenConfigured && (
+          <p className="text-[11px] text-amber-300/80 italic">
+            Add FLY_API_TOKEN to the repo Secrets vault to list repository
+            machines.
+          </p>
+        )}
+
+        {inv && groups.length === 0 && !loading && !inventoryError && (
           <p className="text-xs text-white/40">No machines found.</p>
         )}
 
@@ -309,9 +384,9 @@ export function FlyMachinesTable({
                   return (
                     <div
                       key={row.machineId}
-                      className="flex items-center gap-2 py-1.5 text-xs"
+                      className="flex flex-wrap sm:flex-nowrap items-center gap-2 py-1.5 text-xs"
                     >
-                      <span className="font-medium text-white/80 w-28 truncate">
+                      <span className="font-medium text-white/80 w-28 shrink-0 truncate">
                         {row.label}
                       </span>
                       <span
@@ -336,7 +411,22 @@ export function FlyMachinesTable({
                       >
                         age {formatDuration(row.createdAt)}
                       </span>
-                      <div className="ml-auto flex items-center gap-1">
+                      <div className="ml-auto flex w-full sm:w-auto justify-end items-center gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={busy || !row.sshConfigured}
+                          onClick={() => downloadSsh(row)}
+                          className="h-6 px-1.5"
+                          title={
+                            row.sshConfigured
+                              ? "Download SSH config"
+                              : "SSH was not configured when this machine was created"
+                          }
+                        >
+                          <Download className="w-3 h-3 mr-1" />
+                          Download SSH config
+                        </Button>
                         {running ? (
                           <Button
                             size="sm"

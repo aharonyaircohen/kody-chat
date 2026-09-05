@@ -61,6 +61,7 @@ export interface TerminalBridgeExecJob {
 }
 
 export async function startTerminalBridgeLocalExecJob(input: {
+  jobId?: string;
   bridgeUrl: string;
   token: string;
   command: string;
@@ -74,6 +75,7 @@ export async function startTerminalBridgeLocalExecJob(input: {
       Authorization: `Bearer ${input.token}`,
     },
     body: JSON.stringify({
+      jobId: input.jobId,
       command: input.command,
       local: true,
       timeoutMs: input.timeoutMs,

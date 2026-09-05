@@ -112,7 +112,7 @@ describe("expandChatViewSpec", () => {
       type: "stack",
       children: [
         { type: "text", value: "Pick one", variant: "title" },
-        { type: "text", value: "" },
+        { type: "markdown", value: "" },
         {
           type: "list",
           children: [

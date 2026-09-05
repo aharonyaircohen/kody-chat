@@ -47,6 +47,7 @@ export interface ApplyBrainImageInput {
   owner: string;
   repo: string;
   account: string;
+  githubAccount?: string;
   githubToken: string;
   allSecrets: Record<string, string>;
   flyToken: string;
@@ -77,14 +78,14 @@ export async function applyBrainImageToRuntime(
   const ghcr = brainGhcrAuth({
     allSecrets: input.allSecrets,
     githubToken: input.githubToken,
-    account: input.account,
+    account: input.githubAccount ?? input.account,
   });
   let savedImage = image?.images.find((saved) => saved.imageRef === imageRef);
   if (!savedImage) {
     const discoveredImages = await discoverBrainPackageImages({
       owner: input.owner,
       repo: input.repo,
-      account: input.account,
+      account: input.githubAccount ?? input.account,
       githubToken: ghcr.token,
     });
     const images = mergeBrainSavedImages(image, discoveredImages);
@@ -110,7 +111,11 @@ export async function applyBrainImageToRuntime(
     throw new Error("No Brain images saved");
   }
 
-  await beginBrainRuntimeApply(input.account, input.githubToken, imageRef);
+  const started = await beginBrainRuntimeApply(
+    input.account,
+    input.githubToken,
+    imageRef,
+  );
 
   try {
     const stored = await readBrainApp(input.account, input.githubToken).catch(
@@ -152,7 +157,7 @@ export async function applyBrainImageToRuntime(
         Promise.resolve(brainFlyRuntimeImageRef({ app, imageRef })),
       prepareRuntimeImage: async ({ app, sourceImageRef, runtimeImageRef }) => {
         await prepareBrainRuntimeImage({
-          owner: input.owner,
+          owner: input.account,
           repo: input.repo,
           app,
           imageRef: sourceImageRef,
@@ -179,6 +184,7 @@ export async function applyBrainImageToRuntime(
       input.account,
       input.githubToken,
       {
+        operationId: started.operation!.id,
         imageRef,
         app: brain.app,
         machineId: brain.machineId,
@@ -194,6 +200,7 @@ export async function applyBrainImageToRuntime(
       input.githubToken,
       imageRef,
       err instanceof Error ? err.message : String(err),
+      started.operation!.id,
     ).catch((writeErr) => {
       logger.warn(
         { err: writeErr, owner: input.owner, imageRef },

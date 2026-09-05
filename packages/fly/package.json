@@ -38,6 +38,7 @@
     "@kody-ade/engine-contracts": "workspace:*",
     "@kody-ade/terminal": "workspace:*",
     "@octokit/rest": "^22.0.1",
+    "fflate": "0.8.2",
     "zod": "^4.3.5"
   },
   "devDependencies": {

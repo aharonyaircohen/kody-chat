@@ -35,7 +35,11 @@ describe("personal Brain state", () => {
     };
 
     await writeBrainApp("account-a", "", record);
-    expect(await readBrainApp("account-a", "")).toEqual(record);
+    expect(await readBrainApp("account-a", "")).toEqual({
+      ...record,
+      ownerAccount: "account-a",
+    });
+    expect(state.get("user-a:app")).toMatchObject({ ownerAccount: "account-a" });
 
     activeUser = "user-b";
     _resetBrainAppCache();

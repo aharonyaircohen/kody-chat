@@ -26,6 +26,28 @@ const input = {
 };
 
 describe("image jobs through the terminal gateway", () => {
+  it("accepts the restore token shape without a machine", () => {
+    expect(
+      verify(
+        mintTerminalBridgeToken({
+          ...input,
+          machineId: undefined,
+          localExec: true,
+        }),
+      ).localExec,
+    ).toBe(true);
+  });
+  it("requires a real machine for interactive connections", () => {
+    expect(() =>
+      verify(
+        mintTerminalBridgeToken({
+          ...input,
+          machineId: undefined,
+          chatSessionId: "chat-1",
+        }),
+      ),
+    ).toThrow("machine invalid");
+  });
   it("accepts authorized image jobs without inventing a chat session", () => {
     expect(
       verify(mintTerminalBridgeToken({ ...input, localExec: true })).localExec,

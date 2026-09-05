@@ -59,7 +59,7 @@ export interface BrainRuntimeRunning {
 
 export interface BrainRuntimeOperation {
   id: string;
-  type: "apply-image";
+  type: "apply-image" | "save-image";
   status: "running" | "completed" | "failed";
   imageRef: string;
   startedAt: string;
@@ -98,7 +98,7 @@ function isRuntimeOperation(value: unknown): value is BrainRuntimeOperation {
   return (
     typeof v.id === "string" &&
     v.id.length > 0 &&
-    v.type === "apply-image" &&
+    (v.type === "apply-image" || v.type === "save-image") &&
     (v.status === "running" ||
       v.status === "completed" ||
       v.status === "failed") &&
@@ -147,10 +147,11 @@ function normalizeRuntimeState(
 export async function readBrainRuntimeState(
   login: string,
   _token: string,
+  fresh = false,
 ): Promise<BrainRuntimeStateFile | null> {
   const key = cacheKey(login);
   const cached = getCache(key);
-  if (cached) return cached.data;
+  if (cached && !fresh) return cached.data;
   const services = getPersonalBrainServices();
   const user = await services.resolveUser();
   if (!user) return null;
@@ -165,6 +166,7 @@ export async function writeBrainRuntimeState(
   login: string,
   _token: string,
   file: BrainRuntimeStateFile,
+  expectedDataUpdatedAt?: string | null,
 ): Promise<void> {
   const normalized = normalizeRuntimeState(file, { forWrite: true });
   if (!normalized) {
@@ -175,6 +177,15 @@ export async function writeBrainRuntimeState(
   const services = getPersonalBrainServices();
   const user = await services.resolveUser();
   if (!user) throw new Error("unauthorized");
-  await services.saveState(user.id, "runtime", normalized);
+  if (expectedDataUpdatedAt === undefined) {
+    await services.saveState(user.id, "runtime", normalized);
+  } else {
+    await services.saveState(
+      user.id,
+      "runtime",
+      normalized,
+      expectedDataUpdatedAt,
+    );
+  }
   setCache(key, normalized);
 }

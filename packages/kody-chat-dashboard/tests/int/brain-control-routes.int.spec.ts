@@ -51,17 +51,17 @@ vi.mock("@kody-ade/base/auth", () => ({
   })),
 }));
 
-vi.mock("@kody-ade/fly/plugin/runners/context", () => ({
-  resolveFlyContext: vi.fn(async () => ({
+vi.mock("@kody-ade/brain/personal-context", () => ({
+  resolvePersonalBrainContext: vi.fn(async () => ({
     ok: true,
     context: {
-      owner: "acme",
-      repo: "widgets",
+      userId: "octocat",
       account: "octocat",
       githubToken: "ghp_test",
       flyToken: "fly-token",
       flyOrgSlug: "personal",
       flyDefaultRegion: "fra",
+      allSecrets: {},
     },
   })),
 }));

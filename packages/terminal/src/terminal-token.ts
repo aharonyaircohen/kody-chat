@@ -8,6 +8,7 @@
  * trusted bridge process that actually attaches to the machine.
  */
 import crypto from "crypto";
+import { validateTerminalClaims } from "./terminal-claims";
 
 const TOKEN_VERSION = "kody-terminal-v1";
 const DEFAULT_TTL_SECONDS = 120;
@@ -186,8 +187,6 @@ export function verifyTerminalBridgeToken(
   ]).toString("utf8");
   const claims = JSON.parse(plaintext) as TerminalBridgeClaims;
   const now = opts.now ?? Math.floor(Date.now() / 1000);
-  if (claims.sub !== "kody-terminal")
-    throw new Error("terminal token subject invalid");
-  if (claims.exp < now) throw new Error("terminal token expired");
+  validateTerminalClaims(claims as unknown as Record<string, unknown>, now);
   return claims;
 }

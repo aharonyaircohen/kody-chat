@@ -82,12 +82,13 @@ setPersonalBrainServices({
     return stored?.data ?? null;
   },
 
-  async saveState(userId, name, data) {
+  async saveState(userId, name, data, expectedDataUpdatedAt) {
     await getConvexClient().mutation(backendApi.userPreferences.save, {
       namespace: namespaceFor(name),
       userKey: userId,
       data,
       updatedAt: new Date().toISOString(),
+      ...(expectedDataUpdatedAt !== undefined ? { expectedDataUpdatedAt } : {}),
     });
   },
 });

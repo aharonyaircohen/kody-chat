@@ -273,9 +273,9 @@ describe("POST /api/kody/chat/kody", () => {
       await import("../../src/dashboard/lib/chat-defaults");
     const prompt = (await loadChatDefaults("acme", "repo")).agentIdentity;
     expect(prompt).toMatch(
-      /every prose final reply must end with one short, relevant follow-up question/i,
+      /every prose final reply must end with one short, useful, self-contained follow-up question/i,
     );
-    expect(prompt).toMatch(/Renderer replies are exempt/i);
+    expect(prompt).toMatch(/Renderer-owned replies remain exempt/i);
     for (const banned of [
       "Great question",
       "Sure!",
@@ -312,9 +312,9 @@ describe("POST /api/kody/chat/kody", () => {
     expect(CRITICAL_REMINDERS_MD).toMatch(/Start with the answer/i);
     expect(CRITICAL_REMINDERS_MD).toMatch(/Verify before claiming/i);
     expect(CRITICAL_REMINDERS_MD).toMatch(
-      /Every prose final reply ends with one short, relevant follow-up question/i,
+      /Every prose final reply must end with one short, useful, self-contained follow-up question/i,
     );
-    expect(CRITICAL_REMINDERS_MD).toMatch(/Renderer replies are exempt/i);
+    expect(CRITICAL_REMINDERS_MD).toMatch(/Renderer-owned replies remain exempt/i);
     expect(CRITICAL_REMINDERS_MD).not.toMatch(/Re-state last thing you read/i);
     expect(CRITICAL_REMINDERS_MD).not.toMatch(/Every reply ends/i);
   });

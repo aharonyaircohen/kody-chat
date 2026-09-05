@@ -6,6 +6,10 @@
  * Command boundary for saving the current live Brain server as a GHCR image.
  */
 import "server-only";
+import {
+  beginBrainRuntimeApply,
+  finishBrainImageSaveOperation,
+} from "./runtime-manager";
 
 import { startTerminalBridgeLocalExecJob } from "@kody-ade/terminal/bridge-exec-client";
 import { ensureServerProviderTerminalBridge } from "@kody-ade/fly/infrastructure/server-terminal";
@@ -97,70 +101,6 @@ export async function startBrainImageSave(input: StartBrainImageSaveInput) {
     );
   }
 
-  const brain = await resolveBrainService({
-    flyToken: context.flyToken,
-    account: context.account,
-    githubToken: context.githubToken,
-    orgSlug: context.flyOrgSlug,
-    defaultRegion: context.flyDefaultRegion,
-  });
-  const app = brain.app;
-  const machineId = brain.machineId;
-  const brainFlyToken = brain.flyToken;
-  if (brain.reason === "fly_access_denied") {
-    const error = new Error(
-      "Fly token cannot access this Brain app.",
-    ) as Error & {
-      status?: number;
-      code?: string;
-      app?: string;
-      org?: string;
-    };
-    error.status = 403;
-    error.code = "fly_access_denied";
-    error.app = brain.app;
-    error.org = brain.orgSlug;
-    throw error;
-  }
-  if (brain.state === "off" || !machineId || !brain.url) {
-    const error = new Error("No Brain machine found to save.") as Error & {
-      status?: number;
-      code?: string;
-      reason?: string;
-    };
-    error.status = 404;
-    error.code = "brain_not_found";
-    error.reason = brain.reason;
-    throw error;
-  }
-  await waitForServerBrainHealth(brain.url, 120_000);
-
-  const bridge = await ensureServerProviderTerminalBridge({
-    token: brainFlyToken,
-    orgSlug: brain.orgSlug,
-    defaultRegion: brain.defaultRegion,
-  }).catch((err) => {
-    if (flyAccessDenied(err)) {
-      throw bridgeAccessDeniedError({
-        app,
-        org: brain.orgSlug,
-        cause: err,
-      });
-    }
-    throw err;
-  });
-  const token = mintTerminalBridgeToken({
-    owner: context.githubOwner ?? context.account,
-    repo: "personal-brain",
-    app,
-    orgSlug: brain.orgSlug,
-    machineId,
-    flyToken: brainFlyToken,
-    ghcrToken: ghcr.token,
-    localExec: true,
-    ttlSeconds: 900,
-    secret: bridge.secret,
-  });
   const now = new Date();
   const tag = brainImageTag(now);
   const expectedImageRef = brainGhcrImageRef({
@@ -168,10 +108,97 @@ export async function startBrainImageSave(input: StartBrainImageSaveInput) {
     account: context.githubAccount ?? ghcr.user,
     tag,
   });
-  const job = await startTerminalBridgeLocalExecJob({
-    bridgeUrl: bridge.url,
-    token,
-    command: brainImageBuildCommand({
+  const operation = await beginBrainRuntimeApply(
+    context.account,
+    context.githubToken,
+    expectedImageRef,
+    "save-image",
+  );
+  const operationId = operation.operation!.id;
+  let dispatchAttempted = false;
+  try {
+    const brain = await resolveBrainService({
+      flyToken: context.flyToken,
+      account: context.account,
+      githubToken: context.githubToken,
+      orgSlug: context.flyOrgSlug,
+      defaultRegion: context.flyDefaultRegion,
+    });
+    const app = brain.app;
+    const machineId = brain.machineId;
+    const brainFlyToken = brain.flyToken;
+    if (brain.reason === "fly_access_denied") {
+      const error = new Error(
+        "Fly token cannot access this Brain app.",
+      ) as Error & {
+        status?: number;
+        code?: string;
+        app?: string;
+        org?: string;
+      };
+      error.status = 403;
+      error.code = "fly_access_denied";
+      error.app = brain.app;
+      error.org = brain.orgSlug;
+      throw error;
+    }
+    if (brain.state === "off" || !machineId || !brain.url) {
+      const error = new Error("No Brain machine found to save.") as Error & {
+        status?: number;
+        code?: string;
+        reason?: string;
+      };
+      error.status = 404;
+      error.code = "brain_not_found";
+      error.reason = brain.reason;
+      throw error;
+    }
+    await waitForServerBrainHealth(brain.url, 120_000);
+
+    const bridge = await ensureServerProviderTerminalBridge({
+      token: brainFlyToken,
+      orgSlug: brain.orgSlug,
+      defaultRegion: brain.defaultRegion,
+    }).catch((err) => {
+      if (flyAccessDenied(err)) {
+        throw bridgeAccessDeniedError({
+          app,
+          org: brain.orgSlug,
+          cause: err,
+        });
+      }
+      throw err;
+    });
+    const token = mintTerminalBridgeToken({
+      owner: context.account,
+      repo: "personal-brain",
+      app,
+      orgSlug: brain.orgSlug,
+      machineId,
+      flyToken: brainFlyToken,
+      ghcrToken: ghcr.token,
+      localExec: true,
+      ttlSeconds: 900,
+      secret: bridge.secret,
+    });
+    const save: BrainImageSaveFile = {
+      authorizationOwner: context.account,
+      version: 1,
+      status: "running",
+      phase: "starting",
+      message: "Starting Brain image save",
+      jobId: operationId,
+      app,
+      machineId,
+      bridgeApp: bridge.app,
+      orgSlug: brain.orgSlug,
+      defaultRegion: brain.defaultRegion,
+      expectedImageRef,
+      startedAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+    };
+    await writeBrainImageSave(context.account, context.githubToken, save);
+    const command = brainImageBuildCommand({
       app,
       machineId,
       orgSlug: brain.orgSlug,
@@ -179,36 +206,37 @@ export async function startBrainImageSave(input: StartBrainImageSaveInput) {
       baseImageRef: defaultServerBrainImage,
       imageRef: expectedImageRef,
       ghcrUser: ghcr.user,
-    }),
-    timeoutMs: brainImageJobTimeoutMs(),
-    maxOutputBytes: BRAIN_IMAGE_JOB_OUTPUT_BYTES,
-  });
-  const save: BrainImageSaveFile = {
-    version: 1,
-    status: "running",
-    phase: "starting",
-    message: "Starting Brain image save",
-    jobId: job.id,
-    app,
-    machineId,
-    bridgeApp: bridge.app,
-    orgSlug: brain.orgSlug,
-    defaultRegion: brain.defaultRegion,
-    expectedImageRef,
-    startedAt: now.toISOString(),
-    updatedAt: now.toISOString(),
-  };
-  await writeBrainImageSave(context.account, context.githubToken, save);
+    });
+    dispatchAttempted = true;
+    await startTerminalBridgeLocalExecJob({
+      jobId: operationId,
+      bridgeUrl: bridge.url,
+      token,
+      command,
+      timeoutMs: brainImageJobTimeoutMs(),
+      maxOutputBytes: BRAIN_IMAGE_JOB_OUTPUT_BYTES,
+    });
 
-  return {
-    ok: true,
-    status: "running" as const,
-    phase: "starting" as const,
-    message: "Starting Brain image save",
-    jobId: job.id,
-    app,
-    machineId,
-    imageRef: expectedImageRef,
-    startedAt: save.startedAt,
-  };
+    return {
+      ok: true,
+      status: "running" as const,
+      phase: "starting" as const,
+      message: "Starting Brain image save",
+      jobId: operationId,
+      app,
+      machineId,
+      imageRef: expectedImageRef,
+      startedAt: save.startedAt,
+    };
+  } catch (error) {
+    if (!dispatchAttempted) {
+      await finishBrainImageSaveOperation(
+        context.account,
+        context.githubToken,
+        operationId,
+        error instanceof Error ? error.message : "Save could not start",
+      );
+    }
+    throw error;
+  }
 }

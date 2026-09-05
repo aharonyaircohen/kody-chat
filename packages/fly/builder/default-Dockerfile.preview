@@ -18,6 +18,10 @@ ARG BASE_IMAGE=node:22-alpine
 FROM ${BASE_IMAGE}
 WORKDIR /app
 
+RUN if command -v apk >/dev/null 2>&1; then apk add --no-cache openssh-server; \
+    elif command -v apt-get >/dev/null 2>&1; then apt-get update && apt-get install -y --no-install-recommends openssh-server && rm -rf /var/lib/apt/lists/*; \
+    else echo "SSH requires an image with OpenSSH support" >&2; exit 1; fi
+
 RUN corepack enable 2>/dev/null || true
 
 COPY package.json pnpm-lock.yaml* package-lock.json* yarn.lock* ./
@@ -40,4 +44,4 @@ ENV PORT=8080
 ENV HOSTNAME=0.0.0.0
 
 EXPOSE 8080
-CMD ["sh", "-c", "if [ -f pnpm-lock.yaml ]; then pnpm exec next dev -H 0.0.0.0 -p 8080; else npx next dev -H 0.0.0.0 -p 8080; fi"]
+CMD ["sh", "-c", "if [ -f /etc/kody-ssh/start.sh ]; then sh /etc/kody-ssh/start.sh; fi; if [ -f pnpm-lock.yaml ]; then pnpm exec next dev -H 0.0.0.0 -p 8080; else npx next dev -H 0.0.0.0 -p 8080; fi"]

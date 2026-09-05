@@ -81,6 +81,14 @@ function setup(schedule?: (callback: () => void, delayMs: number) => number) {
 }
 
 describe("TerminalSessionClient", () => {
+  it("retries an unknown startup transport failure without prescribing setup", async () => {
+    const pending: Array<() => void> = [];
+    const harness = setup(callback => { pending.push(callback); return pending.length; });
+    await harness.client.connect();
+    harness.sockets[0].message({ type: "input-rejected", code: "terminal_transport_unavailable", message: "Provider temporarily unavailable" });
+    expect(harness.client.getState().issue?.action).not.toBe("setup");
+    expect(pending).toHaveLength(1);
+  });
   it("retries a Fly tunnel timeout without requiring setup or losing session identity", async () => {
     const pending: Array<() => void> = [];
     const harness = setup((callback) => {

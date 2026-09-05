@@ -10,6 +10,7 @@ import { logger } from "@kody-ade/base/logger";
 import { requireKodyUser } from "@dashboard/lib/auth/kody-user";
 import { getRequestAuth, getUserOctokit } from "@kody-ade/base/auth";
 import { isBuiltInChatModelId } from "@kody-ade/kody-chat-dashboard/chat/model-catalog";
+import { loadOpenCodeFreeModels } from "@kody-ade/kody-chat-dashboard/chat/opencode-free";
 import {
   backendApi,
   getConvexClient,
@@ -40,6 +41,22 @@ function parseStoredSettings(value: unknown) {
 export async function GET(req?: NextRequest) {
   const actor = await requireKodyUser();
   if (actor instanceof NextResponse) return actor;
+
+  if (req?.nextUrl.searchParams.get("catalog") === "opencode-free") {
+    try {
+      return NextResponse.json(
+        { models: await loadOpenCodeFreeModels() },
+        { headers: NO_STORE_HEADERS },
+      );
+    } catch {
+      return NextResponse.json(
+        {
+          error: "OpenCode's free model list is unavailable. Try again later.",
+        },
+        { status: 503, headers: NO_STORE_HEADERS },
+      );
+    }
+  }
 
   try {
     const stored = await getConvexClient().query(

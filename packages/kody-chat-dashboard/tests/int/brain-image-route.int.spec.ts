@@ -22,21 +22,13 @@ vi.mock("@kody-ade/base/auth", () => ({
   requireKodyAuth: vi.fn(async () => null),
 }));
 
-vi.mock("@kody-ade/fly/plugin/runners/context", () => ({
-  flyConfigFromContext: vi.fn((context) =>
-    context.flyToken
-      ? {
-          token: context.flyToken,
-          orgSlug: context.flyOrgSlug,
-          defaultRegion: context.flyDefaultRegion,
-        }
-      : null,
-  ),
-  resolveFlyContext: vi.fn(async () => ({
+vi.mock("@kody-ade/brain/personal-context", () => ({
+  resolvePersonalBrainContext: vi.fn(async () => ({
     ok: true,
     context: {
-      owner: "A-Guy-educ",
-      repo: "A-Guy-Web",
+      userId: "aguyaharonyair",
+      githubOwner: "A-Guy-educ",
+      githubAccount: "aguyaharonyair",
       account: "aguyaharonyair",
       githubToken: "gh-token",
       flyToken: "fly-token",
@@ -56,6 +48,7 @@ vi.mock("../../src/dashboard/lib/github-client", () => ({
 vi.mock("@kody-ade/brain/service-resolver", () => ({
   resolveBrainService: vi.fn(async () => ({
     app: "brain-1",
+    flyToken: "fly-token",
     orgSlug: "guy-koren",
     defaultRegion: "fra",
     state: "running",
@@ -95,6 +88,8 @@ vi.mock("@kody-ade/brain/store", () => ({
 
 vi.mock("@kody-ade/brain/runtime-manager", () => ({
   readBrainRuntimeView: mocks.readRuntimeView,
+  beginBrainRuntimeApply: vi.fn(async () => ({ operation: { id: "job-1" } })),
+  finishBrainImageSaveOperation: vi.fn(async () => undefined),
 }));
 
 vi.mock("@kody-ade/brain/image-runtime", () => ({
@@ -103,10 +98,12 @@ vi.mock("@kody-ade/brain/image-runtime", () => ({
 
 import { DELETE, GET, POST } from "../../app/api/kody/brain/image/route";
 import { resolveBrainService } from "@kody-ade/brain/service-resolver";
-import { resolveFlyContext } from "@kody-ade/fly/plugin/runners/context";
+import { resolvePersonalBrainContext } from "@kody-ade/brain/personal-context";
+import { clearBrainPackageImageDiscoveryCache } from "@kody-ade/brain/image-catalog";
 import { ensureTerminalBridge } from "../../node_modules/@kody-ade/fly/src/plugin/terminal/bridge";
 
 afterEach(() => {
+  clearBrainPackageImageDiscoveryCache();
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
@@ -122,12 +119,12 @@ function request(
   });
 }
 
-function mockRepoWithoutFlyToken() {
-  vi.mocked(resolveFlyContext).mockResolvedValueOnce({
+function mockPersonalAccountWithoutFlyToken() {
+  vi.mocked(resolvePersonalBrainContext).mockResolvedValueOnce({
     ok: true,
     context: {
-      owner: "A-Guy-educ",
-      repo: "A-Guy-Web",
+      userId: "aguyaharonyair",
+      githubOwner: "A-Guy-educ",
       account: "aguyaharonyair",
       githubToken: "gh-token",
       flyToken: undefined,
@@ -166,18 +163,16 @@ describe("GET /api/kody/brain/image", () => {
     });
   });
 
-  it("does not expose Brain images when the repo has no Fly token", async () => {
-    mockRepoWithoutFlyToken();
-    vi.stubGlobal("fetch", vi.fn());
+  it("reads saved images without requiring a Fly credential", async () => {
+    mockPersonalAccountWithoutFlyToken();
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("[]", { status: 200 })));
 
     const res = await GET(request("GET"));
 
-    expect(res.status).toBe(503);
-    await expect(res.json()).resolves.toMatchObject({
-      error: "fly_token_missing",
-    });
-    expect(mocks.readImage).not.toHaveBeenCalled();
-    expect(fetch).not.toHaveBeenCalled();
+    expect(res.status).toBe(200);
+    expect(mocks.readImage).toHaveBeenCalledWith("aguyaharonyair", "gh-token");
+    expect(resolveBrainService).not.toHaveBeenCalled();
+    expect(mocks.writeImage).not.toHaveBeenCalled();
   });
 
   it("includes historical Brain image tags from the GHCR package", async () => {
@@ -706,8 +701,8 @@ describe("DELETE /api/kody/brain/image", () => {
     );
   });
 
-  it("does not delete Brain images when the repo has no Fly token", async () => {
-    mockRepoWithoutFlyToken();
+  it("does not delete Brain images when the personal account has no Fly token", async () => {
+    mockPersonalAccountWithoutFlyToken();
 
     const res = await DELETE(
       request(
@@ -716,7 +711,7 @@ describe("DELETE /api/kody/brain/image", () => {
       ),
     );
 
-    expect(res.status).toBe(503);
+    expect(res.status).toBe(400);
     await expect(res.json()).resolves.toMatchObject({
       error: "fly_token_missing",
     });
@@ -811,12 +806,12 @@ describe("POST /api/kody/brain/image", () => {
     });
   });
 
-  it("does not start a Brain image save when the repo has no Fly token", async () => {
-    mockRepoWithoutFlyToken();
+  it("does not start a Brain image save when the personal account has no Fly token", async () => {
+    mockPersonalAccountWithoutFlyToken();
 
     const res = await POST(request());
 
-    expect(res.status).toBe(503);
+    expect(res.status).toBe(400);
     await expect(res.json()).resolves.toMatchObject({
       error: "fly_token_missing",
     });
@@ -829,6 +824,7 @@ describe("POST /api/kody/brain/image", () => {
 
     expect(res.status).toBe(202);
     expect(body).toMatchObject({ status: "running", jobId: "job-1" });
+    expect(mocks.writeSave.mock.invocationCallOrder[0]).toBeLessThan(mocks.startJob.mock.invocationCallOrder[0]!);
     const command = mocks.startJob.mock.calls[0]?.[0]?.command as string;
     expect(command).toContain("app='\\''brain-1'\\''");
     expect(command).toContain("machine='\\''machine-1'\\''");
@@ -847,6 +843,13 @@ describe("POST /api/kody/brain/image", () => {
         orgSlug: "guy-koren",
       }),
     );
+  });
+
+  it("does not execute an untracked save when persistence fails", async () => {
+    mocks.writeSave.mockRejectedValueOnce(new Error("persistence unavailable"));
+    const res = await POST(request());
+    expect(res.status).toBe(502);
+    expect(mocks.startJob).not.toHaveBeenCalled();
   });
 
   it("returns a Fly authorization error before starting a save job", async () => {

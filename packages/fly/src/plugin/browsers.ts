@@ -292,6 +292,7 @@ export const flyBrowserProvider: FlyBrowserProvider = {
             appName,
             region: input.config.defaultRegion,
             image: input.image,
+            sshUsername: "browser",
             internalPort: 8080,
             memoryMb: BROWSER_MACHINE_MEMORY_MB,
             cpus: BROWSER_MACHINE_CPUS,

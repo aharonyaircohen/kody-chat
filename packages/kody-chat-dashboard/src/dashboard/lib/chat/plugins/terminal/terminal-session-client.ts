@@ -302,6 +302,10 @@ export class TerminalSessionClient {
         const message = parseMessage(data);
         if (!message || message.kind === "pong") return;
         if (message.kind === "rejected") {
+          if (message.code === "terminal_transport_unavailable") {
+            this.retry(message.message);
+            return;
+          }
           if (
             /tunnel unavailable|timed? out|context deadline exceeded|ECONNRESET|ETIMEDOUT|network is unreachable|connection refused/i.test(
               message.message,
@@ -311,12 +315,16 @@ export class TerminalSessionClient {
             return;
           }
           if (!this.session) {
-            this.startupBlocked = true;
-            this.publish("error", message.message, {
-              code: message.code ?? "terminal_agent_unavailable",
-              message: message.message,
-              action: "setup",
-            });
+            if (message.code === "terminal_agent_missing") {
+              this.startupBlocked = true;
+              this.publish("error", message.message, {
+                code: message.code,
+                message: message.message,
+                action: "setup",
+              });
+            } else {
+              this.retry(message.message);
+            }
           } else {
             this.publish(this.state.connection, message.message);
           }

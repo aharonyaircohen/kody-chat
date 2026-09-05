@@ -16,7 +16,7 @@
  */
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type {
   BrainChatModelEntry,
   ChatModelEntry,
@@ -26,6 +26,7 @@ import { authHeaders } from "../kody-chat-live-session";
 import {
   KODY_BUILT_IN_CHAT_MODELS,
   composeChatModelCatalog,
+  OPENCODE_FREE_PICKER_MODEL,
 } from "../chat/model-catalog";
 
 export interface ChatDataSources {
@@ -75,6 +76,8 @@ export function hasSecretMetadata(
  */
 export function useChatDataSources(): ChatDataSources {
   const [chatModels, setChatModels] = useState<ChatModelEntry[]>([]);
+  const [freeModels, setFreeModels] = useState<ChatModelEntry[]>([]);
+  const [freeModelsLoaded, setFreeModelsLoaded] = useState(false);
   const [chatModelsLoaded, setChatModelsLoaded] = useState(false);
   const [automatic, setAutomatic] = useState<AutomaticModel>({
     default: false,
@@ -104,12 +107,11 @@ export function useChatDataSources(): ChatDataSources {
         const configuredModels = Array.isArray(modelsJson.models)
           ? modelsJson.models
           : [];
-        setChatModels(
-          composeChatModelCatalog<ChatModelEntry>(
-            configuredModels,
-            KODY_BUILT_IN_CHAT_MODELS,
-          ),
+        const configuredCatalog = composeChatModelCatalog<ChatModelEntry>(
+          configuredModels,
+          KODY_BUILT_IN_CHAT_MODELS,
         );
+        setChatModels(configuredCatalog);
         setAutomatic(
           modelsJson.automatic ?? {
             default: false,
@@ -124,6 +126,47 @@ export function useChatDataSources(): ChatDataSources {
       cancelled = true;
     };
   }, []);
+
+  // Discovery never removes configured models or changes their default.
+  useEffect(() => {
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const response = await fetch("/api/kody/models?catalog=opencode-free", {
+          headers: authHeaders(),
+          cache: "no-store",
+          signal: AbortSignal.timeout(15_000),
+        });
+        if (!response.ok) throw new Error("Catalog unavailable");
+        const body = await response.json();
+        if (!cancelled)
+          setFreeModels(
+            Array.isArray(body.models) && body.models.length > 0
+              ? [OPENCODE_FREE_PICKER_MODEL]
+              : [],
+          );
+      } catch {
+        if (!cancelled) setFreeModels([]);
+      } finally {
+        if (!cancelled) setFreeModelsLoaded(true);
+      }
+    };
+    void refresh();
+    const interval = window.setInterval(refresh, 300_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, []);
+  const pickerModels = useMemo(
+    () => [
+      ...chatModels,
+      ...(chatModelsLoaded ? freeModels : []).filter(
+        (entry) => !chatModels.some((model) => model.id === entry.id),
+      ),
+    ],
+    [chatModels, freeModels, chatModelsLoaded],
+  );
 
   // Load the repo-wide Repo Brain chat toggle once on mount. The default
   // chat entry is no longer fetched here — it's a per-user localStorage
@@ -178,8 +221,8 @@ export function useChatDataSources(): ChatDataSources {
   }, []);
 
   return {
-    chatModels,
-    chatModelsLoaded,
+    chatModels: pickerModels,
+    chatModelsLoaded: chatModelsLoaded && freeModelsLoaded,
     automatic,
     brainModels,
     brainFlyChatEnabled,

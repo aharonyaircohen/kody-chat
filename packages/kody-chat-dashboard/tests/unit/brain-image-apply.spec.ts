@@ -19,7 +19,7 @@ const runtimeManager = vi.hoisted(() => ({
     desiredImageRef: "ghcr.io/acme/kody-brain-octocat:selected",
     source: "runtime",
   })),
-  beginBrainRuntimeApply: vi.fn(async () => undefined),
+  beginBrainRuntimeApply: vi.fn(async () => ({ operation: { id: "apply-1" } })),
   completeBrainRuntimeApply: vi.fn(
     async (
       _login: string,
@@ -281,6 +281,7 @@ describe("applyBrainImageToRuntime", () => {
       "gh-token",
       "ghcr.io/acme/kody-brain-octocat:selected",
       "Brain did not become healthy",
+      "apply-1",
     );
   });
 
@@ -502,6 +503,7 @@ describe("applyBrainImageToRuntime", () => {
       "gh-token",
       "ghcr.io/acme/kody-brain-octocat:selected",
       "backend down",
+      "apply-1",
     );
   });
 });

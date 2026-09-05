@@ -17,6 +17,7 @@ import { getRequestAuth, getUserOctokit } from "@kody-ade/base/auth";
 import { getEngineConfig } from "@kody-ade/base/engine/config";
 import { getSecret } from "@kody-ade/base/vault/get-secret";
 import { chatModelAdapter, chatModelAdapterBaseURL } from "./model-adapters";
+import { loadOpenCodeFreeModels } from "./opencode-free";
 import { supportsVision } from "@kody-ade/kody-chat-dashboard/core/vision-support";
 import {
   loadAutomaticModel,
@@ -25,6 +26,8 @@ import {
 import {
   KODY_BUILT_IN_CHAT_MODELS,
   composeChatModelCatalog,
+  openCodeChatModels,
+  OPENCODE_FREE_MODEL_ID,
 } from "@kody-ade/kody-chat-dashboard/chat/model-catalog";
 import {
   AUTOMATIC_MODEL_ID,
@@ -53,6 +56,7 @@ async function resolveModelCredential(
   model: ChatModel,
   personalProvider: ChatModelSettingsProvider | null,
 ): Promise<string | null> {
+  if (model.provider === "opencode-free") return "";
   const name = model.apiKeySecret;
   if (getRequestAuth(req)) {
     const repositoryValue = await getSecret(name, { req, vaultOnly: true });
@@ -233,6 +237,79 @@ export async function resolveChatModel(
     personalSettings?.automatic ?? (await loadAutomaticModel(req));
   const effectiveModelId =
     modelId ?? (automatic.default === true ? AUTOMATIC_MODEL_ID : undefined);
+  if (effectiveModelId === OPENCODE_FREE_MODEL_ID) {
+    try {
+      const freeModels = openCodeChatModels(await loadOpenCodeFreeModels());
+      if (!freeModels.length)
+        throw new Error(
+          "OpenCode has no free models available. Choose another provider or try later.",
+        );
+      const candidates = freeModels.map((config) => ({
+        id: config.label,
+        model: observeModel(
+          chatModelAdapter(config).create(config, "") as LanguageModelV3,
+          options,
+        ),
+      }));
+      const model =
+        candidates.length === 1
+          ? candidates[0].model
+          : createAutomaticLanguageModel(candidates, {
+              onFallback: options.onAutomaticFallback,
+            });
+      return {
+        model,
+        plannerModel: model,
+        resolvedModel: {
+          ...freeModels[0],
+          id: OPENCODE_FREE_MODEL_ID,
+          label: "OpenCode Free",
+          modelName: OPENCODE_FREE_MODEL_ID,
+        },
+        apiKey: "",
+      };
+    } catch (error) {
+      return {
+        error: NextResponse.json(
+          {
+            error: "model_unavailable",
+            message:
+              error instanceof Error
+                ? error.message
+                : "OpenCode Free is unavailable.",
+          },
+          { status: 409 },
+        ),
+      };
+    }
+  }
+  if (effectiveModelId?.startsWith("opencode-free/")) {
+    try {
+      const freeModels = openCodeChatModels(await loadOpenCodeFreeModels());
+      const selected = freeModels.find(
+        (model) => model.id === effectiveModelId,
+      );
+      if (!selected)
+        throw new Error(
+          "This model is no longer available for free. Choose another model.",
+        );
+      if (!availableModels.some((model) => model.id === selected.id))
+        availableModels.push(selected);
+    } catch (error) {
+      return {
+        error: NextResponse.json(
+          {
+            error: "model_unavailable",
+            message:
+              error instanceof Error
+                ? error.message
+                : "OpenCode Free is unavailable.",
+          },
+          { status: 409 },
+        ),
+      };
+    }
+  }
   if (effectiveModelId === AUTOMATIC_MODEL_ID) {
     const candidates = availableModels.filter(
       (candidate) =>
@@ -257,15 +334,23 @@ export async function resolveChatModel(
       [];
     let firstResolvedModel: ChatModel | null = null;
     for (const candidate of candidates) {
-      const resolved = options.preferVision
+      let resolved = options.preferVision
         ? pickVisionModel(candidate, availableModels)
         : candidate;
+      try {
+        resolved = await refreshFreeModel(resolved);
+      } catch {
+        continue;
+      }
       const apiKey = await resolveModelCredential(
         req,
         resolved,
         requestSettingsProvider,
       );
-      if (!apiKey) {
+      if (
+        apiKey === null ||
+        (!apiKey && resolved.provider !== "opencode-free")
+      ) {
         continue;
       }
       const adapter = chatModelAdapter(resolved);
@@ -360,16 +445,36 @@ export async function resolveChatModel(
       ),
     };
   }
-  const resolvedModel = options.preferVision
+  let resolvedModel = options.preferVision
     ? pickVisionModel(selectedModel, availableModels)
     : selectedModel;
+
+  try {
+    resolvedModel = await refreshFreeModel(resolvedModel);
+  } catch (error) {
+    return {
+      error: NextResponse.json(
+        {
+          error: "model_unavailable",
+          message:
+            error instanceof Error
+              ? error.message
+              : "OpenCode Free is unavailable. Choose another model.",
+        },
+        { status: 409 },
+      ),
+    };
+  }
 
   const apiKey = await resolveModelCredential(
     req,
     resolvedModel,
     requestSettingsProvider,
   );
-  if (!apiKey) {
+  if (
+    apiKey === null ||
+    (!apiKey && resolvedModel.provider !== "opencode-free")
+  ) {
     return {
       error: NextResponse.json(
         {
@@ -401,4 +506,23 @@ export async function resolveChatModel(
   ) as LanguageModel;
 
   return { model, plannerModel: model, resolvedModel, apiKey };
+}
+
+async function refreshFreeModel(model: ChatModel): Promise<ChatModel> {
+  if (model.provider !== "opencode-free") return model;
+  const entry = (await loadOpenCodeFreeModels()).find(
+    (entry) => entry.id === model.modelName,
+  );
+  if (!entry)
+    throw new Error(
+      "This model is no longer listed as free by OpenCode. Choose another model under /models.",
+    );
+  return {
+    ...model,
+    adapter: entry.adapter,
+    baseURL: PROVIDER_PRESETS["opencode-free"].baseURL,
+    adapterBaseURL: PROVIDER_PRESETS["opencode-free"].adapterBaseURL,
+    apiKeySecret: "",
+    engineDefault: false,
+  };
 }

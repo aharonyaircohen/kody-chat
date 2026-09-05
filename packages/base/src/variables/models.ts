@@ -51,6 +51,14 @@ export type AutomaticModel = z.infer<typeof AutomaticModelSchema>;
  * LiteLLM proxy, in-house service, etc).
  */
 export const PROVIDER_PRESETS = {
+  "opencode-free": {
+    label: "OpenCode Zen (free)",
+    adapter: "openai-compatible" as const,
+    adapterBaseURL: "https://opencode.ai/zen/v1",
+    protocol: "openai" as const,
+    baseURL: "https://opencode.ai/zen/v1",
+    keyHint: "",
+  },
   anthropic: {
     label: "Anthropic (Claude)",
     adapter: "anthropic" as const,
@@ -152,6 +160,7 @@ export const ChatAdapterSchema = z.enum([
   "anthropic",
   "google",
   "openai-compatible",
+  "openai-responses",
 ]);
 export type ChatAdapter = z.infer<typeof ChatAdapterSchema>;
 
@@ -184,7 +193,7 @@ const ChatModelConfigSchema = z.object({
   /** Model id exactly as the provider expects it on the wire. */
   modelName: z.string().min(1).max(160),
   /** Name of the secret in /secrets to read at request time. */
-  apiKeySecret: z.string().min(1).max(128),
+  apiKeySecret: z.string().max(128),
   /** Hide from dropdown without deleting. */
   enabled: z.boolean().optional().default(true),
   /** Include this model in the ordered Automatic fallback queue. */
@@ -261,16 +270,39 @@ const ChatModelConfigSchema = z.object({
  */
 type ChatModelConfig = z.infer<typeof ChatModelConfigSchema>;
 
-export const ChatModelSchema = ChatModelConfigSchema.transform(
-  (model): ChatModelConfig => {
-    const preset = PROVIDER_PRESETS[model.provider];
-    return {
-      ...model,
-      adapter: model.adapter ?? preset.adapter,
-      adapterBaseURL: model.adapterBaseURL ?? preset.adapterBaseURL,
-    };
+export const ChatModelSchema = ChatModelConfigSchema.superRefine(
+  (model, ctx) => {
+    if (model.provider !== "opencode-free" && !model.apiKeySecret.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["apiKeySecret"],
+        message: "API key secret is required",
+      });
+    }
+    if (
+      model.provider === "opencode-free" &&
+      (model.apiKeySecret !== "" ||
+        model.engineDefault === true ||
+        model.baseURL !== PROVIDER_PRESETS["opencode-free"].baseURL ||
+        (model.adapterBaseURL !== undefined &&
+          model.adapterBaseURL !==
+            PROVIDER_PRESETS["opencode-free"].adapterBaseURL))
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "OpenCode Free uses its fixed anonymous chat endpoint and cannot be an engine default",
+      });
+    }
   },
-);
+).transform((model): ChatModelConfig => {
+  const preset = PROVIDER_PRESETS[model.provider];
+  return {
+    ...model,
+    adapter: model.adapter ?? preset.adapter,
+    adapterBaseURL: model.adapterBaseURL ?? preset.adapterBaseURL,
+  };
+});
 
 export const ChatModelsSchema = z.array(ChatModelSchema);
 

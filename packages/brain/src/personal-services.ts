@@ -24,6 +24,7 @@ export interface PersonalBrainServices {
     userId: string,
     name: PersonalBrainStateName,
     data: unknown,
+    expectedDataUpdatedAt?: string | null,
   ): Promise<void>;
 }
 

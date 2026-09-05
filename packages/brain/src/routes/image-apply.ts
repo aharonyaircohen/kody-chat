@@ -72,8 +72,8 @@ export async function POST(req: NextRequest) {
       "brain image apply failed",
     );
     return NextResponse.json(
-      { error: "brain_image_apply_failed", message },
-      { status: 502 },
+      { error: (err as { code?: string }).code ?? "brain_image_apply_failed", message },
+      { status: (err as { status?: number }).status ?? 502 },
     );
   }
 }

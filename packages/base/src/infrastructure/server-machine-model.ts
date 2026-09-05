@@ -56,6 +56,7 @@ export interface ServerProviderMachineRow {
   sizeLabel: string;
   guest?: { cpuKind?: string; cpus?: number; memoryMb?: number };
   imageRef?: string;
+  sshConfigured?: boolean;
   createdAt?: string;
   ageDays?: number;
 }

@@ -87,6 +87,9 @@ source_image=${shellQuote(input.sourceImageRef)}
 runtime_image=${shellQuote(input.runtimeImageRef)}
 ghcr_user=${shellQuote(ghcrUser)}
 tmpdir="$(mktemp -d)"
+export DOCKER_CONFIG="$tmpdir/docker"
+export REGISTRY_AUTH_FILE="$tmpdir/registry-auth.json"
+install -d -m 0700 "$DOCKER_CONFIG"
 trap 'rm -rf "$tmpdir"' EXIT
 
 if ! command -v skopeo >/dev/null 2>&1; then
@@ -100,13 +103,27 @@ if [ -z "\${GHCR_TOKEN:-}" ]; then
   exit 1
 fi
 
-flyctl auth docker >/dev/null 2>&1 || true
+node -e ${shellQuote(`const tokens = (process.env.FLY_API_TOKEN || "").trim().replace(/^(?:FlyV1|Bearer)\\s+/i, "").split(",").map(t => t.trim()).filter(Boolean); const macaroons = tokens.filter(t => /^(?:fm1r|fm1a|fm2)_/.test(t)); process.stdout.write((macaroons.length ? macaroons : tokens).join(","));`)} | skopeo login registry.fly.io --username x --password-stdin >/dev/null
 printf '%s' "$GHCR_TOKEN" | skopeo login ghcr.io --username "$ghcr_user" --password-stdin >/dev/null
 
-if ! skopeo copy --all "docker://$source_image" "docker://$runtime_image" > "$tmpdir/copy.log" 2>&1; then
-  tail -n 200 "$tmpdir/copy.log" >&2
-  exit 1
-fi
+attempt=1
+while ! skopeo copy --all --authfile "$REGISTRY_AUTH_FILE" "docker://$source_image" "docker://$runtime_image" > "$tmpdir/copy.log" 2>&1; do
+  if grep -Eiq 'unauthorized|authentication required|access.*denied|forbidden' "$tmpdir/copy.log"; then
+    echo "Image registry access was denied. Check your GitHub and Fly credentials. The current Brain was not replaced." >&2
+    exit 1
+  fi
+  if ! grep -Eiq 'unexpected EOF|connection reset|connection refused|timed out|timeout|TLS handshake|temporary failure|status code: (429|50[234])' "$tmpdir/copy.log"; then
+    echo "Could not prepare the saved image. The current Brain was not replaced." >&2
+    exit 1
+  fi
+  if [ "$attempt" -ge 3 ]; then
+    echo "Image upload was interrupted after 3 attempts. The current Brain was not replaced. Try running the image again." >&2
+    exit 1
+  fi
+  echo "__KODY_BRAIN_RESTORE_RETRY=$attempt"
+  sleep $((attempt * 2))
+  attempt=$((attempt + 1))
+done
 
 printf '\\n__KODY_BRAIN_RUNTIME_IMAGE_REF=%s\\n' "$runtime_image"
 `)}`;

@@ -51,6 +51,7 @@ describe("terminal bridge token", () => {
       repo: "widgets",
       app: "kody-brain-alice",
       machineId: "brain-1",
+      chatSessionId: "chat-1",
       activityLimitMs: null,
       flyToken: "FlyV1 secret-token",
       now: 100,

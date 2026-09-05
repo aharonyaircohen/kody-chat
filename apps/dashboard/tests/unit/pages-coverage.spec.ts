@@ -12,6 +12,7 @@ import { describe, expect, it } from "vitest";
 
 /** Canonical page module -> this app's route file. */
 const ROUTE_FOR: Record<string, string> = {
+  apps: "app/apps/page.tsx",
   brain: "app/(chat-rail)/brain/page.tsx",
   "guided-flows": "app/(chat-rail)/guided-flows/page.tsx",
   models: "app/(chat-rail)/models/page.tsx",

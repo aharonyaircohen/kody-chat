@@ -46,6 +46,7 @@ describe("buildAgentList", () => {
       modelId: "gpt-x",
       name: "GPT X",
       description: "gpt-x",
+      modelGroup: "user",
       icon: AGENTS.kody.icon,
     });
     expect(gptX?.reasoning).toEqual(FALLBACK_REASONING);

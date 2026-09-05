@@ -44,6 +44,7 @@ describe("Brain runtime manager", () => {
       await import("@kody-ade/brain/runtime-manager");
 
     await completeBrainRuntimeApply("octocat", "token", {
+      operationId: "op-1",
       imageRef: "ghcr.io/acme/kody-brain-octocat:new",
       app: "brain-2",
       machineId: "machine-new",
@@ -63,6 +64,7 @@ describe("Brain runtime manager", () => {
         }),
         operation: expect.objectContaining({ status: "completed" }),
       }),
+      "2026-07-02T09:00:00.000Z",
     );
   });
 

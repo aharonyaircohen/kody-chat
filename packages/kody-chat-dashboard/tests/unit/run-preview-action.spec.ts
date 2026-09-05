@@ -21,9 +21,7 @@
 import { describe, it, expect, vi } from "vitest";
 import {
   runPreviewAction,
-  selectPreviewActionRuntime,
   directiveToAction,
-  type PreviewActionRuntime,
   type RunPreviewActionDeps,
 } from "../../src/dashboard/lib/picker/run-preview-action";
 import type { PreviewActDirective } from "../../src/dashboard/lib/chat-ui-actions";
@@ -84,33 +82,6 @@ function makeDeps(
     ...overrides,
   };
 }
-
-describe("selectPreviewActionRuntime", () => {
-  const runtime = (available: boolean): PreviewActionRuntime => ({
-    available: () => available,
-    act: vi.fn(async () => ({ ok: true })),
-  });
-
-  it("uses the page-owned browser before the iframe extension", () => {
-    const flyBrowser = runtime(true);
-    const extension = runtime(true);
-
-    expect(selectPreviewActionRuntime(flyBrowser, extension)).toBe(flyBrowser);
-  });
-
-  it("keeps the iframe extension as the fallback", () => {
-    const flyBrowser = runtime(false);
-    const extension = runtime(true);
-
-    expect(selectPreviewActionRuntime(flyBrowser, extension)).toBe(extension);
-  });
-
-  it("returns null when neither browser path is available", () => {
-    expect(
-      selectPreviewActionRuntime(runtime(false), runtime(false)),
-    ).toBeNull();
-  });
-});
 
 describe("directiveToAction", () => {
   it("translates click", () => {

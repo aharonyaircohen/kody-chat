@@ -569,6 +569,9 @@ importers:
       "@octokit/rest":
         specifier: ^22.0.1
         version: 22.0.1
+      fflate:
+        specifier: 0.8.2
+        version: 0.8.2
       react:
         specifier: 19.2.7
         version: 19.2.7
@@ -661,6 +664,9 @@ importers:
       "@ai-sdk/mcp":
         specifier: ^1.0.30
         version: 1.0.61(zod@4.4.3)
+      "@ai-sdk/openai":
+        specifier: ^3.0.108
+        version: 3.0.108(zod@4.4.3)
       "@ai-sdk/openai-compatible":
         specifier: ^2.0.47
         version: 2.0.59(zod@4.4.3)
@@ -1045,6 +1051,15 @@ packages:
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
 
+  "@ai-sdk/openai@3.0.108":
+    resolution:
+      {
+        integrity: sha512-1RjXSVTETjj3pyvFTEs0gbd0loFmkkS9Q7PH5DGucFQHAGZaF2yP+TpHycpjgOJLMmqEUf4kIGRIE2lcx4oqLg==,
+      }
+    engines: { node: ">=18" }
+    peerDependencies:
+      zod: ^3.25.76 || ^4.1.8
+
   "@ai-sdk/provider-utils@4.0.38":
     resolution:
       {
@@ -1063,10 +1078,26 @@ packages:
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
 
+  "@ai-sdk/provider-utils@4.0.50":
+    resolution:
+      {
+        integrity: sha512-YAcB+7M1JhAYsHorTrWyldCyZihjCKr/QRXH2vFrara/+lwqNE7q5KzoucKLZ7ktFiUonhnhFhRoiymsq/2K2Q==,
+      }
+    engines: { node: ">=18.17" }
+    peerDependencies:
+      zod: ^3.25.76 || ^4.1.8
+
   "@ai-sdk/provider@3.0.14":
     resolution:
       {
         integrity: sha512-5X1k57JBJ4H7H1QjX7CnJYAB1I19r/trVZTMcSms7/kLNZ8RaU4Nt2agcwZzv82Hfx6Q7/TOLU7agAKeFfc8cA==,
+      }
+    engines: { node: ">=18" }
+
+  "@ai-sdk/provider@3.0.15":
+    resolution:
+      {
+        integrity: sha512-XeZW1CcDF2GMbH4wejW6xBRI2QCOgnkVYUnxoeDadB1mf85riL2bMUeDoh+6gJ/r4mjNfzUPW8OjLjvwTP0u1Q==,
       }
     engines: { node: ">=18" }
 
@@ -6455,6 +6486,12 @@ packages:
       picomatch:
         optional: true
 
+  fflate@0.8.2:
+    resolution:
+      {
+        integrity: sha512-cPJU47OaAoCbg0pBvzsgpTPhmhqI5eJjh/JIu8tPj5q+T7iLvW/JAYUqmE7KOB4R1ZyEhzBaIQpQpardBF5z8A==,
+      }
+
   file-entry-cache@8.0.0:
     resolution:
       {
@@ -9462,6 +9499,13 @@ packages:
         integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==,
       }
 
+  undici@6.28.1:
+    resolution:
+      {
+        integrity: sha512-zWpdTVD54H48CIybL0rWQ3ukpb9d23wM7eH5RtfdmeP70cWHNjtfo7P4vZX+5CoDcO53J4Pu5uXp7lNfjc6DRA==,
+      }
+    engines: { node: ">=18.17" }
+
   unified@11.0.5:
     resolution:
       {
@@ -9913,6 +9957,12 @@ snapshots:
       "@ai-sdk/provider-utils": 4.0.38(zod@4.4.3)
       zod: 4.4.3
 
+  "@ai-sdk/openai@3.0.108(zod@4.4.3)":
+    dependencies:
+      "@ai-sdk/provider": 3.0.15
+      "@ai-sdk/provider-utils": 4.0.50(zod@4.4.3)
+      zod: 4.4.3
+
   "@ai-sdk/provider-utils@4.0.38(zod@4.4.3)":
     dependencies:
       "@ai-sdk/provider": 3.0.14
@@ -9927,7 +9977,19 @@ snapshots:
       eventsource-parser: 3.1.0
       zod: 4.4.3
 
+  "@ai-sdk/provider-utils@4.0.50(zod@4.4.3)":
+    dependencies:
+      "@ai-sdk/provider": 3.0.15
+      "@standard-schema/spec": 1.1.0
+      eventsource-parser: 3.1.0
+      undici: 6.28.1
+      zod: 4.4.3
+
   "@ai-sdk/provider@3.0.14":
+    dependencies:
+      json-schema: 0.4.0
+
+  "@ai-sdk/provider@3.0.15":
     dependencies:
       json-schema: 0.4.0
 
@@ -13362,6 +13424,8 @@ snapshots:
     optionalDependencies:
       picomatch: 4.0.5
 
+  fflate@0.8.2: {}
+
   file-entry-cache@8.0.0:
     dependencies:
       flat-cache: 4.0.1
@@ -15382,6 +15446,8 @@ snapshots:
       which-boxed-primitive: 1.1.1
 
   undici-types@6.21.0: {}
+
+  undici@6.28.1: {}
 
   unified@11.0.5:
     dependencies:

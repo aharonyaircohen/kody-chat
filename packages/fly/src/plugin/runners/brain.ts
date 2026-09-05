@@ -29,6 +29,7 @@
  */
 
 import { createHash, randomBytes } from "node:crypto";
+import { prepareMachineSsh } from "../../ssh/machine-config";
 
 import { logger } from "@kody-ade/base/logger";
 import { slugifyTitle } from "@kody-ade/base/slug";
@@ -1217,9 +1218,21 @@ async function createMachine(
     },
   };
 
+  const payload = {
+    ...body,
+    config: await prepareMachineSsh({
+      app: appName,
+      config: body.config,
+      cfg: {
+        token: flyToken,
+        orgSlug: input.orgSlug ?? "personal",
+        defaultRegion: region,
+      },
+    }),
+  };
   const created = await flyFetch<FlyMachine>(
     `/apps/${encodeURIComponent(appName)}/machines`,
-    { method: "POST", token: flyToken, body },
+    { method: "POST", token: flyToken, body: payload },
   );
   if (!created) throw new Error("brain-fly: create machine returned empty");
   return created;

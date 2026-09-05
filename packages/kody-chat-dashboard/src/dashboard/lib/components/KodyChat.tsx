@@ -242,6 +242,22 @@ export function KodyChat({
 
   const [input, setInput] = useState("");
   const composerTextareaRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const prefill = (event: Event) => {
+      const detail = (event as CustomEvent<{ message?: unknown }>).detail;
+      if (typeof detail?.message !== "string" || !detail.message.trim()) return;
+      sessionStorage.removeItem("kody:pending-chat-prefill");
+      setInput(detail.message.trim());
+      requestAnimationFrame(() => composerTextareaRef.current?.focus());
+    };
+    window.addEventListener("kody:prefill-chat", prefill);
+    const pending = sessionStorage.getItem("kody:pending-chat-prefill");
+    if (pending) {
+      sessionStorage.removeItem("kody:pending-chat-prefill");
+      setInput(pending);
+    }
+    return () => window.removeEventListener("kody:prefill-chat", prefill);
+  }, []);
   const [agentMentionTrigger, setAgentMentionTrigger] =
     useState<StaffMentionTrigger | null>(null);
   const [agentMentionSelectedIndex, setAgentMentionSelectedIndex] = useState(0);
@@ -827,7 +843,7 @@ export function KodyChat({
               router.push(auth ? repoScopedHref(auth, "/preview") : "/preview"),
             remoteBrowserAvailable: () => currentPreviewActionRunner() != null,
           }),
-        pickerAvailable: () =>
+        actionRuntimeAvailable: () =>
           currentPreviewActionRunner() != null ||
           previewPickerRef.current.available,
         act: (action) => {

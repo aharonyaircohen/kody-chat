@@ -19,6 +19,7 @@ export const save = mutation({
     userKey: v.string(),
     data: v.any(),
     updatedAt: v.string(),
+    expectedDataUpdatedAt: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db
@@ -27,6 +28,10 @@ export const save = mutation({
         q.eq("namespace", args.namespace).eq("userKey", args.userKey),
       )
       .unique();
+    if (args.expectedDataUpdatedAt !== undefined &&
+        (existing?.data?.updatedAt ?? null) !== args.expectedDataUpdatedAt) {
+      throw new Error("Personal state changed since it was read");
+    }
     if (existing) {
       await ctx.db.patch(existing._id, {
         data: args.data,
@@ -34,6 +39,7 @@ export const save = mutation({
       });
       return existing._id;
     }
-    return await ctx.db.insert("userPreferences", args);
+    const { expectedDataUpdatedAt: _expected, ...record } = args;
+    return await ctx.db.insert("userPreferences", record);
   },
 });

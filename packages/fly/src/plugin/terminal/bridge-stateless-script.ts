@@ -1,6 +1,9 @@
+import { TERMINAL_CLAIMS_VALIDATION_SCRIPT } from "@kody-ade/terminal/terminal-claims";
+
 export const TERMINAL_BRIDGE_STATELESS_SCRIPT = String.raw`import crypto from "node:crypto";
 import http from "node:http";
 import { spawn } from "node:child_process";
+import { StringDecoder } from "node:string_decoder";
 
 const TOKEN_VERSION = "kody-terminal-v1";
 const AGENT_STATUS_TIMEOUT_MS = 20000;
@@ -40,6 +43,10 @@ function timingSafeEqualString(a, b) {
   return left.length === right.length && crypto.timingSafeEqual(left, right);
 }
 
+function validateTerminalClaims(claims, now) {
+${TERMINAL_CLAIMS_VALIDATION_SCRIPT}
+}
+
 function verifyTerminalToken(token) {
   const parts = String(token || "").split(".");
   if (parts.length !== 3) throw new Error("terminal token malformed");
@@ -57,27 +64,7 @@ function verifyTerminalToken(token) {
     Buffer.concat([decipher.update(packed.subarray(28)), decipher.final()]).toString("utf8"),
   );
   const now = Math.floor(Date.now() / 1000);
-  if (claims.sub !== "kody-terminal") throw new Error("terminal token subject invalid");
-  if (!Number.isFinite(claims.exp) || claims.exp < now) throw new Error("terminal token expired");
-  if (!/^[a-z0-9][a-z0-9-]{0,62}$/.test(claims.app)) throw new Error("terminal token app invalid");
-  if (!/^[A-Za-z0-9_-]{1,120}$/.test(claims.machineId || "")) throw new Error("terminal token machine invalid");
-  if (!/^[A-Za-z0-9_.-]{1,100}$/.test(claims.owner)) throw new Error("terminal token owner invalid");
-  if (!/^[A-Za-z0-9_.-]{1,100}$/.test(claims.repo)) throw new Error("terminal token repo invalid");
-  if (claims.localExec !== true && (typeof claims.chatSessionId !== "string" || !claims.chatSessionId || claims.chatSessionId.length > 240)) {
-    throw new Error("terminal token session invalid");
-  }
-  if (
-    claims.conversationId !== undefined &&
-    (typeof claims.conversationId !== "string" || !claims.conversationId || claims.conversationId.length > 240)
-  ) {
-    throw new Error("terminal token conversation invalid");
-  }
-  if (
-    claims.afterRevision !== undefined &&
-    (!Number.isInteger(claims.afterRevision) || claims.afterRevision < 0)
-  ) {
-    throw new Error("terminal token revision invalid");
-  }
+  validateTerminalClaims(claims, now);
   return claims;
 }
 
@@ -294,6 +281,7 @@ function attachTerminalSocket(socket, claims) {
       if (stopped || !socket.writable) return;
       sendJson(socket, {
         type: "input-rejected",
+        code: "terminal_transport_unavailable",
         message: diagnostics.trim().slice(-500) || "Brain terminal transport unavailable",
       });
       closeSocket(socket, 1011, "Brain terminal transport unavailable");
@@ -356,7 +344,7 @@ function jsonResponse(res, status, body) {
   res.end(JSON.stringify(body));
 }
 
-function runCommand(claims, command, local, timeoutMs, maxOutputBytes) {
+function runCommand(claims, command, local, timeoutMs, maxOutputBytes, onOutput = () => {}) {
   return new Promise((resolve, reject) => {
     const args = local
       ? ["-lc", command]
@@ -386,6 +374,7 @@ function runCommand(claims, command, local, timeoutMs, maxOutputBytes) {
     });
     const stdout = [];
     const stderr = [];
+    const decoders = { stdout: new StringDecoder("utf8"), stderr: new StringDecoder("utf8") };
     let outputBytes = 0;
     let settled = false;
     const finish = (callback, value) => {
@@ -398,16 +387,19 @@ function runCommand(claims, command, local, timeoutMs, maxOutputBytes) {
       try { child.kill("SIGTERM"); } catch {}
       finish(reject, new Error("command timed out"));
     }, timeoutMs);
-    child.stdout.on("data", (chunk) => {
+    const capture = (stream, chunks, chunk) => {
+      if (settled) return;
       outputBytes += chunk.length;
       if (outputBytes > maxOutputBytes) {
         try { child.kill("SIGTERM"); } catch {}
         finish(reject, new Error("command output too large"));
         return;
       }
-      stdout.push(chunk);
-    });
-    child.stderr.on("data", (chunk) => stderr.push(chunk));
+      chunks.push(chunk);
+      onOutput(stream, decoders[stream].write(chunk));
+    };
+    child.stdout.on("data", (chunk) => capture("stdout", stdout, chunk));
+    child.stderr.on("data", (chunk) => capture("stderr", stderr, chunk));
     child.on("error", (error) => finish(reject, error));
     child.on("close", (code) =>
       finish(resolve, {
@@ -451,13 +443,21 @@ function startJob(claims, body) {
   if (!command.trim() || command.length > 20000) throw new Error("command invalid");
   const local = body.local === true;
   if (local && claims.localExec !== true) throw new Error("local exec not allowed");
+  if (!local && claims.localExec === true) throw new Error("local exec token cannot execute on a machine");
+  const id = body.jobId ?? crypto.randomBytes(16).toString("hex");
+  if (!/^[a-f0-9]{32}$/.test(id)) throw new Error("job id invalid");
+  const previous = execJobs.get(id);
+  if (previous) {
+    if (!canReadJob(claims, previous)) throw new Error("job not accessible");
+    return previous;
+  }
   const timeoutMs = Math.min(Math.max(Number(body.timeoutMs) || 60000, 1000), MAX_EXEC_TIMEOUT_MS);
   const maxOutputBytes = Math.min(
     Math.max(Number(body.maxOutputBytes) || MAX_EXEC_OUTPUT_BYTES, 1024),
     MAX_EXEC_OUTPUT_BYTES,
   );
   const job = {
-    id: crypto.randomBytes(16).toString("hex"),
+    id,
     scope: execScope(claims, local),
     status: "running",
     startedAt: new Date().toISOString(),
@@ -468,7 +468,7 @@ function startJob(claims, body) {
     error: null,
   };
   execJobs.set(job.id, job);
-  runCommand(claims, command, local, timeoutMs, maxOutputBytes)
+  runCommand(claims, command, local, timeoutMs, maxOutputBytes, (stream, output) => { job[stream] += output; })
     .then((result) => {
       job.code = result.code;
       job.stdout = result.stdout;
@@ -534,6 +534,7 @@ const server = http.createServer(async (req, res) => {
     const url = new URL(req.url || "/", "http://terminal-bridge.internal");
     const claims = verifyTerminalToken(bearerToken(req, url));
     if (url.pathname === "/status" && req.method === "GET") {
+      if (claims.localExec === true) throw new Error("local exec token cannot query a terminal");
       const event = await queryAgentStatus(claims);
       return jsonResponse(res, 200, {
         ok: true,

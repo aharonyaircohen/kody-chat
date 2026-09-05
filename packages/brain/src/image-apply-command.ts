@@ -25,6 +25,11 @@ export async function applyBrainImage(
   input: ApplyBrainImageCommandInput,
 ): Promise<ApplyBrainImageResult> {
   const { context } = input;
+  if (!context.githubAccount) {
+    throw new Error(
+      "Reconnect your GitHub account so Kody can identify the saved image registry.",
+    );
+  }
   if (!context.flyToken) {
     throw new Error(
       "Brain image apply needs a Fly token. Add FLY_API_TOKEN to Personal Credentials.",
@@ -33,7 +38,8 @@ export async function applyBrainImage(
   return applyBrainImageToRuntime({
     owner: context.githubOwner ?? context.account,
     repo: "personal-brain",
-    account: context.githubAccount ?? context.account,
+    account: context.account,
+    githubAccount: context.githubAccount,
     githubToken: context.githubToken,
     allSecrets: context.allSecrets,
     flyToken: context.flyToken,

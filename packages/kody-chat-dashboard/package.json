@@ -15,6 +15,7 @@
   "exports": {
     "./platform": "./src/dashboard/lib/chat/platform/index.ts",
     "./platform/lazy-panel": "./src/dashboard/lib/chat/platform/lazy-panel.tsx",
+    "./chat/opencode-free": "./app/api/kody/chat/opencode-free.ts",
     "./chat/model-catalog": "./src/dashboard/lib/chat/model-catalog.ts",
     "./chat/resolve-model": "./app/api/kody/chat/resolve-model.ts",
     "./chat/model-settings-provider": "./app/api/kody/chat/model-settings-provider.ts",
@@ -179,6 +180,7 @@
     "@ai-sdk/anthropic": "^3.0.77",
     "@ai-sdk/google": "^3.0.99",
     "@ai-sdk/mcp": "^1.0.30",
+    "@ai-sdk/openai": "^3.0.108",
     "@ai-sdk/openai-compatible": "^2.0.47",
     "@ai-sdk/provider": "^3.0.14",
     "@json-render/core": "^0.19.0",

@@ -9,6 +9,26 @@ import { describe, expect, it } from "vitest";
 import { resolveBrainTarget } from "@kody-ade/brain/target";
 
 describe("resolveBrainTarget", () => {
+  it("keeps an explicitly owned custom name after provisioning", () => {
+    expect(resolveBrainTarget({
+      account: "user-alice",
+      contextOrgSlug: "personal",
+      stored: {
+        version: 1, appName: "kody-brain-qa-0905-flow", orgSlug: "test-org",
+        createdAt: "2026-09-05T00:00:00Z", ownerAccount: "user-alice",
+      },
+    })).toMatchObject({ app: "kody-brain-qa-0905-flow", source: "stored" });
+  });
+
+  it("rejects a stored record explicitly owned by another account", () => {
+    expect(resolveBrainTarget({
+      account: "user-alice", contextOrgSlug: "personal",
+      stored: {
+        version: 1, appName: "custom-brain", orgSlug: "test-org",
+        createdAt: "2026-09-05T00:00:00Z", ownerAccount: "user-bob",
+      },
+    })).toMatchObject({ app: "kody-brain-user-alice", source: "default" });
+  });
   it("uses the stored app and stored org together", () => {
     expect(
       resolveBrainTarget({

@@ -74,6 +74,7 @@ vi.mock("@dashboard/lib/github-client", () => ({
 vi.mock("@kody-ade/brain/service-resolver", () => ({
   resolveBrainService: vi.fn(async () => ({
     app: "brain-1",
+    flyToken: "fly-token",
     orgSlug: "guy-koren",
     defaultRegion: "fra",
     state: "running",
@@ -113,6 +114,8 @@ vi.mock("@kody-ade/brain/store", () => ({
 
 vi.mock("@kody-ade/brain/runtime-manager", () => ({
   readBrainRuntimeView: mocks.readRuntimeView,
+  beginBrainRuntimeApply: vi.fn(async () => ({ operation: { id: "job-1" } })),
+  finishBrainImageSaveOperation: vi.fn(async () => undefined),
 }));
 
 vi.mock("@kody-ade/brain/image-runtime", () => ({

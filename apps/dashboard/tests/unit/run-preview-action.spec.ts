@@ -67,7 +67,7 @@ function makeDeps(
   const toastSuccess = vi.fn();
   const toastError = vi.fn();
   return {
-    pickerAvailable: () => actionRuntimeAvailable,
+    actionRuntimeAvailable: () => actionRuntimeAvailable,
     act,
     sendText,
     toastSuccess,

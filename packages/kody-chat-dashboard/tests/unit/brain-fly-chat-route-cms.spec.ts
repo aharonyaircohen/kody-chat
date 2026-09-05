@@ -22,6 +22,26 @@ vi.mock("@kody-ade/fly/plugin/runners/context", () => ({
   resolveFlyContext: (...args: unknown[]) => resolveFlyContext(...args),
 }));
 
+vi.mock("@kody-ade/brain/personal-context", () => ({
+  resolvePersonalBrainContext: async () => ({
+    ok: true,
+    context: {
+      userId: "personal-alice",
+      account: "personal-alice",
+      githubToken: "",
+      flyToken: "personal-fly-token",
+      flyOrgSlug: "personal",
+      flyDefaultRegion: "fra",
+      allSecrets: {},
+    },
+  }),
+}));
+
+vi.mock("@kody-ade/brain/server-commands", () => ({
+  BrainCommandError: class extends Error {},
+  manageBrainServer: (...args: unknown[]) => provisionBrain(...args),
+}));
+
 vi.mock("@kody-ade/brain/store", () => ({
   readBrainApp: (...args: unknown[]) => readBrainApp(...args),
   readBrainImage: (...args: unknown[]) => readBrainImage(...args),

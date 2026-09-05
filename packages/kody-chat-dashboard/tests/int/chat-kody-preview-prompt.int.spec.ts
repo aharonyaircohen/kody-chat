@@ -175,6 +175,7 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
     Object.assign(resolvedModelMock, {
       provider: "openai",
       modelName: "test-model",
+      toolChoice: undefined,
     });
     process.env.KODY_MASTER_KEY = "kody-direct-test-secret";
     loadViewRendererContextForPromptMock.mockResolvedValue({
@@ -296,7 +297,8 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
     );
   });
 
-  it("declares exclusive output-tool ownership before model chunks", async () => {
+  it("declares exclusive output-tool ownership for a required-tool provider before model chunks", async () => {
+    Object.assign(resolvedModelMock, { toolChoice: { required: true } });
     const { POST } = await import("../../app/api/kody/chat/kody/route");
     await POST(
       makeRequest({

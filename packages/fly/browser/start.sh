@@ -1,6 +1,10 @@
 #!/bin/sh
 set -eu
 
+if [ -f /etc/kody-ssh/start.sh ]; then
+  sh /etc/kody-ssh/start.sh
+fi
+
 export DISPLAY=:99
 # Fly can preserve /tmp while replacing a Machine image. Remove only this
 # browser's stale display artifacts before starting its new X server.

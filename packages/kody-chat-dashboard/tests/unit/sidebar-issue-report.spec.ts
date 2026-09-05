@@ -63,7 +63,7 @@ describe("collapsed sidebar controls", () => {
 
   it("keeps repository selection available without expanding the rail", () => {
     expect(sidebarSource).toContain(
-      "{collapsedHeaderExtra && isCollapsed && (",
+      "const repositorySelector = isCollapsed ? collapsedHeaderExtra : headerExtra;",
     );
     expect(chatShellSource).toContain(
       '<RepoSwitcher variant="rail" compact />',

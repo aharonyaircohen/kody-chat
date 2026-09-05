@@ -23,18 +23,24 @@ const STATEFUL_ROUTES = [
   "../brain/src/routes/stored.ts",
   "../brain/src/routes/suspend.ts",
   "../brain/src/routes/resume.ts",
-  "app/api/kody/chat/brain-fly/route.ts",
 ];
 
-describe("Brain Fly route GitHub context", () => {
-  it("sets and clears request GitHub context around state-backed Brain work", () => {
+describe("Brain Fly route ownership", () => {
+  it("resolves personal ownership without installing repository context", () => {
     for (const routePath of STATEFUL_ROUTES) {
       const source = readRoute(routePath);
-      expect(source, routePath).toContain("setGitHubContext(");
-      expect(source, routePath).toContain("clearGitHubContext()");
-      expect(source, routePath).toContain("ctx.context.storeRepoUrl");
-      expect(source, routePath).toContain("ctx.context.storeRef");
+      expect(source, routePath).toContain("resolvePersonalBrainContext(");
+      expect(source, routePath).not.toContain("setGitHubContext(");
+      expect(source, routePath).not.toContain("ctx.context.storeRepoUrl");
     }
+  });
+
+  it("keeps repository content context separate in the chat proxy", () => {
+    const source = readRoute("app/api/kody/chat/brain-fly/route.ts");
+    expect(source).toContain("resolvePersonalBrainContext(");
+    expect(source).toContain("resolveServerProviderContext(req)");
+    expect(source).toContain("repoContext.context.storeRepoUrl");
+    expect(source).toContain("clearGitHubContext()");
   });
 
   it("uses the resolved Brain service for every machine control route", () => {

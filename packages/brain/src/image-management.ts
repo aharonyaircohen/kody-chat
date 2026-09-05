@@ -7,6 +7,7 @@
  * this layer owns catalog, save polling, and deletion behavior.
  */
 import "server-only";
+import { finishBrainImageSaveOperation } from "./runtime-manager";
 
 import type { PersonalBrainContext } from "./personal-context";
 import {
@@ -226,6 +227,11 @@ async function recordCompletedBrainImageSave(input: {
     ),
   );
   await clearBrainImageSave(input.account, input.githubToken);
+  await finishBrainImageSaveOperation(
+    input.account,
+    input.githubToken,
+    input.save.jobId,
+  );
 
   return {
     ok: true,
@@ -356,7 +362,7 @@ export async function pollBrainImageSave(input: {
     defaultRegion: save.defaultRegion,
   });
   const token = mintTerminalBridgeToken({
-    owner: context.githubOwner ?? context.account,
+    owner: save.authorizationOwner ?? context.githubOwner ?? context.account,
     repo: "personal-brain",
     app: save.app,
     machineId: save.machineId,
@@ -423,6 +429,12 @@ export async function pollBrainImageSave(input: {
       error: jobMessage(job),
     };
     await writeBrainImageSave(context.account, context.githubToken, failed);
+    await finishBrainImageSaveOperation(
+      context.account,
+      context.githubToken,
+      save.jobId,
+      failed.error,
+    );
     throw new BrainImageManagementError(
       failed.error ?? "Brain image save failed",
       500,

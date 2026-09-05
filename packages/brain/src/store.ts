@@ -60,6 +60,7 @@ function cacheKey(kind: "app" | "image" | "image-save", login: string): string {
 /** Persisted Brain app record. Versioned for future migrations. */
 export interface BrainAppFile {
   version: 1;
+  ownerAccount?: string;
   appName: string;
   orgSlug: string;
   createdAt: string;
@@ -86,6 +87,7 @@ export interface BrainImageFile {
 }
 
 export interface BrainImageSaveFile {
+  authorizationOwner?: string;
   version: 1;
   status: "running" | "completed" | "failed";
   phase?:
@@ -118,6 +120,7 @@ function isBrainAppFile(value: unknown): value is BrainAppFile {
   const v = value as Record<string, unknown>;
   return (
     v.version === 1 &&
+    (v.ownerAccount === undefined || typeof v.ownerAccount === "string") &&
     typeof v.appName === "string" &&
     v.appName.length > 0 &&
     typeof v.orgSlug === "string" &&
@@ -299,8 +302,9 @@ export async function writeBrainApp(
   const services = getPersonalBrainServices();
   const user = await services.resolveUser();
   if (!user) throw new Error("unauthorized");
-  await services.saveState(user.id, "app", file);
-  setCache(key, file);
+  const owned = { ...file, ownerAccount: login };
+  await services.saveState(user.id, "app", owned);
+  setCache(key, owned);
 }
 
 /**

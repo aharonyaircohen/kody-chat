@@ -420,14 +420,18 @@ export function ModelsManager({
       list: ChatModel[];
       automatic: AutomaticModel;
     }) => {
-      const engineList = list.map((model) => {
-        const existing = engineById.get(model.id);
-        return {
-          ...model,
-          default: existing?.default === true,
-          engineDefault: model.engineDefault === true,
-        };
-      });
+      const forEngine = (entries: ChatModel[]) =>
+        entries
+          .filter((model) => model.provider !== "opencode-free")
+          .map((model) => {
+            const existing = engineById.get(model.id);
+            return {
+              ...model,
+              default: existing?.default === true,
+              engineDefault: model.engineDefault === true,
+            };
+          });
+      const engineList = forEngine(list);
       const engineAutomatic = {
         ...(engineData?.automatic ?? { default: false, engineDefault: false }),
         engineDefault: nextAutomatic.engineDefault === true,
@@ -441,7 +445,12 @@ export function ModelsManager({
         ),
       ];
       if (auth && scope === "personal") {
-        requests.push(saveEngineModels(headers, engineList, engineAutomatic));
+        if (
+          JSON.stringify(engineList) !== JSON.stringify(forEngine(models)) ||
+          engineAutomatic.engineDefault !== automatic.engineDefault
+        ) {
+          requests.push(saveEngineModels(headers, engineList, engineAutomatic));
+        }
       }
       return Promise.all(requests).then(() => undefined);
     },
@@ -721,7 +730,11 @@ export function ModelsManager({
                   <label className="flex items-center gap-2 text-xs text-white/70">
                     <Checkbox
                       checked={automatic.engineDefault === true}
-                      disabled={automaticModels.length < 2}
+                      disabled={
+                        automaticModels.filter(
+                          (model) => model.provider !== "opencode-free",
+                        ).length < 2
+                      }
                       onCheckedChange={(checked) =>
                         setAutomaticEngineDefault(checked === true)
                       }
@@ -1019,6 +1032,30 @@ function ModelEditor({
   onSave,
 }: ModelEditorProps) {
   const [draft, setDraft] = useState<ChatModel>(initial);
+  const isFree = draft.provider === "opencode-free";
+  const freeCatalog = useQuery({
+    queryKey: ["model-provider-catalog", "opencode-free"],
+    enabled: isFree,
+    staleTime: 0,
+    refetchInterval: 300_000,
+    retry: false,
+    queryFn: async (): Promise<
+      Array<{
+        id: string;
+        label: string;
+        adapter: "openai-compatible" | "openai-responses";
+      }>
+    > => {
+      const response = await fetch("/api/kody/models?catalog=opencode-free", {
+        cache: "no-store",
+      });
+      if (!response.ok)
+        throw new Error(
+          "OpenCode's free model list is unavailable. Try again later.",
+        );
+      return (await response.json()).models;
+    },
+  });
   const [advancedOpen, setAdvancedOpen] = useState<boolean>(
     initial.provider === "custom",
   );
@@ -1034,10 +1071,20 @@ function ModelEditor({
       adapterBaseURL: p.adapterBaseURL,
       protocol: p.protocol,
       baseURL: p.baseURL,
+      ...(preset === "opencode-free"
+        ? {
+            modelName: "",
+            label: "",
+            apiKeySecret: "",
+            engineDefault: false,
+            service: undefined,
+          }
+        : {}),
       // Only overwrite the key hint when the user hasn't typed a custom
       // value yet (i.e. it matches the previous preset's hint). Avoids
       // clobbering a deliberate override.
       apiKeySecret:
+        preset === "opencode-free" ||
         cur.apiKeySecret === PROVIDER_PRESETS[cur.provider].keyHint
           ? p.keyHint
           : cur.apiKeySecret,
@@ -1054,11 +1101,13 @@ function ModelEditor({
   const errors = {
     label: draft.label.trim() ? null : "Required",
     modelName: draft.modelName.trim() ? null : "Required",
-    apiKeySecret: !draft.apiKeySecret.trim()
-      ? "Required"
-      : !SECRET_NAME_RE.test(draft.apiKeySecret)
-        ? "Uppercase letters, digits, _ — start with a letter"
-        : null,
+    apiKeySecret: isFree
+      ? null
+      : !draft.apiKeySecret.trim()
+        ? "Required"
+        : !SECRET_NAME_RE.test(draft.apiKeySecret)
+          ? "Uppercase letters, digits, _ — start with a letter"
+          : null,
     baseURL:
       draft.protocol === "openai" && !draft.baseURL.trim()
         ? "Required for OpenAI-compatible models"
@@ -1075,6 +1124,10 @@ function ModelEditor({
   };
   const canSave =
     !saving &&
+    (!isFree ||
+      (!freeCatalog.isError &&
+        !freeCatalog.isFetching &&
+        freeCatalog.data?.some((entry) => entry.id === draft.modelName))) &&
     !errors.label &&
     !errors.modelName &&
     !errors.apiKeySecret &&
@@ -1105,8 +1158,7 @@ function ModelEditor({
             {editingIdx !== null ? "Edit model" : "Add model"}
           </DialogTitle>
           <DialogDescription>
-            Pick a provider, model, and repository secret name. Open Advanced
-            only to override the URL or protocol.
+            Pick a provider and model. Add an API key name when required.
           </DialogDescription>
         </DialogHeader>
 
@@ -1114,6 +1166,7 @@ function ModelEditor({
           <div>
             <Label className="text-xs">Provider</Label>
             <select
+              aria-label="Provider"
               value={draft.provider}
               onChange={(ev) => applyPreset(ev.target.value as ProviderPreset)}
               className="w-full h-9 rounded-md border border-white/[0.08] bg-background px-2 text-sm"
@@ -1128,25 +1181,91 @@ function ModelEditor({
 
           <div>
             <Label className="text-xs">Model name</Label>
-            <Input
-              value={draft.modelName}
-              onChange={(ev) =>
-                setDraft((cur) => ({
-                  ...cur,
-                  modelName: ev.target.value.trim(),
-                }))
-              }
-              placeholder={
-                draft.provider === "anthropic"
-                  ? "claude-sonnet-4-6"
-                  : draft.provider === "google"
-                    ? "gemini-2.5-flash"
-                    : draft.provider === "openai"
-                      ? "gpt-4o"
-                      : "model-id"
-              }
-              className="font-mono text-xs"
-            />
+            {isFree ? (
+              <>
+                <select
+                  aria-label="Model name"
+                  value={draft.modelName}
+                  disabled={freeCatalog.isFetching || freeCatalog.isError}
+                  className="w-full h-9 rounded-md border border-white/[0.08] bg-background px-2 text-sm"
+                  onChange={(event) => {
+                    const entry = freeCatalog.data?.find(
+                      (entry) => entry.id === event.target.value,
+                    );
+                    if (entry)
+                      setDraft((current) => ({
+                        ...current,
+                        modelName: entry.id,
+                        label: entry.label,
+                        adapter: entry.adapter,
+                      }));
+                  }}
+                >
+                  <option value="">
+                    {freeCatalog.isFetching
+                      ? "Loading free models…"
+                      : "Choose a free model"}
+                  </option>
+                  {!freeCatalog.isError &&
+                    freeCatalog.data?.map((entry) => (
+                      <option key={entry.id} value={entry.id}>
+                        {entry.label}
+                      </option>
+                    ))}
+                </select>
+                {freeCatalog.isError ? (
+                  <p role="alert" className="mt-1 text-xs text-rose-300">
+                    {freeCatalog.error.message}{" "}
+                    <button
+                      type="button"
+                      onClick={() => void freeCatalog.refetch()}
+                    >
+                      Retry
+                    </button>
+                  </p>
+                ) : null}
+                {!freeCatalog.isFetching &&
+                !freeCatalog.isError &&
+                freeCatalog.data?.length === 0 ? (
+                  <p className="mt-1 text-xs">
+                    No compatible free models are currently listed.
+                  </p>
+                ) : null}
+                <p className="mt-1 text-xs text-white/60">
+                  No API key needed. List refreshes every five minutes. Free
+                  access may be limited or withdrawn. These providers may use
+                  prompts and replies for training; avoid private data.{" "}
+                  <a
+                    href="https://opencode.ai/docs/zen/#privacy"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline"
+                  >
+                    OpenCode privacy details
+                  </a>
+                </p>
+              </>
+            ) : (
+              <Input
+                value={draft.modelName}
+                onChange={(ev) =>
+                  setDraft((cur) => ({
+                    ...cur,
+                    modelName: ev.target.value.trim(),
+                  }))
+                }
+                placeholder={
+                  draft.provider === "anthropic"
+                    ? "claude-sonnet-4-6"
+                    : draft.provider === "google"
+                      ? "gemini-2.5-flash"
+                      : draft.provider === "openai"
+                        ? "gpt-4o"
+                        : "model-id"
+                }
+                className="font-mono text-xs"
+              />
+            )}
             {errors.modelName && (
               <p className="text-[11px] text-rose-300 mt-1">
                 {errors.modelName}
@@ -1170,38 +1289,40 @@ function ModelEditor({
             )}
           </div>
 
-          <div>
-            <Label htmlFor="model-api-key-name" className="text-sm">
-              API key name
-            </Label>
-            <Input
-              id="model-api-key-name"
-              value={draft.apiKeySecret}
-              onChange={(ev) =>
-                setDraft((cur) => ({
-                  ...cur,
-                  apiKeySecret: ev.target.value.toUpperCase(),
-                }))
-              }
-              placeholder="ANTHROPIC_API_KEY"
-              className="font-mono text-xs"
-            />
-            <p className="text-sm text-white/45 mt-1">
-              Store its value in{" "}
-              <RepoScopedLink
-                href="/secrets"
-                className="text-white/60 hover:text-white/80 underline"
-              >
-                Secrets
-              </RepoScopedLink>
-              .
-            </p>
-            {errors.apiKeySecret && (
-              <p className="text-[11px] text-rose-300 mt-1">
-                {errors.apiKeySecret}
+          {!isFree && (
+            <div>
+              <Label htmlFor="model-api-key-name" className="text-sm">
+                API key name
+              </Label>
+              <Input
+                id="model-api-key-name"
+                value={draft.apiKeySecret}
+                onChange={(ev) =>
+                  setDraft((cur) => ({
+                    ...cur,
+                    apiKeySecret: ev.target.value.toUpperCase(),
+                  }))
+                }
+                placeholder="ANTHROPIC_API_KEY"
+                className="font-mono text-xs"
+              />
+              <p className="text-sm text-white/45 mt-1">
+                Store its value in{" "}
+                <RepoScopedLink
+                  href="/secrets"
+                  className="text-white/60 hover:text-white/80 underline"
+                >
+                  Secrets
+                </RepoScopedLink>
+                .
               </p>
-            )}
-          </div>
+              {errors.apiKeySecret && (
+                <p className="text-[11px] text-rose-300 mt-1">
+                  {errors.apiKeySecret}
+                </p>
+              )}
+            </div>
+          )}
 
           <label className="flex items-center gap-2 text-xs text-white/70 cursor-pointer pt-1">
             <Checkbox
@@ -1214,7 +1335,7 @@ function ModelEditor({
             Default for chat (used for new conversations)
           </label>
 
-          {allowEngineDefault ? (
+          {allowEngineDefault && !isFree ? (
             <label className="flex items-center gap-2 text-xs text-white/70 cursor-pointer">
               <Checkbox
                 checked={draft.engineDefault === true}
@@ -1230,113 +1351,117 @@ function ModelEditor({
             </label>
           ) : null}
 
-          <section
-            className="space-y-3 border-t border-white/[0.06] pt-3"
-            aria-labelledby="model-service-heading"
-          >
-            <div>
-              <h3
-                id="model-service-heading"
-                className="text-sm font-medium text-white/85"
-              >
-                Service
-              </h3>
-              <p className="mt-0.5 text-[11px] text-white/45">
-                Optional commands for managing this model server.
-              </p>
-            </div>
-            <div>
-              <Label className="text-xs">Machine</Label>
-              <select
-                value={draft.service?.machine ?? "none"}
-                onChange={(event) => {
-                  const machine = event.target.value;
-                  setDraft((current) => {
-                    if (machine === "none") {
-                      const { service: _, ...rest } = current;
-                      return rest as ChatModel;
-                    }
-                    return {
-                      ...current,
-                      service: {
-                        machine: machine as "local" | "brain",
-                        startCommand: current.service?.startCommand ?? "",
-                        stopCommand: current.service?.stopCommand ?? "",
-                      },
-                    };
-                  });
-                }}
-                className="h-9 w-full rounded-md border border-white/[0.08] bg-background px-2 text-sm"
-              >
-                <option value="none">None</option>
-                <option value="local">Local</option>
-                <option value="brain">Brain</option>
-              </select>
-            </div>
-            {draft.service && (
-              <>
-                <div>
-                  <Label className="text-xs">Start command</Label>
-                  <Input
-                    value={draft.service.startCommand}
-                    onChange={(event) =>
-                      setDraft((current) => ({
+          {!isFree && (
+            <section
+              className="space-y-3 border-t border-white/[0.06] pt-3"
+              aria-labelledby="model-service-heading"
+            >
+              <div>
+                <h3
+                  id="model-service-heading"
+                  className="text-sm font-medium text-white/85"
+                >
+                  Service
+                </h3>
+                <p className="mt-0.5 text-[11px] text-white/45">
+                  Optional commands for managing this model server.
+                </p>
+              </div>
+              <div>
+                <Label className="text-xs">Machine</Label>
+                <select
+                  value={draft.service?.machine ?? "none"}
+                  onChange={(event) => {
+                    const machine = event.target.value;
+                    setDraft((current) => {
+                      if (machine === "none") {
+                        const { service: _, ...rest } = current;
+                        return rest as ChatModel;
+                      }
+                      return {
                         ...current,
                         service: {
-                          ...current.service!,
-                          startCommand: event.target.value,
+                          machine: machine as "local" | "brain",
+                          startCommand: current.service?.startCommand ?? "",
+                          stopCommand: current.service?.stopCommand ?? "",
                         },
-                      }))
-                    }
-                    placeholder="llama-server --port 8080"
-                    className="font-mono text-xs"
-                  />
-                  {errors.serviceStart && (
-                    <p className="mt-1 text-[11px] text-rose-300">
-                      {errors.serviceStart}
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <Label className="text-xs">Stop command</Label>
-                  <Input
-                    value={draft.service.stopCommand}
-                    onChange={(event) =>
-                      setDraft((current) => ({
-                        ...current,
-                        service: {
-                          ...current.service!,
-                          stopCommand: event.target.value,
-                        },
-                      }))
-                    }
-                    placeholder="pkill -INT -f llama-server"
-                    className="font-mono text-xs"
-                  />
-                  {errors.serviceStop && (
-                    <p className="mt-1 text-[11px] text-rose-300">
-                      {errors.serviceStop}
-                    </p>
-                  )}
-                </div>
-              </>
-            )}
-          </section>
+                      };
+                    });
+                  }}
+                  className="h-9 w-full rounded-md border border-white/[0.08] bg-background px-2 text-sm"
+                >
+                  <option value="none">None</option>
+                  <option value="local">Local</option>
+                  <option value="brain">Brain</option>
+                </select>
+              </div>
+              {draft.service && (
+                <>
+                  <div>
+                    <Label className="text-xs">Start command</Label>
+                    <Input
+                      value={draft.service.startCommand}
+                      onChange={(event) =>
+                        setDraft((current) => ({
+                          ...current,
+                          service: {
+                            ...current.service!,
+                            startCommand: event.target.value,
+                          },
+                        }))
+                      }
+                      placeholder="llama-server --port 8080"
+                      className="font-mono text-xs"
+                    />
+                    {errors.serviceStart && (
+                      <p className="mt-1 text-[11px] text-rose-300">
+                        {errors.serviceStart}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <Label className="text-xs">Stop command</Label>
+                    <Input
+                      value={draft.service.stopCommand}
+                      onChange={(event) =>
+                        setDraft((current) => ({
+                          ...current,
+                          service: {
+                            ...current.service!,
+                            stopCommand: event.target.value,
+                          },
+                        }))
+                      }
+                      placeholder="pkill -INT -f llama-server"
+                      className="font-mono text-xs"
+                    />
+                    {errors.serviceStop && (
+                      <p className="mt-1 text-[11px] text-rose-300">
+                        {errors.serviceStop}
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
+            </section>
+          )}
 
-          <button
-            type="button"
-            onClick={() => setAdvancedOpen((v) => !v)}
-            className="text-xs text-white/55 hover:text-white/80 flex items-center gap-1 pt-2"
-          >
-            {advancedOpen ? (
-              <ChevronDown className="w-3.5 h-3.5" />
-            ) : (
-              <ChevronRight className="w-3.5 h-3.5" />
-            )}
-            Advanced
-          </button>
+          {!isFree && (
+            <button
+              type="button"
+              onClick={() => setAdvancedOpen((v) => !v)}
+              className="text-xs text-white/55 hover:text-white/80 flex items-center gap-1 pt-2"
+            >
+              {advancedOpen ? (
+                <ChevronDown className="w-3.5 h-3.5" />
+              ) : (
+                <ChevronRight className="w-3.5 h-3.5" />
+              )}
+              Advanced
+            </button>
+          )}
 
-          {advancedOpen && (
+          {advancedOpen && !isFree && (
             <div className="space-y-3 pt-1 border-t border-white/[0.06]">
               <div>
                 <Label className="text-xs">Chat adapter</Label>

@@ -31,7 +31,7 @@ test("shows a failed save instead of polling forever or creating an unhandled er
     localStorage.setItem("kody:chat-first-layout", "0");
   });
   await page.route("**/api/kody/fly/config-status", (route) =>
-    route.fulfill({ json: { configured: true, source: "repo-vault" } }),
+    route.fulfill({ json: { configured: false, source: null } }),
   );
   let polls = 0;
   await page.route("**/api/kody/brain/image**", (route) => {

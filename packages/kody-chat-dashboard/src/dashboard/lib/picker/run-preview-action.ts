@@ -25,7 +25,7 @@ export interface RunPreviewActionDeps {
   /** Prepare the action's required visible surface before dispatch. */
   prepareSurface?: (action: PreviewAction) => Promise<boolean>;
   /** Whether the inspector extension is reachable in this tab. */
-  pickerAvailable: () => boolean;
+  actionRuntimeAvailable: () => boolean;
   /** Picker's act() — runs the action in the preview frame. */
   act: (action: PreviewAction) => Promise<PreviewActResult>;
   /** Chat sendText — hidden=true skips the user-bubble render. */
@@ -121,9 +121,9 @@ export async function runPreviewAction(
     );
     return;
   }
-  if (!deps.pickerAvailable()) {
+  if (!deps.actionRuntimeAvailable()) {
     deps.toastError(
-      "Preview action failed — install the Kody Preview Inspector extension.",
+      "Preview action unavailable — open a browser view and retry.",
     );
     return;
   }

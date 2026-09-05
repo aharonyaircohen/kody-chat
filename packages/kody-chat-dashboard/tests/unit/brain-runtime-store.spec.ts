@@ -6,37 +6,27 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
-  getOctokit: vi.fn(() => ({ id: "octokit" })),
-  getOwner: vi.fn(() => "aharonyaircohen"),
-  getRepo: vi.fn(() => "Kody-Dashboard"),
-  readBackendDoc: vi.fn(),
-  writeBackendDoc: vi.fn(),
+  loadState: vi.fn(),
+  saveState: vi.fn(),
 }));
 
-vi.mock("@kody-ade/brain/github", () => ({
-  getOctokit: state.getOctokit,
-  getOwner: state.getOwner,
-  getRepo: state.getRepo,
-}));
-
-vi.mock("@kody-ade/base/backend/repo-docs", () => ({
-  readBackendDoc: state.readBackendDoc,
-  writeBackendDoc: state.writeBackendDoc,
+vi.mock("@kody-ade/brain/personal-services", () => ({
+  getPersonalBrainServices: () => ({
+    resolveUser: async () => ({ id: "user-alice", label: "Alice" }),
+    loadState: state.loadState,
+    saveState: state.saveState,
+  }),
 }));
 
 describe("Brain runtime store", () => {
   beforeEach(() => {
     vi.resetModules();
-    state.getOctokit.mockReturnValue({ id: "octokit" });
-    state.getOwner.mockReturnValue("aharonyaircohen");
-    state.getRepo.mockReturnValue("Kody-Dashboard");
-    state.readBackendDoc.mockReset();
-    state.writeBackendDoc.mockReset();
+    state.loadState.mockReset();
+    state.saveState.mockReset();
   });
 
-  it("writes runtime state to brain-runtime.json, not the image catalog", async () => {
-    state.readBackendDoc.mockResolvedValue(null);
-    state.writeBackendDoc.mockResolvedValue({ sha: "new-sha" });
+  it("writes personal runtime state, not the image catalog", async () => {
+    state.loadState.mockResolvedValue(null);
     const { writeBrainRuntimeState } =
       await import("@kody-ade/brain/runtime-store");
 
@@ -53,11 +43,11 @@ describe("Brain runtime store", () => {
       updatedAt: "2026-07-02T10:00:00.000Z",
     });
 
-    expect(state.writeBackendDoc).toHaveBeenCalledWith(
+    expect(state.saveState).toHaveBeenCalledWith(
+      "user-alice",
+      "runtime",
       expect.objectContaining({
-        path: "users/alice/data/brain-runtime.json",
-        message: "feat(brain): record brain runtime for Alice",
-        scope: "root",
+        desiredImageRef: "ghcr.io/alice/kody-brain-snapshot:new",
       }),
     );
   });
@@ -73,7 +63,7 @@ describe("Brain runtime store", () => {
         updatedAt: "2026-07-02T10:00:00.000Z",
       }),
     ).rejects.toThrow("Invalid Brain runtime state");
-    expect(state.writeBackendDoc).not.toHaveBeenCalled();
+    expect(state.saveState).not.toHaveBeenCalled();
   });
 
   it("rejects completed apply state without a recorded running machine", async () => {
@@ -95,6 +85,6 @@ describe("Brain runtime store", () => {
         updatedAt: "2026-07-02T10:01:00.000Z",
       }),
     ).rejects.toThrow("Invalid Brain runtime state");
-    expect(state.writeBackendDoc).not.toHaveBeenCalled();
+    expect(state.saveState).not.toHaveBeenCalled();
   });
 });

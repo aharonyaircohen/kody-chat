@@ -11,6 +11,10 @@ import {
   loadChatModels,
 } from "@kody-ade/base/variables/load-chat-models";
 import { resolveChatModel } from "../../app/api/kody/chat/resolve-model";
+import { loadOpenCodeFreeModels } from "../../app/api/kody/chat/opencode-free";
+vi.mock("../../app/api/kody/chat/opencode-free", () => ({
+  loadOpenCodeFreeModels: vi.fn(),
+}));
 import { setChatModelSettingsProvider } from "../../app/api/kody/chat/model-settings-provider";
 
 vi.mock("@ai-sdk/anthropic", () => ({
@@ -58,6 +62,112 @@ function request(): NextRequest {
 }
 
 describe("resolveChatModel", () => {
+  it("automatically falls back within the current free catalog without credentials", async () => {
+    vi.mocked(loadOpenCodeFreeModels).mockResolvedValue([
+      { id: "limited", label: "Limited", adapter: "openai-compatible" },
+      { id: "ready", label: "Ready", adapter: "openai-compatible" },
+    ]);
+    const calls: string[] = [];
+    vi.mocked(createOpenAICompatible).mockImplementation(
+      () =>
+        ((modelId: string) => ({
+          specificationVersion: "v3",
+          provider: "test",
+          modelId,
+          supportedUrls: {},
+          doGenerate: async () => {
+            calls.push(modelId);
+            if (modelId === "limited")
+              throw Object.assign(new Error("Rate limited"), {
+                statusCode: 429,
+              });
+            return { content: [{ type: "text", text: "OK" }] };
+          },
+        })) as never,
+    );
+    const onAutomaticFallback = vi.fn();
+    const result = await resolveChatModel(request(), "opencode-free", {
+      onAutomaticFallback,
+    });
+    expect(result).not.toHaveProperty("error");
+    if ("error" in result) return;
+    expect(result.resolvedModel.label).toBe("OpenCode Free");
+    await (
+      result.model as import("@ai-sdk/provider").LanguageModelV3
+    ).doGenerate({ prompt: [] });
+    expect(calls).toEqual(["limited", "ready"]);
+    expect(onAutomaticFallback).toHaveBeenCalledWith({
+      from: "Limited",
+      to: "Ready",
+      reason: "rate_limit",
+    });
+    expect(getSecret).not.toHaveBeenCalled();
+  });
+  it("supports a free catalog with only one remaining model", async () => {
+    vi.mocked(loadOpenCodeFreeModels).mockResolvedValue([
+      { id: "only", label: "Only", adapter: "openai-compatible" },
+    ]);
+    expect(
+      await resolveChatModel(request(), "opencode-free"),
+    ).not.toHaveProperty("error");
+  });
+  it("reports when there are no free models instead of choosing a paid model", async () => {
+    vi.mocked(loadOpenCodeFreeModels).mockResolvedValue([]);
+    const result = await resolveChatModel(request(), "opencode-free");
+    expect(result).toHaveProperty("error");
+    if ("error" in result)
+      expect(await result.error.json()).toMatchObject({
+        error: "model_unavailable",
+      });
+    expect(getSecret).not.toHaveBeenCalled();
+  });
+  it("resolves a discovered picker model without saving it in settings", async () => {
+    vi.mocked(loadChatModels).mockResolvedValue([]);
+    vi.mocked(loadOpenCodeFreeModels).mockResolvedValue([
+      { id: "new-free", label: "New Free", adapter: "openai-compatible" },
+    ]);
+    const result = await resolveChatModel(request(), "opencode-free/new-free");
+    expect(result).not.toHaveProperty("error");
+    if (!("error" in result))
+      expect(result.resolvedModel.modelName).toBe("new-free");
+    expect(getSecret).not.toHaveBeenCalled();
+  });
+  const freeModel = {
+    id: "opencode-free/test",
+    label: "Free test",
+    provider: "opencode-free" as const,
+    protocol: "openai" as const,
+    baseURL: "https://opencode.ai/zen/v1",
+    modelName: "test",
+    apiKeySecret: "",
+    enabled: true,
+  };
+  it("resolves anonymous free models without reading any credentials", async () => {
+    vi.mocked(loadChatModels).mockResolvedValue([freeModel]);
+    vi.mocked(loadOpenCodeFreeModels).mockResolvedValue([
+      { id: "test", label: "Test", adapter: "openai-compatible" },
+    ]);
+    const result = await resolveChatModel(request(), freeModel.id);
+    expect(result).not.toHaveProperty("error");
+    expect(getSecret).not.toHaveBeenCalled();
+    expect(createOpenAICompatible).toHaveBeenCalledWith(
+      expect.objectContaining({
+        apiKey: undefined,
+        baseURL: "https://opencode.ai/zen/v1",
+      }),
+    );
+  });
+  it("reports withdrawn models instead of silently using the default", async () => {
+    vi.mocked(loadChatModels).mockResolvedValue([freeModel]);
+    vi.mocked(loadOpenCodeFreeModels).mockResolvedValue([]);
+    const result = await resolveChatModel(request(), freeModel.id);
+    expect(result).toHaveProperty("error");
+    if ("error" in result)
+      expect(await result.error.json()).toMatchObject({
+        error: "model_unavailable",
+      });
+    expect(getSecret).not.toHaveBeenCalled();
+  });
   beforeEach(() => {
     vi.resetAllMocks();
     vi.unstubAllEnvs();

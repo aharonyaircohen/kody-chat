@@ -33,7 +33,9 @@ describe("chat conversation actions", () => {
     expect(SETUP_SOURCE).not.toContain(">Agent:</span>");
     expect(SETUP_SOURCE).not.toContain("agencyAgentControl");
     expect(SOURCE).not.toContain("const agencyAgentPicker");
-    expect(SETUP_SOURCE).toContain("props.modelEntries.map((entry) => (");
+    expect(SETUP_SOURCE).toContain("group.entries.map((entry) => (");
+    expect(SETUP_SOURCE).toContain('label: "Built-in models"');
+    expect(SETUP_SOURCE).toContain('label: "Your models"');
     expect(SETUP_SOURCE).toContain("Add chat model");
     expect(SOURCE).toContain("modelEntries={props.agentList}");
     expect(SOURCE).not.toContain("modelEntriesForMachineAccess(");

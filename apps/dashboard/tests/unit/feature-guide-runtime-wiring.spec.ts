@@ -7,6 +7,21 @@ import { getFeatureGuideRegistry } from "@kody-ade/kody-chat-dashboard/platform/
 const dashboardRoot = resolve(import.meta.dirname, "../..");
 
 describe("feature guide runtime wiring", () => {
+  it("gives Kody the actual SSH download flow through its registered guide", async () => {
+    await import("../../app/api/kody/chat/kody/dashboard-feature-guides");
+    const guide = await getFeatureGuideRegistry().resolveForTurn({
+      currentPage: "the Chat page (/chat)",
+      userText: "How do I download SSH config?",
+    });
+    expect(guide?.id).toBe("previews");
+    const prompt = formatFeatureGuidePromptSection(guide!);
+    expect(prompt).toContain("Download SSH config");
+    expect(prompt).toContain("configured during creation");
+    expect(prompt).toContain(
+      "Downloading alone does not install settings on the Mac",
+    );
+    expect(prompt).toContain("never paste it into chat");
+  });
   it("resolves and formats the real workflows guide through the registered provider", async () => {
     await import("../../app/api/kody/chat/kody/dashboard-feature-guides");
 

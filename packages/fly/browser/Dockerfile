@@ -5,6 +5,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
       chromium \
+      openssh-server \
       ca-certificates \
       fonts-liberation \
       fonts-noto-core \
@@ -25,7 +26,7 @@ COPY packages/fly/src/browsers ./src/browsers
 
 RUN chmod +x /app/start.sh \
     && useradd --create-home --uid 10001 browser \
-    && mkdir -p /home/browser/profile /tmp/.X11-unix \
+    && mkdir -p /home/browser/profile /tmp/.X11-unix /run/sshd \
     && chmod 1777 /tmp/.X11-unix \
     && chown -R browser:browser /app /home/browser
 
