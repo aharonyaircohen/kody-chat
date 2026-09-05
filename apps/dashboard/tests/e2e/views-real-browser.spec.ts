@@ -62,7 +62,10 @@ test("bookmarks, browser controls, picker, URL saving, and stream state stay ali
   let historyIndex = 0;
   let revision = 1;
   let stream: WebSocketRoute | null = null;
+  let rejectStreams = false;
+  let streamConnections = 0;
   let sessionStarts = 0;
+  let sessionResumes = 0;
   let sessionReads = 0;
   let sessionExists = false;
   const actions: Array<Record<string, unknown>> = [];
@@ -102,7 +105,12 @@ test("bookmarks, browser controls, picker, URL saving, and stream state stay ali
   });
 
   await page.routeWebSocket(/browser\.example\.test\/stream/, (socket) => {
+    streamConnections += 1;
     stream = socket;
+    if (rejectStreams) {
+      setTimeout(() => void socket.close({ code: 1012 }), 20);
+      return;
+    }
     socket.onMessage((raw) => {
       const message = JSON.parse(raw.toString()) as Record<string, unknown>;
       streamInputs.push(message);
@@ -132,6 +140,10 @@ test("bookmarks, browser controls, picker, URL saving, and stream state stay ali
     if (!body) sessionReads += 1;
     if (!body && !sessionExists) {
       return json(route, { mode: "remote", state: "idle" });
+    }
+    if (body?.operation === "resume") {
+      sessionResumes += 1;
+      return json(route, { error: "browser_operation_failed" }, 500);
     }
     if (!body || body.operation === "start") {
       if (body?.operation === "start") {
@@ -177,15 +189,15 @@ test("bookmarks, browser controls, picker, URL saving, and stream state stay ali
         : {}),
     });
   });
-  await page.context().route(
-    "https://browser.example.test/direct**",
-    async (route) =>
+  await page
+    .context()
+    .route("https://browser.example.test/direct**", async (route) =>
       route.fulfill({
         status: 200,
         contentType: "text/html",
         body: "<!doctype html><title>Direct browser</title>",
       }),
-  );
+    );
 
   await page.goto("/repo/test-owner/test-repo/preview/kody");
   const address = page.getByLabel("Current preview URL");
@@ -284,4 +296,15 @@ test("bookmarks, browser controls, picker, URL saving, and stream state stay ali
       ),
     )
     .toBe(true);
+
+  const streamsBeforeFailure = streamConnections;
+  rejectStreams = true;
+  await (stream as WebSocketRoute | null)?.close({ code: 1012 });
+  await expect(page.getByText("Browser unavailable")).toBeVisible({
+    timeout: 8_000,
+  });
+  await page.waitForTimeout(1_500);
+  expect(streamConnections).toBe(streamsBeforeFailure + 3);
+  expect(sessionStarts).toBe(1);
+  expect(sessionResumes).toBe(1);
 });

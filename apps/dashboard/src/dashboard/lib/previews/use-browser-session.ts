@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   actInBrowserSession,
   fetchBrowserSession,
+  resumeBrowserSession,
   startBrowserSession,
   stageBrowserUpload,
   type BrowserSessionAction,
@@ -35,10 +36,13 @@ export function useBrowserSession(input: {
     input.enabled ? { kind: "checking" } : { kind: "disabled" },
   );
   const generationRef = useRef(0);
-  const recoveryAttemptsRef = useRef(0);
   const connectingRef = useRef(false);
   const modeRef = useRef(mode);
+  const sessionRef = useRef<ActiveRemoteSession | null>(null);
   const initialUrlRef = useRef(input.initialUrl);
+  const resumeInFlightRef = useRef(false);
+  const autoRecoveryBlockedRef = useRef(false);
+  const stableConnectionTimerRef = useRef<number | undefined>(undefined);
   const resolveUploadFiles = input.resolveUploadFiles;
   modeRef.current = mode;
   initialUrlRef.current = input.initialUrl;
@@ -47,6 +51,7 @@ export function useBrowserSession(input: {
     async (forceStart = false) => {
       const initialUrl = initialUrlRef.current;
       if (!input.enabled || !initialUrl) {
+        sessionRef.current = null;
         setMode({ kind: "disabled" });
         return;
       }
@@ -62,6 +67,7 @@ export function useBrowserSession(input: {
         const status = await fetchBrowserSession(input.actorLogin);
         if (generation !== generationRef.current) return;
         if (status.mode === "iframe") {
+          sessionRef.current = null;
           setMode({ kind: "iframe", reason: status.reason });
           return;
         }
@@ -91,14 +97,13 @@ export function useBrowserSession(input: {
         }
         if (generation !== generationRef.current) return;
         if (session.mode === "iframe") {
+          sessionRef.current = null;
           setMode({ kind: "iframe", reason: session.reason });
           return;
         }
         if (session.state === "idle" || session.state === "failed") {
           throw new Error("browser_session_failed");
         }
-        recoveryAttemptsRef.current = 0;
-
         if (
           !forceStart &&
           status.state !== "idle" &&
@@ -116,12 +121,14 @@ export function useBrowserSession(input: {
               );
               if (generation !== generationRef.current) return;
               if (initialUrlRef.current !== desiredUrl) continue;
+              const alignedSession: ActiveRemoteSession = {
+                ...status,
+                currentUrl: navigation.url ?? desiredUrl,
+              };
+              sessionRef.current = alignedSession;
               setMode({
                 kind: "remote",
-                session: {
-                  ...status,
-                  currentUrl: navigation.url ?? desiredUrl,
-                },
+                session: alignedSession,
               });
               return;
             } catch {
@@ -133,6 +140,7 @@ export function useBrowserSession(input: {
             }
           }
         }
+        sessionRef.current = session;
         setMode({ kind: "remote", session });
       } catch (error) {
         if (generation !== generationRef.current) return;
@@ -148,6 +156,45 @@ export function useBrowserSession(input: {
     [input.actorLogin, input.enabled],
   );
 
+  const resume = useCallback(async () => {
+    if (resumeInFlightRef.current || !input.enabled || !input.actorLogin) {
+      return;
+    }
+    const currentSession = sessionRef.current;
+    if (!currentSession) {
+      await connect(true);
+      return;
+    }
+    resumeInFlightRef.current = true;
+    const generation = ++generationRef.current;
+    try {
+      const session = await resumeBrowserSession(
+        input.actorLogin,
+        currentSession.sessionId,
+      );
+      if (generation !== generationRef.current) return;
+      if (session.mode === "iframe") {
+        sessionRef.current = null;
+        setMode({ kind: "iframe", reason: session.reason });
+        return;
+      }
+      if (session.state === "idle" || session.state === "failed") {
+        throw new Error("browser_session_failed");
+      }
+      sessionRef.current = session;
+      setMode({ kind: "remote", session });
+    } catch (error) {
+      if (generation !== generationRef.current) return;
+      setMode({
+        kind: "error",
+        error:
+          error instanceof Error ? error.message : "browser_session_failed",
+      });
+    } finally {
+      resumeInFlightRef.current = false;
+    }
+  }, [connect, input.actorLogin, input.enabled]);
+
   useEffect(() => {
     void connect(false);
     return () => {
@@ -156,25 +203,42 @@ export function useBrowserSession(input: {
   }, [connect]);
 
   useEffect(() => {
-    if (mode.kind !== "error") return;
-    if (recoveryAttemptsRef.current >= 3) return;
-    const timer = window.setTimeout(() => {
-      recoveryAttemptsRef.current += 1;
-      void connect(false);
-    }, 1_500);
-    return () => window.clearTimeout(timer);
-  }, [connect, mode.kind]);
-
-  useEffect(() => {
     if (
       modeRef.current.kind === "remote" ||
       modeRef.current.kind === "checking"
     ) {
       return;
     }
-    recoveryAttemptsRef.current = 0;
     void connect(false);
   }, [connect, input.initialUrl]);
+
+  useEffect(() => {
+    if (mode.kind !== "remote") return;
+    const refreshBeforeExpiry = (): void => {
+      if (document.visibilityState === "visible") void resume();
+    };
+    const refreshAtMs = mode.session.ticketExpiresAt * 1_000 - 30_000;
+    const refreshTimer = window.setTimeout(
+      refreshBeforeExpiry,
+      Math.max(0, refreshAtMs - Date.now()),
+    );
+    const handleVisibility = (): void => {
+      if (
+        document.visibilityState === "visible" &&
+        mode.session.ticketExpiresAt * 1_000 <= Date.now() + 30_000
+      ) {
+        void resume();
+      }
+    };
+    const handleOnline = (): void => void resume();
+    document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("online", handleOnline);
+    return () => {
+      window.clearTimeout(refreshTimer);
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("online", handleOnline);
+    };
+  }, [mode, resume]);
 
   const act = useCallback(
     async (
@@ -213,6 +277,9 @@ export function useBrowserSession(input: {
         action,
       );
       if (result.url) {
+        sessionRef.current = sessionRef.current
+          ? { ...sessionRef.current, currentUrl: result.url }
+          : null;
         setMode((current) =>
           current.kind === "remote"
             ? {
@@ -227,7 +294,29 @@ export function useBrowserSession(input: {
     [input.actorLogin, resolveUploadFiles],
   );
 
-  const reconnect = useCallback(() => connect(true), [connect]);
+  const recover = useCallback(() => {
+    if (autoRecoveryBlockedRef.current) return;
+    autoRecoveryBlockedRef.current = true;
+    void resume();
+  }, [resume]);
+
+  const reconnect = useCallback(() => {
+    window.clearTimeout(stableConnectionTimerRef.current);
+    autoRecoveryBlockedRef.current = true;
+    void resume();
+  }, [resume]);
+
+  const markConnected = useCallback(() => {
+    window.clearTimeout(stableConnectionTimerRef.current);
+    stableConnectionTimerRef.current = window.setTimeout(() => {
+      autoRecoveryBlockedRef.current = false;
+    }, 10_000);
+  }, []);
+
+  useEffect(
+    () => () => window.clearTimeout(stableConnectionTimerRef.current),
+    [],
+  );
 
   const openDirectLogin = useCallback(async (): Promise<boolean> => {
     if (!input.actorLogin || modeRef.current.kind !== "remote") return false;
@@ -252,5 +341,5 @@ export function useBrowserSession(input: {
     }
   }, [input.actorLogin]);
 
-  return { mode, act, reconnect, openDirectLogin };
+  return { mode, act, recover, reconnect, markConnected, openDirectLogin };
 }

@@ -22,11 +22,9 @@ import {
   type FlyBrowserSession,
   type CreateFlyBrowserSessionInput,
   ensureBrowserSessionReady,
-} from "@kody-ade/fly/infrastructure/browser";
-import {
   browserAppName,
   getBrowserMachineDiagnostic,
-} from "@kody-ade/fly/plugin/browsers";
+} from "@kody-ade/fly/infrastructure/browser";
 import {
   resolveServerProviderContext,
   serverProviderConfigFromContext,
@@ -43,6 +41,7 @@ export const dynamic = "force-dynamic";
 
 const SESSION_TTL_MS = 4 * 60 * 60 * 1_000;
 const STREAM_TICKET_TTL_SECONDS = 5 * 60;
+const DIRECT_BROWSER_TICKET_TTL_SECONDS = 60 * 60;
 const DEFAULT_BROWSER_IMAGE =
   process.env.FLY_BROWSER_IMAGE ??
   "ghcr.io/aharonyaircohen/kody-browser:latest";
@@ -145,6 +144,11 @@ const Body = z.discriminatedUnion("operation", [
     action: BrowserAction,
   }),
   z.object({
+    operation: z.literal("resume"),
+    actorLogin: z.string().min(1).max(100).optional(),
+    sessionId: z.string().min(1).max(160),
+  }),
+  z.object({
     operation: z.literal("close"),
     actorLogin: z.string().min(1).max(100).optional(),
     sessionId: z.string().min(1).max(160),
@@ -195,9 +199,14 @@ function clientSession(
   actorId: string,
   session: StoredBrowserSession,
 ) {
+  const identity = ticketIdentity(owner, repo, actorId, session);
   const { ticket, expiresAt } = mintBrowserTicket(
-    ticketIdentity(owner, repo, actorId, session),
+    identity,
     STREAM_TICKET_TTL_SECONDS,
+  );
+  const { ticket: directTicket } = mintBrowserTicket(
+    identity,
+    DIRECT_BROWSER_TICKET_TTL_SECONDS,
   );
   return {
     mode: "remote" as const,
@@ -206,7 +215,7 @@ function clientSession(
     currentUrl: session.currentUrl,
     viewport: session.viewport,
     streamUrl: `wss://${session.appName}.fly.dev/stream?ticket=${encodeURIComponent(ticket)}`,
-    directUrl: `https://${session.appName}.fly.dev/direct?ticket=${encodeURIComponent(ticket)}`,
+    directUrl: `https://${session.appName}.fly.dev/direct?ticket=${encodeURIComponent(directTicket)}`,
     uploadUrl: `https://${session.appName}.fly.dev/upload?ticket=${encodeURIComponent(ticket)}`,
     ticketExpiresAt: expiresAt,
   };
@@ -501,6 +510,32 @@ export async function POST(req: NextRequest) {
       endpoint: `https://${stored.appName}.fly.dev`,
       config,
     };
+
+    if (data.operation === "resume") {
+      await ensureBrowserSessionReady(providerSession);
+      const nowMs = Date.now();
+      const resumed: StoredBrowserSession = {
+        ...stored,
+        state: "running",
+        expiresAtMs: nowMs + SESSION_TTL_MS,
+      };
+      await backend.mutation(backendApi.browserSessions.touch, {
+        tenantId,
+        actorId: authority.actorId,
+        sessionId: stored.sessionId,
+        nowMs,
+        expiresAtMs: resumed.expiresAtMs,
+        state: "running",
+      });
+      return NextResponse.json(
+        clientSession(
+          authority.owner,
+          authority.repo,
+          authority.actorId,
+          resumed,
+        ),
+      );
+    }
 
     if (data.operation === "close") {
       await provider.closeSession(providerSession);

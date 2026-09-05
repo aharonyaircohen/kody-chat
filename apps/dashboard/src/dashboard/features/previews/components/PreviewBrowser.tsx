@@ -67,10 +67,7 @@ import {
   initialBrowserControllerState,
   type BrowserPageState,
 } from "@dashboard/lib/previews/browser-controller-state";
-import type {
-  BrowserUploadFile,
-  RemoteBrowserActionResult,
-} from "@dashboard/lib/previews/browser-session-client";
+import type { BrowserUploadFile } from "@dashboard/lib/previews/browser-session-client";
 
 export interface PreviewBrowserProps {
   /** Resolved base URL for the active preview, or null when nothing can show. */
@@ -278,7 +275,9 @@ export function PreviewBrowser({
   });
   const remoteBrowserMode = remoteBrowser.mode;
   const remoteBrowserAct = remoteBrowser.act;
+  const recoverRemoteBrowser = remoteBrowser.recover;
   const reconnectRemoteBrowser = remoteBrowser.reconnect;
+  const markRemoteBrowserConnected = remoteBrowser.markConnected;
   const remoteSession =
     remoteBrowserMode.kind === "remote" ? remoteBrowserMode.session : null;
   const remoteIframeReason =
@@ -1042,7 +1041,9 @@ export function PreviewBrowser({
               previewDevice === "desktop" ? resizeRemoteDesktop : undefined
             }
             onPageState={handleRemotePageState}
-            onDisconnected={reconnectRemoteBrowser}
+            onConnected={markRemoteBrowserConnected}
+            onConnectionLost={recoverRemoteBrowser}
+            onReconnect={reconnectRemoteBrowser}
           />
         ) : remoteBrowserMode.kind === "checking" ? (
           <div className="h-full flex flex-col items-center justify-center gap-3 text-center px-6 bg-zinc-950">

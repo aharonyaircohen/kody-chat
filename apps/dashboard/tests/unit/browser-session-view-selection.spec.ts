@@ -9,6 +9,12 @@ const sourcePath = fileURLToPath(
     import.meta.url,
   ),
 );
+const surfaceSourcePath = fileURLToPath(
+  new URL(
+    "../../src/dashboard/features/previews/components/FlyRemoteBrowserSurface.tsx",
+    import.meta.url,
+  ),
+);
 
 describe("browser session View selection lifecycle", () => {
   it("keeps an active Fly session while the selected View URL changes", () => {
@@ -46,7 +52,10 @@ describe("browser session View selection lifecycle", () => {
   it("treats provider-free iframe mode as a terminal fallback", () => {
     const source = readFileSync(sourcePath, "utf8");
 
-    expect(source).toContain('if (mode.kind !== "error") return');
+    expect(source).toContain('if (status.mode === "iframe")');
+    expect(source).toContain(
+      'setMode({ kind: "iframe", reason: status.reason })',
+    );
     expect(source).not.toContain(
       'mode.kind !== "iframe" && mode.kind !== "error"',
     );
@@ -64,13 +73,12 @@ describe("browser session View selection lifecycle", () => {
     expect(source).toContain("currentUrl: navigation.url ?? desiredUrl");
   });
 
-  it("retries a transient unavailable state without replacing the iframe fallback", () => {
+  it("does not restart the whole browser after a session recovery failure", () => {
     const source = readFileSync(sourcePath, "utf8");
 
-    expect(source).toContain("const recoveryAttemptsRef = useRef(0)");
-    expect(source).toContain('if (mode.kind !== "error") return');
-    expect(source).toContain("recoveryAttemptsRef.current >= 3");
-    expect(source).toContain("recoveryAttemptsRef.current += 1");
+    expect(source).not.toContain("recoveryAttemptsRef");
+    expect(source).toContain("autoRecoveryBlockedRef");
+    expect(source).toContain("if (autoRecoveryBlockedRef.current) return");
   });
 
   it("allows only one browser connection attempt at a time", () => {
@@ -87,5 +95,26 @@ describe("browser session View selection lifecycle", () => {
 
     expect(source).toContain('error.message !== "browser_start_in_progress"');
     expect(source).toContain("window.setTimeout(resolve, 1_000)");
+  });
+
+  it("renews browser access before expiry and after the page becomes visible", () => {
+    const source = readFileSync(sourcePath, "utf8");
+
+    expect(source).toContain("resumeBrowserSession(");
+    expect(source).toContain("ticketExpiresAt * 1_000");
+    expect(source).toContain('document.visibilityState === "visible"');
+    expect(source).toContain("autoRecoveryBlockedRef");
+  });
+
+  it("hands terminal stream failure to one bounded session recovery", () => {
+    const source = readFileSync(surfaceSourcePath, "utf8");
+    const closeHandler = source.slice(
+      source.indexOf('websocket.addEventListener("close"'),
+      source.indexOf('websocket.addEventListener("error"'),
+    );
+
+    expect(closeHandler).toContain("reconnectAttempts < 3");
+    expect(closeHandler).toContain("onConnectionLost");
+    expect(source).toContain("onClick={callbacksRef.current.onReconnect}");
   });
 });

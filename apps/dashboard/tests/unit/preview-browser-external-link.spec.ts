@@ -160,7 +160,10 @@ describe("PreviewBrowser new-tab action", () => {
     );
     expect(BROWSER_SESSION_HOOK_SOURCE).toContain("await startBrowserSession(");
     expect(BROWSER_SESSION_HOOK_SOURCE).toContain(
-      "const reconnect = useCallback(() => connect(true)",
+      "const session = await resumeBrowserSession(",
+    );
+    expect(BROWSER_SESSION_HOOK_SOURCE).toContain(
+      "const reconnect = useCallback(() =>",
     );
   });
 
