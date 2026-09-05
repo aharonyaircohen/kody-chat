@@ -121,7 +121,11 @@ export async function resolveBrainService(input: {
         const runningMachines = rows.filter((row) =>
           isServerProviderMachineRunning(row.state),
         );
-        if (runningMachines.length === 1) {
+        // Setup can replace the recorded machine. A sole replacement is
+        // authoritative even while stopped; callers must be able to wake it.
+        if (rows.length === 1) {
+          machine = rows[0];
+        } else if (runningMachines.length === 1) {
           machine = runningMachines[0];
         }
       }

@@ -210,6 +210,30 @@ describe("resolveBrainService", () => {
     expect(resolved.reason).toBeUndefined();
   });
 
+  it.each(["stopped", "suspended"])(
+    "finds the sole replacement Brain while %s so it can be resumed",
+    async (state) => {
+      runtimeManager.readBrainRuntimeView.mockResolvedValueOnce({
+        runningApp: "brain-1",
+        runningMachineId: "deleted-machine",
+      });
+      flyPreviews.listMachines.mockResolvedValueOnce([
+        { id: "replacement", state, region: "fra" },
+      ]);
+      const { resolveBrainService } =
+        await import("@kody-ade/brain/service-resolver");
+      const resolved = await resolveBrainService({
+        flyToken: "personal-token",
+        account: "user",
+        githubToken: "",
+        orgSlug: "personal",
+        defaultRegion: "fra",
+      });
+      expect(resolved.machine?.machineId).toBe("replacement");
+      expect(resolved.state).toBe(state);
+    },
+  );
+
   it("does not use an environment Fly token to expand repo access", async () => {
     process.env.FLY_API_TOKEN = "fallback-token";
     brainFly.brainStatus.mockResolvedValueOnce({

@@ -131,8 +131,9 @@ export const ChatTerminalSurface = forwardRef<
   const inputSignalTimerRef = useRef<number | null>(null);
   const [ready, setReady] = useState(false);
   const [connectingLocal, setConnectingLocal] = useState(false);
-  const [localSession, setLocalSession] =
-    useState<LocalTerminalSession | null>(null);
+  const [localSession, setLocalSession] = useState<LocalTerminalSession | null>(
+    null,
+  );
   const [localError, setLocalError] = useState<string | null>(null);
   const [historicalSnapshot, setHistoricalSnapshot] =
     useState<HistoricalSnapshot | null>(null);
@@ -285,7 +286,7 @@ export const ChatTerminalSurface = forwardRef<
         });
         return;
       }
-      await retryRemote();
+      await retryRemote({ resetSession: true });
     } catch (error) {
       setSetupIssue({
         code: "terminal_setup_failed",
@@ -395,7 +396,9 @@ export const ChatTerminalSurface = forwardRef<
         error?: string;
       };
       if (!response.ok || !body.session) {
-        throw new Error(body.message ?? body.error ?? `HTTP ${response.status}`);
+        throw new Error(
+          body.message ?? body.error ?? `HTTP ${response.status}`,
+        );
       }
       sessionEndNotifiedRef.current = false;
       localSessionRef.current = body.session;
@@ -433,7 +436,8 @@ export const ChatTerminalSurface = forwardRef<
         alive?: boolean;
         error?: string;
       };
-      if (!response.ok) throw new Error(body.error ?? `HTTP ${response.status}`);
+      if (!response.ok)
+        throw new Error(body.error ?? `HTTP ${response.status}`);
       const next = {
         ...current,
         cursor: body.cursor ?? current.cursor,

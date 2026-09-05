@@ -53,7 +53,11 @@ function setup() {
         webSocketUrl: "wss://gateway.test/socket",
         session: {
           id: "terminal-1",
-          scope: { owner: "acme", repo: "widgets", conversationId: "conversation-1" },
+          scope: {
+            owner: "acme",
+            repo: "widgets",
+            conversationId: "conversation-1",
+          },
           target: { kind: "brain", runtimeId: "brain-1" },
         },
       };
@@ -75,6 +79,64 @@ function setup() {
 }
 
 describe("TerminalSessionClient", () => {
+  it("accepts the replacement machine after successful setup without carrying the old revision", async () => {
+    const sockets: FakeSocket[] = [];
+    const requests: Array<Record<string, unknown>> = [];
+    const client = new TerminalSessionClient({
+      chatSessionId: "conversation-1",
+      transport: { type: "brain", label: "Brain" },
+      activityLimit: null,
+      getSize: () => ({ cols: 80, rows: 24 }),
+      requestSession: async (body) => {
+        requests.push(body);
+        return {
+          webSocketUrl: "wss://gateway.test/socket",
+          session: {
+            id: `terminal-${requests.length}`,
+            scope: {
+              owner: "acme",
+              repo: "widgets",
+              conversationId: "conversation-1",
+            },
+            target: { kind: "brain", runtimeId: `brain-${requests.length}` },
+          },
+        };
+      },
+      createSocket: () => {
+        const socket = new FakeSocket();
+        sockets.push(socket);
+        return socket;
+      },
+      schedule: () => 1,
+      cancelSchedule: () => {},
+    });
+    await client.connect();
+    sockets[0]!.open();
+    sockets[0]!.message({
+      type: "state",
+      sessionId: "terminal-1",
+      generation: 1,
+      state: "ready",
+    });
+    sockets[0]!.message({
+      type: "output",
+      sessionId: "terminal-1",
+      generation: 1,
+      revision: 7,
+      data: "old screen",
+    });
+    await client.retryNow({ resetSession: true });
+    expect(requests[1]).not.toHaveProperty("afterRevision");
+    expect(sockets).toHaveLength(2);
+    sockets[1]!.open();
+    sockets[1]!.message({
+      type: "state",
+      sessionId: "terminal-2",
+      generation: 1,
+      state: "ready",
+    });
+    expect(client.sendInput("input-new", "pwd\r")).toBe(true);
+  });
   it("reattaches the same session and revision after a socket loss", async () => {
     const harness = setup();
     await harness.client.connect();
@@ -125,7 +187,9 @@ describe("TerminalSessionClient", () => {
     await Promise.resolve();
 
     expect(harness.requests).toHaveLength(1);
-    expect(harness.sockets[0]?.sent.some((raw) => raw.includes("restart"))).toBe(false);
+    expect(
+      harness.sockets[0]?.sent.some((raw) => raw.includes("restart")),
+    ).toBe(false);
   });
 
   it("sends restart only as an explicit typed command", async () => {
@@ -172,7 +236,12 @@ describe("TerminalSessionClient", () => {
     expect(harness.client.resize(90, 28)).toBe(true);
     expect(harness.sockets[0]?.sent.map((raw) => JSON.parse(raw))).toEqual(
       expect.arrayContaining([
-        { type: "input", sessionId: "terminal-1", inputId: "input-1", data: "codex\r" },
+        {
+          type: "input",
+          sessionId: "terminal-1",
+          inputId: "input-1",
+          data: "codex\r",
+        },
         { type: "resize", sessionId: "terminal-1", cols: 90, rows: 28 },
       ]),
     );

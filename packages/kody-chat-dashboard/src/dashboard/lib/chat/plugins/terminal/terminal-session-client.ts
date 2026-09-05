@@ -92,7 +92,9 @@ const SOCKET_OPEN = 1;
 const MAX_SUBSCRIPTION_RETRIES = 4;
 const RETRY_BASE_MS = 750;
 
-function parseMessage(raw: string):
+function parseMessage(
+  raw: string,
+):
   | { kind: "event"; event: TerminalEvent }
   | { kind: "pong" }
   | { kind: "rejected"; code?: string; message: string }
@@ -218,10 +220,13 @@ export class TerminalSessionClient {
     }
     this.retryCount += 1;
     this.publish("connecting");
-    this.retryTimer = this.schedule(() => {
-      this.retryTimer = null;
-      void this.openSubscription();
-    }, RETRY_BASE_MS * 2 ** (this.retryCount - 1));
+    this.retryTimer = this.schedule(
+      () => {
+        this.retryTimer = null;
+        void this.openSubscription();
+      },
+      RETRY_BASE_MS * 2 ** (this.retryCount - 1),
+    );
   }
 
   private applyEvent(event: TerminalEvent): void {
@@ -341,7 +346,12 @@ export class TerminalSessionClient {
     return this.openSubscription();
   }
 
-  retryNow(): Promise<void> {
+  retryNow(options: { resetSession?: boolean } = {}): Promise<void> {
+    if (options.resetSession) {
+      this.disconnect();
+      this.identity = null;
+      this.session = null;
+    }
     this.stopped = false;
     this.startupBlocked = false;
     this.retryCount = 0;

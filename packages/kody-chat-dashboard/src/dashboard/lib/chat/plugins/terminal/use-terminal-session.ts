@@ -164,12 +164,10 @@ export function useTerminalSession({
       clientRef.current?.resize(cols, rows) ?? false,
     [],
   );
-  const restart = useCallback(
-    () => clientRef.current?.restart() ?? false,
-    [],
-  );
+  const restart = useCallback(() => clientRef.current?.restart() ?? false, []);
   const retry = useCallback(
-    () => clientRef.current?.retryNow() ?? Promise.resolve(),
+    (options?: { resetSession?: boolean }) =>
+      clientRef.current?.retryNow(options) ?? Promise.resolve(),
     [],
   );
   const disconnect = useCallback(() => {
