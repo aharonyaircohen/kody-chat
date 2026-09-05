@@ -75,9 +75,31 @@ export async function startBrainImageSave(input: StartBrainImageSaveInput) {
     );
   }
 
+  const ghcr = brainGhcrAuth({
+    allSecrets: context.allSecrets,
+    githubToken: context.githubToken,
+    account: context.githubAccount ?? context.account,
+  });
+  if (!ghcr.token.trim()) {
+    throw Object.assign(
+      new Error(
+        "Add GHCR_TOKEN with write:packages permission to Personal Credentials before saving a Brain image.",
+      ),
+      { status: 400 },
+    );
+  }
+  if (!context.githubAccount && !context.allSecrets.GHCR_USER?.trim()) {
+    throw Object.assign(
+      new Error(
+        "Add GHCR_USER (your GitHub username) to Personal Credentials before saving a Brain image.",
+      ),
+      { status: 400 },
+    );
+  }
+
   const brain = await resolveBrainService({
     flyToken: context.flyToken,
-    account: context.githubAccount ?? context.account,
+    account: context.account,
     githubToken: context.githubToken,
     orgSlug: context.flyOrgSlug,
     defaultRegion: context.flyDefaultRegion,
@@ -127,11 +149,6 @@ export async function startBrainImageSave(input: StartBrainImageSaveInput) {
     }
     throw err;
   });
-  const ghcr = brainGhcrAuth({
-    allSecrets: context.allSecrets,
-    githubToken: context.githubToken,
-    account: context.githubAccount ?? context.account,
-  });
   const token = mintTerminalBridgeToken({
     owner: context.githubOwner ?? context.account,
     repo: "personal-brain",
@@ -147,8 +164,8 @@ export async function startBrainImageSave(input: StartBrainImageSaveInput) {
   const now = new Date();
   const tag = brainImageTag(now);
   const expectedImageRef = brainGhcrImageRef({
-    owner: context.githubOwner ?? context.account,
-    account: context.githubAccount ?? context.account,
+    owner: context.githubOwner ?? ghcr.user,
+    account: context.githubAccount ?? ghcr.user,
     tag,
   });
   const job = await startTerminalBridgeLocalExecJob({

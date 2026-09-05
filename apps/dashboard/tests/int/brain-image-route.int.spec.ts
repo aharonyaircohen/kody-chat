@@ -5,6 +5,7 @@
  */
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { verifyTerminalBridgeToken } from "@kody-ade/terminal/terminal-token";
 import { setPersonalBrainServices } from "@kody-ade/brain/personal-services";
 
 const mocks = vi.hoisted(() => ({
@@ -354,7 +355,7 @@ describe("GET /api/kody/brain/image", () => {
       error: "Brain image save timed out after 2h 0m without progress.",
     });
     expect(mocks.writeSave).toHaveBeenCalledWith(
-      "aguyaharonyair",
+      "user-c6c289e49e9c05b2",
       "gh-token",
       expect.objectContaining({
         status: "failed",
@@ -419,6 +420,11 @@ describe("GET /api/kody/brain/image", () => {
     );
 
     expect(res.status).toBe(200);
+    expect(
+      verifyTerminalBridgeToken(mocks.getJob.mock.calls[0][0].token, {
+        secret: "bridge-secret",
+      }),
+    ).toMatchObject({ machineId: "machine-1", localExec: true });
     expect(mocks.writeImage).toHaveBeenCalledWith(
       "user-c6c289e49e9c05b2",
       "gh-token",
@@ -675,11 +681,14 @@ describe("GET /api/kody/brain/image", () => {
     });
     expect(mocks.getJob).not.toHaveBeenCalled();
     expect(mocks.writeImage).toHaveBeenCalledWith(
-      "aguyaharonyair",
+      "user-c6c289e49e9c05b2",
       "gh-token",
       expect.not.objectContaining({ imageRef: expect.any(String) }),
     );
-    expect(mocks.clearSave).toHaveBeenCalledWith("aguyaharonyair", "gh-token");
+    expect(mocks.clearSave).toHaveBeenCalledWith(
+      "user-c6c289e49e9c05b2",
+      "gh-token",
+    );
   });
 });
 
@@ -854,6 +863,43 @@ describe("POST /api/kody/brain/image", () => {
       error: "fly_token_missing",
     });
     expect(mocks.startJob).not.toHaveBeenCalled();
+  });
+
+  it("requires publishing credentials before starting an image job", async () => {
+    const { brainGhcrAuth } = await import("@kody-ade/brain/image-runtime");
+    vi.mocked(brainGhcrAuth).mockReturnValueOnce({
+      token: "",
+      user: "aguyaharonyair",
+    });
+    const response = await POST(request());
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      message: expect.stringContaining("GHCR_TOKEN"),
+    });
+    expect(mocks.startJob).not.toHaveBeenCalled();
+    expect(resolveBrainService).not.toHaveBeenCalled();
+  });
+
+  it("requires a registry username for a personal account without GitHub identity", async () => {
+    delete personalCredentials.GITHUB_LOGIN;
+    const response = await POST(request());
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      message: expect.stringContaining("GHCR_USER"),
+    });
+    expect(mocks.startJob).not.toHaveBeenCalled();
+  });
+
+  it("finds and records the personal Brain independently of the GitHub package account", async () => {
+    expect((await POST(request())).status).toBe(202);
+    expect(resolveBrainService).toHaveBeenCalledWith(
+      expect.objectContaining({ account: "user-c6c289e49e9c05b2" }),
+    );
+    expect(mocks.writeSave).toHaveBeenCalledWith(
+      "user-c6c289e49e9c05b2",
+      "gh-token",
+      expect.objectContaining({ jobId: "job-1" }),
+    );
   });
 
   it("starts a save job against the resolved Brain org, not stale client input", async () => {

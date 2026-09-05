@@ -138,9 +138,9 @@ async function discoverImages(
   });
   return discoverBrainPackageImages(
     {
-      owner: context.githubOwner ?? context.account,
+      owner: context.githubOwner ?? ghcr.user,
       repo: "personal-brain",
-      account: context.githubAccount ?? context.account,
+      account: context.githubAccount ?? ghcr.user,
       githubToken: ghcr.token,
     },
     options,
@@ -249,7 +249,7 @@ export async function readBrainImageManagement(input: {
   const image = await readBrainImage(context.account, context.githubToken);
   const discoveredImages = await discoverImages(context);
   const save = await reconcileBrainImageSaveForManagement({
-    account: context.githubAccount ?? context.account,
+    account: context.account,
     githubToken: context.githubToken,
     save: await readBrainImageSave(context.account, context.githubToken),
   });
@@ -319,7 +319,7 @@ export async function pollBrainImageSave(input: {
   const completedImage = await findCompletedBrainImageSave(context, save);
   if (completedImage) {
     return recordCompletedBrainImageSave({
-      account: context.githubAccount ?? context.account,
+      account: context.account,
       githubToken: context.githubToken,
       save,
       imageRef: save.expectedImageRef,
@@ -359,6 +359,7 @@ export async function pollBrainImageSave(input: {
     owner: context.githubOwner ?? context.account,
     repo: "personal-brain",
     app: save.app,
+    machineId: save.machineId,
     orgSlug: operationOrgSlug,
     flyToken: operationFlyToken,
     localExec: true,

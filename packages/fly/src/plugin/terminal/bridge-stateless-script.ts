@@ -63,7 +63,7 @@ function verifyTerminalToken(token) {
   if (!/^[A-Za-z0-9_-]{1,120}$/.test(claims.machineId || "")) throw new Error("terminal token machine invalid");
   if (!/^[A-Za-z0-9_.-]{1,100}$/.test(claims.owner)) throw new Error("terminal token owner invalid");
   if (!/^[A-Za-z0-9_.-]{1,100}$/.test(claims.repo)) throw new Error("terminal token repo invalid");
-  if (typeof claims.chatSessionId !== "string" || !claims.chatSessionId || claims.chatSessionId.length > 240) {
+  if (claims.localExec !== true && (typeof claims.chatSessionId !== "string" || !claims.chatSessionId || claims.chatSessionId.length > 240)) {
     throw new Error("terminal token session invalid");
   }
   if (
@@ -578,6 +578,7 @@ server.on("upgrade", (req, socket) => {
   try {
     const url = new URL(req.url || "/", "http://terminal-bridge.internal");
     const claims = verifyTerminalToken(url.searchParams.get("token"));
+    if (claims.localExec === true) throw new Error("local exec token cannot open a terminal");
     const key = req.headers["sec-websocket-key"];
     if (!key) throw new Error("missing websocket key");
     const accept = crypto.createHash("sha1").update(key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").digest("base64");

@@ -95,7 +95,7 @@ describe("TerminalSessionClient", () => {
       type: "clear",
       sessionId: "terminal-1",
     });
-    expect(harness.client.sendInput("ls\r")).toBe(true);
+    expect(harness.client.sendInput("input-after-clear", "ls\r")).toBe(true);
   });
 
   it("accepts the replacement machine after successful setup without carrying the old revision", async () => {

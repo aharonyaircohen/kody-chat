@@ -223,68 +223,74 @@ export function BrainImagesManager() {
   const pollSave = useCallback(
     async (jobId: string) => {
       if (!headers) return;
-      const res = await fetch(
-        `/api/kody/brain/image?jobId=${encodeURIComponent(jobId)}`,
-        { headers, cache: "no-store" },
-      );
-      const body = (await res
-        .json()
-        .catch(() => ({}))) as BrainImageSavePollResponse;
-      if (!res.ok) {
-        throw new Error(
-          body.message ?? body.error ?? `Poll failed (${res.status})`,
+      try {
+        const res = await fetch(
+          `/api/kody/brain/image?jobId=${encodeURIComponent(jobId)}`,
+          { headers, cache: "no-store" },
         );
-      }
-      if (body.status === "idle") {
-        setSave(null);
-        return;
-      }
-      if (body.status === "completed") {
-        setSave(null);
-        await loadImages();
-        return;
-      }
-      if (body.status === "failed") {
-        setSave((prev) =>
-          prev
-            ? {
-                ...prev,
-                status: "failed",
-                phase: "failed",
-                message: body.message ?? prev.message,
-                heartbeatAt: body.heartbeatAt ?? prev.heartbeatAt,
-                lastOutput: body.lastOutput ?? prev.lastOutput,
-                updatedAt: body.updatedAt ?? new Date().toISOString(),
-                error: body.error ?? body.message,
-              }
-            : prev,
-        );
-        return;
-      }
-      if (body.status === "running") {
-        setSave((prev) =>
-          prev
-            ? {
-                ...prev,
-                status: "running",
-                phase: body.phase ?? prev.phase,
-                message: body.message ?? prev.message,
-                heartbeatAt: body.heartbeatAt ?? prev.heartbeatAt,
-                lastOutput: body.lastOutput ?? prev.lastOutput,
-                updatedAt: body.updatedAt ?? new Date().toISOString(),
-              }
-            : {
-                status: "running",
-                phase: body.phase ?? "starting",
-                message: body.message,
-                heartbeatAt: body.heartbeatAt,
-                lastOutput: body.lastOutput,
-                jobId: body.jobId ?? jobId,
-                imageRef: body.imageRef ?? "",
-                startedAt: body.startedAt ?? new Date().toISOString(),
-                updatedAt: body.updatedAt ?? new Date().toISOString(),
-              },
-        );
+        const body = (await res
+          .json()
+          .catch(() => ({}))) as BrainImageSavePollResponse;
+        if (!res.ok && body.status !== "failed") {
+          throw new Error(
+            body.message ?? body.error ?? `Poll failed (${res.status})`,
+          );
+        }
+        if (body.status === "idle") {
+          setSave(null);
+          return;
+        }
+        if (body.status === "completed") {
+          setSave(null);
+          await loadImages();
+          return;
+        }
+        if (body.status === "failed") {
+          setSave((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  status: "failed",
+                  phase: "failed",
+                  message: body.message ?? prev.message,
+                  heartbeatAt: body.heartbeatAt ?? prev.heartbeatAt,
+                  lastOutput: body.lastOutput ?? prev.lastOutput,
+                  updatedAt: body.updatedAt ?? new Date().toISOString(),
+                  error: body.error ?? body.message,
+                }
+              : prev,
+          );
+          return;
+        }
+        if (body.status === "running") {
+          setSave((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  status: "running",
+                  phase: body.phase ?? prev.phase,
+                  message: body.message ?? prev.message,
+                  heartbeatAt: body.heartbeatAt ?? prev.heartbeatAt,
+                  lastOutput: body.lastOutput ?? prev.lastOutput,
+                  updatedAt: body.updatedAt ?? new Date().toISOString(),
+                }
+              : {
+                  status: "running",
+                  phase: body.phase ?? "starting",
+                  message: body.message,
+                  heartbeatAt: body.heartbeatAt,
+                  lastOutput: body.lastOutput,
+                  jobId: body.jobId ?? jobId,
+                  imageRef: body.imageRef ?? "",
+                  startedAt: body.startedAt ?? new Date().toISOString(),
+                  updatedAt: body.updatedAt ?? new Date().toISOString(),
+                },
+          );
+        }
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Brain image save failed";
+        setError(message);
       }
     },
     [headers, loadImages],
