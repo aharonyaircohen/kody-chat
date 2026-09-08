@@ -2233,8 +2233,7 @@ async function handleKodyDirectPost(
   const allActiveTools = Object.keys(allowlistedTools) as Array<
     keyof NonNullable<typeof tools>
   >;
-  const requireBrowserCapabilityDiscovery =
-    userBrowserWorkRequested && allActiveTools.includes("list_capabilities");
+  const requireBrowserCapabilityDiscovery = userBrowserWorkRequested;
   // Some providers stream several tool rounds without reflecting completed
   // results in prepareStep's `steps` array. Track the actual result stream so
   // Agency assessment still reaches its mandatory decision boundary.
@@ -2521,10 +2520,10 @@ This turn includes an image from the user. For questions about what is visible i
                   const capabilitiesListed =
                     browserCapabilitiesListedSeen ||
                     steps.some((step) =>
-                    step.toolResults.some(
-                      (result) => result.toolName === "list_capabilities",
-                    ),
-                  );
+                      step.toolResults.some(
+                        (result) => result.toolName === "list_capabilities",
+                      ),
+                    );
                   const userBrowserCapabilityRead =
                     userBrowserCapabilityReadSeen ||
                     steps.some((step) =>

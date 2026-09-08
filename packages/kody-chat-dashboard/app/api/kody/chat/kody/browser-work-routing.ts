@@ -70,9 +70,9 @@ export function isolateUserBrowserTurnTools<T>(
 }
 
 /**
- * Deterministic browser-Capability state machine. It keeps discovery,
- * execution, and hidden action continuations away from generic preview tools
- * and background Capability dispatch.
+ * Keep the complete scoped browser tool lane available for the turn. The
+ * individual tools enforce capability grants, so a phase gate only makes the
+ * model stop after discovery when it should continue to reading and acting.
  */
 export function selectUserBrowserActiveTools(input: {
   requested: boolean;
@@ -82,20 +82,6 @@ export function selectUserBrowserActiveTools(input: {
   availableTools: readonly string[];
 }): UserBrowserTool[] | null {
   const available = new Set(input.availableTools);
-  if (input.continuation && available.has("browser_capability_act")) {
-    return [
-      "browser_capability_act",
-      ...(available.has("final_answer") ? (["final_answer"] as const) : []),
-    ];
-  }
-  if (!input.requested) return null;
-  if (!input.capabilitiesListed && available.has("list_capabilities")) {
-    return ["list_capabilities"];
-  }
-  if (!input.browserCapabilityRead && available.has("read_capability")) {
-    return ["read_capability"];
-  }
-  return available.has("browser_capability_act")
-    ? ["browser_capability_act"]
-    : null;
+  if (!input.requested && !input.continuation) return null;
+  return [...USER_BROWSER_TURN_TOOLS].filter((name) => available.has(name));
 }

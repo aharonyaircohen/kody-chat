@@ -96,46 +96,24 @@ describe("user browser capability execution", () => {
 
   it.each([
     [
-      "discover",
+      "a browser request",
       {
         requested: true,
         continuation: false,
         capabilitiesListed: false,
         browserCapabilityRead: false,
       },
-      ["list_capabilities"],
     ],
     [
-      "read",
-      {
-        requested: true,
-        continuation: false,
-        capabilitiesListed: true,
-        browserCapabilityRead: false,
-      },
-      ["read_capability"],
-    ],
-    [
-      "act",
-      {
-        requested: true,
-        continuation: false,
-        capabilitiesListed: true,
-        browserCapabilityRead: true,
-      },
-      ["browser_capability_act"],
-    ],
-    [
-      "continue or finish",
+      "a browser continuation",
       {
         requested: false,
         continuation: true,
-        capabilitiesListed: false,
-        browserCapabilityRead: false,
+        capabilitiesListed: true,
+        browserCapabilityRead: true,
       },
-      ["browser_capability_act", "final_answer"],
     ],
-  ])("selects only the %s phase tools", (_name, state, expected) => {
+  ])("keeps the complete scoped tool lane for %s", (_name, state) => {
     expect(
       selectUserBrowserActiveTools({
         ...state,
@@ -148,6 +126,11 @@ describe("user browser capability execution", () => {
           "final_answer",
         ],
       }),
-    ).toEqual(expected);
+    ).toEqual([
+      "list_capabilities",
+      "read_capability",
+      "browser_capability_act",
+      "final_answer",
+    ]);
   });
 });
