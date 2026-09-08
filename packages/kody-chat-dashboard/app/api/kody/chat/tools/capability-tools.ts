@@ -90,6 +90,40 @@ export const browserCapabilityActionSchema = z.discriminatedUnion("op", [
   }),
 ]);
 
+/**
+ * Provider-facing schema. Some model providers do not reliably emit or
+ * validate JSON Schema discriminated unions. Keep operation validation strict
+ * on the server, but expose one stable object shape to the model.
+ */
+export const browserCapabilityActionInputSchema = z
+  .object({
+    ...browserCapabilityActionFields,
+    op: userBrowserActionSchema,
+    url: z.string().url().max(4_096).optional(),
+    selector: z.string().min(1).max(2_000).optional(),
+    value: z.string().max(20_000).optional(),
+    paths: z.array(z.string().min(1).max(500)).min(1).max(10).optional(),
+    dy: z.number().int().optional(),
+    ms: z.number().int().min(0).max(5_000).optional(),
+  })
+  .superRefine((input, context) => {
+    const required: Record<string, string[]> = {
+      navigate: ["url"],
+      click: ["selector"],
+      fill: ["selector", "value"],
+      upload: ["selector", "paths"],
+    };
+    for (const field of required[input.op] ?? []) {
+      if (input[field as keyof typeof input] === undefined) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [field],
+          message: `${field} is required for ${input.op}`,
+        });
+      }
+    }
+  });
+
 function capabilityDetail(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const record = value as Record<string, unknown>;
@@ -150,13 +184,16 @@ export function createCapabilityTools(ctx: Ctx) {
         "Call only after the user asks to run that Capability and after read_capability confirms its instructions. " +
         "The Dashboard owns the browser and returns a fresh page snapshot after each action. " +
         "This tool cannot publish, submit, or click outside the Capability's declared action and origin allowlists.",
-      inputSchema: browserCapabilityActionSchema,
+      inputSchema: browserCapabilityActionInputSchema,
       execute: async (
         input,
       ): Promise<PreviewActDirective | { error: string }> => {
-        if (!isValidSlug(input.slug))
+        const parsed = browserCapabilityActionSchema.safeParse(input);
+        if (!parsed.success) return { error: "invalid_browser_action" };
+        const action = parsed.data;
+        if (!isValidSlug(action.slug))
           return { error: "invalid_capability_slug" };
-        const detail = capabilityDetail(await ctx.readCapability(input.slug));
+        const detail = capabilityDetail(await ctx.readCapability(action.slug));
         const contract =
           typeof detail?.contract === "string" ? detail.contract : null;
         let grant;
@@ -166,22 +203,22 @@ export function createCapabilityTools(ctx: Ctx) {
           return { error: "invalid_browser_capability_contract" };
         }
         if (!grant) return { error: "user_browser_not_declared" };
-        if (!grant.actions.includes(input.op)) {
+        if (!grant.actions.includes(action.op)) {
           return { error: "browser_action_not_allowed" };
         }
-        if (input.op === "navigate") {
-          const origin = new URL(input.url).origin;
+        if (action.op === "navigate") {
+          const origin = new URL(action.url).origin;
           if (!grant.origins.includes(origin)) {
             return { error: "browser_origin_not_allowed" };
           }
         }
         let paths: string[] | undefined;
-        if (input.op === "upload") {
-          paths = input.paths
+        if (action.op === "upload") {
+          paths = action.paths
             .map(normalizedRepoPath)
             .filter((path): path is string => !!path);
           if (
-            paths.length !== input.paths.length ||
+            paths.length !== action.paths.length ||
             paths.some((path) => !pathWithinRoots(path, grant.fileRoots))
           ) {
             return { error: "browser_file_not_allowed" };
@@ -189,32 +226,32 @@ export function createCapabilityTools(ctx: Ctx) {
         }
         const directive: PreviewActDirective = {
           action: PREVIEW_ACT_DIRECTIVE,
-          capabilitySlug: input.slug,
+          capabilitySlug: action.slug,
           allowedOrigins: grant.origins,
-          op: input.op,
-          reason: input.reason,
+          op: action.op,
+          reason: action.reason,
         };
-        switch (input.op) {
+        switch (action.op) {
           case "navigate":
-            directive.url = input.url;
+            directive.url = action.url;
             break;
           case "click":
-            directive.selector = input.selector;
+            directive.selector = action.selector;
             break;
           case "fill":
-            directive.selector = input.selector;
-            directive.value = input.value;
+            directive.selector = action.selector;
+            directive.value = action.value;
             break;
           case "upload":
-            directive.selector = input.selector;
+            directive.selector = action.selector;
             directive.paths = paths;
             break;
           case "scroll":
-            directive.selector = input.selector;
-            directive.dy = input.dy;
+            directive.selector = action.selector;
+            directive.dy = action.dy;
             break;
           case "wait":
-            directive.ms = input.ms;
+            directive.ms = action.ms;
             break;
         }
         return directive;

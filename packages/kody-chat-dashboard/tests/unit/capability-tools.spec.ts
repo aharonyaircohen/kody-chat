@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  browserCapabilityActionInputSchema,
   browserCapabilityActionSchema,
   createCapabilityTools,
 } from "../../app/api/kody/chat/tools/capability-tools";
@@ -59,6 +60,24 @@ describe("capability chat tools", () => {
         reason: "Fill the composer",
       }).success,
     ).toBe(true);
+  });
+
+  it("accepts click through the provider-facing flat action schema", () => {
+    expect(
+      browserCapabilityActionInputSchema.safeParse({
+        slug: "prepare-facebook-post",
+        op: "click",
+        selector: '[aria-label="Create a post"]',
+        reason: "Open the composer",
+      }).success,
+    ).toBe(true);
+    expect(
+      browserCapabilityActionInputSchema.safeParse({
+        slug: "prepare-facebook-post",
+        op: "click",
+        reason: "Open the composer",
+      }).success,
+    ).toBe(false);
   });
 
   it("limits user-browser capability actions to the declared grant", async () => {
