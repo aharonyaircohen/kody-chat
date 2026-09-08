@@ -8,7 +8,7 @@ import { expect, test } from "@playwright/test";
 
 import {
   establishLiveKodyAccountSession,
-  loadLiveKodyAccountCredentials,
+  loadLiveKodyAccountCredentialsFromDashboard,
 } from "./live-account-session";
 
 const BASE_URL = process.env.BASE_URL ?? "";
@@ -32,22 +32,18 @@ test("runs Fly actions, switches saved views, and opens a Dashboard task", async
     "Requires a live local target and GitHub token",
   );
 
-  const credentials = await loadLiveKodyAccountCredentials({
-    ...process.env,
-    E2E_GITHUB_REPO: `https://github.com/${OWNER}/${REPO}`,
-    E2E_GITHUB_TOKEN: TOKEN,
-  });
-  await establishLiveKodyAccountSession(
-    page.request,
-    BASE_URL,
-    credentials,
-  );
-
   const headers = {
     "x-kody-token": TOKEN,
     "x-kody-owner": OWNER!,
     "x-kody-repo": REPO!,
   };
+  const credentials = await loadLiveKodyAccountCredentialsFromDashboard(
+    page.request,
+    BASE_URL,
+    headers,
+  );
+  await establishLiveKodyAccountSession(page.request, BASE_URL, credentials);
+
   const [identityResponse, configResponse] = await Promise.all([
     page.request.get(`${BASE_URL}/api/kody/auth/me`, { headers }),
     page.request.get(`${BASE_URL}/api/kody/dashboard-config`, { headers }),

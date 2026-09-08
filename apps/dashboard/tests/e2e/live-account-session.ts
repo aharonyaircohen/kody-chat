@@ -23,8 +23,13 @@ type LiveAccountRequest = {
       headers: Record<string, string>;
     },
   ): Promise<LiveAccountResponse>;
-  get(url: string): Promise<LiveAccountResponse>;
+  get(
+    url: string,
+    options?: { headers?: Record<string, string> },
+  ): Promise<LiveAccountResponse>;
 };
+
+type RepositoryHeaders = Record<string, string>;
 
 export function readLiveKodyAccountCredentials(
   environment: LiveAccountEnvironment,
@@ -69,6 +74,40 @@ export async function loadLiveKodyAccountCredentials(
   )?.value;
   const password = vault.doc.secrets.LOGIN_PASSWORD?.value;
   if (!email || !password) {
+    throw new Error("Kody Quality requires a configured test account");
+  }
+  return { email, password };
+}
+
+export async function loadLiveKodyAccountCredentialsFromDashboard(
+  request: LiveAccountRequest,
+  baseUrl: string,
+  headers: RepositoryHeaders,
+): Promise<LiveAccountCredentials> {
+  const [variablesResponse, passwordResponse] = await Promise.all([
+    request.get(`${baseUrl}/api/kody/variables`, { headers }),
+    request.get(`${baseUrl}/api/kody/secrets/LOGIN_PASSWORD/value`, {
+      headers,
+    }),
+  ]);
+  const variablesBody = variablesResponse.json
+    ? await variablesResponse.json().catch(() => null)
+    : null;
+  const passwordBody = passwordResponse.json
+    ? await passwordResponse.json().catch(() => null)
+    : null;
+  const email = (
+    variablesBody as {
+      variables?: Array<{ name?: string; value?: string }>;
+    } | null
+  )?.variables?.find((item) => item.name === "LOGIN_USER")?.value;
+  const password = (passwordBody as { value?: string } | null)?.value;
+  if (
+    !variablesResponse.ok() ||
+    !passwordResponse.ok() ||
+    !email ||
+    !password
+  ) {
     throw new Error("Kody Quality requires a configured test account");
   }
   return { email, password };

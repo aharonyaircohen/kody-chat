@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   establishLiveKodyAccountSession,
   loadLiveKodyAccountCredentials,
+  loadLiveKodyAccountCredentialsFromDashboard,
   readLiveKodyAccountCredentials,
 } from "../../tests/e2e/live-account-session";
 
@@ -59,6 +60,55 @@ describe("live Kody account session", () => {
       "example",
       "kody-quality",
       { force: true },
+    );
+  });
+
+  it("loads repository credentials from the Dashboard deployment under test", async () => {
+    const get = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: () => true,
+        status: () => 200,
+        json: () =>
+          Promise.resolve({
+            variables: [
+              {
+                name: "LOGIN_USER",
+                value: "deployed-quality@example.test",
+              },
+            ],
+          }),
+      })
+      .mockResolvedValueOnce({
+        ok: () => true,
+        status: () => 200,
+        json: () => Promise.resolve({ value: "deployed-password" }),
+      });
+
+    await expect(
+      loadLiveKodyAccountCredentialsFromDashboard(
+        { get, post: vi.fn() },
+        "https://candidate.example.test",
+        {
+          "x-kody-token": "github-token",
+          "x-kody-owner": "example",
+          "x-kody-repo": "consumer",
+        },
+      ),
+    ).resolves.toEqual({
+      email: "deployed-quality@example.test",
+      password: "deployed-password",
+    });
+
+    expect(get).toHaveBeenNthCalledWith(
+      1,
+      "https://candidate.example.test/api/kody/variables",
+      { headers: expect.objectContaining({ "x-kody-repo": "consumer" }) },
+    );
+    expect(get).toHaveBeenNthCalledWith(
+      2,
+      "https://candidate.example.test/api/kody/secrets/LOGIN_PASSWORD/value",
+      { headers: expect.objectContaining({ "x-kody-repo": "consumer" }) },
     );
   });
 
