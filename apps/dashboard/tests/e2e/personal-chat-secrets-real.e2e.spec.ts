@@ -1,7 +1,5 @@
 import { expect, resolveLiveGitHubUser, test } from "./live-test";
-import { listVariables, readVariables } from "@kody-ade/base/variables/store";
-import { readVault } from "@kody-ade/base/vault/store";
-import { createUserOctokit } from "@kody-ade/base/github/core";
+import { loadLiveKodyAccountCredentialsFromDashboard } from "./live-account-session";
 
 const BASE_URL = process.env.BASE_URL ?? "";
 const TEST_TOKEN = process.env.E2E_GITHUB_TOKEN ?? "";
@@ -12,24 +10,6 @@ function parseRepo(value: string): { owner: string; repo: string } {
   const path = value.includes("://") ? new URL(value).pathname : value;
   const [owner = "", repo = ""] = path.replace(/^\/+|\/+$/g, "").split("/");
   return { owner, repo: repo.replace(/\.git$/i, "") };
-}
-
-async function loadLoginCredentials(
-  owner: string,
-  repo: string,
-  token: string,
-) {
-  const [variables, vault] = await Promise.all([
-    readVariables(owner, repo, { force: true }),
-    readVault(createUserOctokit(token), owner, repo, { force: true }),
-  ]);
-  const email = listVariables(variables.doc).find(
-    (variable) => variable.name === "LOGIN_USER",
-  )?.value;
-  const password = vault.doc.secrets.LOGIN_PASSWORD?.value;
-  if (!email || !password)
-    throw new Error("QA Kody login credentials are missing");
-  return { email, password };
 }
 
 test("personal secret enables real Chat", async ({ page }) => {
@@ -45,10 +25,10 @@ test("personal secret enables real Chat", async ({ page }) => {
     "x-kody-owner": owner,
     "x-kody-repo": repo,
   });
-  const { email, password } = await loadLoginCredentials(
-    owner,
-    repo,
-    TEST_TOKEN,
+  const { email, password } = await loadLiveKodyAccountCredentialsFromDashboard(
+    page.request,
+    BASE_URL,
+    process.env,
   );
 
   await page.goto(`${BASE_URL}/`, { waitUntil: "domcontentloaded" });

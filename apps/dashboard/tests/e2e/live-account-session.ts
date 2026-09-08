@@ -1,7 +1,3 @@
-import { createUserOctokit } from "@kody-ade/base/github/core";
-import { listVariables, readVariables } from "@kody-ade/base/variables/store";
-import { readVault } from "@kody-ade/base/vault/store";
-
 type LiveAccountEnvironment = Record<string, string | undefined>;
 
 type LiveAccountCredentials = {
@@ -29,8 +25,6 @@ type LiveAccountRequest = {
   ): Promise<LiveAccountResponse>;
 };
 
-type RepositoryHeaders = Record<string, string>;
-
 export function readLiveKodyAccountCredentials(
   environment: LiveAccountEnvironment,
 ): LiveAccountCredentials {
@@ -52,38 +46,25 @@ function parseRepository(value: string): { owner: string; repo: string } {
   return { owner, repo };
 }
 
-export async function loadLiveKodyAccountCredentials(
+export async function loadLiveKodyAccountCredentialsFromDashboard(
+  request: LiveAccountRequest,
+  baseUrl: string,
   environment: LiveAccountEnvironment,
 ): Promise<LiveAccountCredentials> {
   if (environment.E2E_KODY_EMAIL && environment.E2E_KODY_PASSWORD) {
     return readLiveKodyAccountCredentials(environment);
   }
-
-  const repositoryUrl = environment.E2E_GITHUB_REPO?.trim() ?? "";
+  const repositoryUrl = environment.E2E_KODY_CREDENTIALS_REPO?.trim() ?? "";
   const token = environment.E2E_GITHUB_TOKEN ?? "";
   if (!repositoryUrl || !token) {
     throw new Error("Kody Quality requires a configured test account");
   }
   const { owner, repo } = parseRepository(repositoryUrl);
-  const [variables, vault] = await Promise.all([
-    readVariables(owner, repo, { force: true }),
-    readVault(createUserOctokit(token), owner, repo, { force: true }),
-  ]);
-  const email = listVariables(variables.doc).find(
-    (item) => item.name === "LOGIN_USER",
-  )?.value;
-  const password = vault.doc.secrets.LOGIN_PASSWORD?.value;
-  if (!email || !password) {
-    throw new Error("Kody Quality requires a configured test account");
-  }
-  return { email, password };
-}
-
-export async function loadLiveKodyAccountCredentialsFromDashboard(
-  request: LiveAccountRequest,
-  baseUrl: string,
-  headers: RepositoryHeaders,
-): Promise<LiveAccountCredentials> {
+  const headers = {
+    "x-kody-token": token,
+    "x-kody-owner": owner,
+    "x-kody-repo": repo,
+  };
   const [variablesResponse, passwordResponse] = await Promise.all([
     request.get(`${baseUrl}/api/kody/variables`, { headers }),
     request.get(`${baseUrl}/api/kody/secrets/LOGIN_PASSWORD/value`, {

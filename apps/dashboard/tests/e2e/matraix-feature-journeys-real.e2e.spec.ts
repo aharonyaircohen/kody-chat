@@ -1,9 +1,8 @@
 import { createUserOctokit } from "@kody-ade/base/github/core";
-import { listVariables, readVariables } from "@kody-ade/base/variables/store";
-import { readVault } from "@kody-ade/base/vault/store";
 import type { Browser, BrowserContext, Page, TestInfo } from "@playwright/test";
 
 import { expect, resolveLiveGitHubUser, test } from "./live-test";
+import { loadLiveKodyAccountCredentialsFromDashboard } from "./live-account-session";
 
 const BASE_URL = process.env.BASE_URL ?? "";
 const TEST_TOKEN = process.env.E2E_GITHUB_TOKEN ?? "";
@@ -18,34 +17,12 @@ type AccountAuth = Record<string, unknown> & {
   repos?: Array<Record<string, unknown> & { owner?: string; repo?: string }>;
 };
 
-function parseRepo(value: string) {
-  const path = value.includes("://") ? new URL(value).pathname : value;
-  const [owner = "", repo = ""] = path.replace(/^\/+|\/+$/g, "").split("/");
-  return { owner, repo: repo.replace(/\.git$/i, "") };
-}
-
 function headers() {
   return {
     "x-kody-token": TEST_TOKEN,
     "x-kody-owner": OWNER,
     "x-kody-repo": REPO,
   };
-}
-
-async function loadLoginCredentials() {
-  const source = parseRepo(CREDENTIAL_REPO);
-  const [variables, vault] = await Promise.all([
-    readVariables(source.owner, source.repo, { force: true }),
-    readVault(createUserOctokit(TEST_TOKEN), source.owner, source.repo, {
-      force: true,
-    }),
-  ]);
-  const email = listVariables(variables.doc).find(
-    (item) => item.name === "LOGIN_USER",
-  )?.value;
-  const password = vault.doc.secrets.LOGIN_PASSWORD?.value;
-  if (!email || !password) throw new Error("QA login credentials are missing");
-  return { email, password };
 }
 
 function monitor(page: Page, failures: string[]) {
@@ -71,14 +48,17 @@ function monitor(page: Page, failures: string[]) {
 
 async function openPersona(
   browser: Browser,
-  login: Awaited<ReturnType<typeof loadLoginCredentials>>,
+  login: { email: string; password: string },
   auth: AccountAuth,
 ) {
   const context = await browser.newContext();
-  const signIn = await context.request.post(`${BASE_URL}/api/auth/sign-in/email`, {
-    headers: { Origin: BASE_URL },
-    data: { ...login, callbackURL: "/chat" },
-  });
+  const signIn = await context.request.post(
+    `${BASE_URL}/api/auth/sign-in/email`,
+    {
+      headers: { Origin: BASE_URL },
+      data: { ...login, callbackURL: "/chat" },
+    },
+  );
   expect(signIn.status()).toBe(200);
   await context.addInitScript(
     (value) => localStorage.setItem("kody_auth", JSON.stringify(value)),
@@ -151,8 +131,14 @@ async function send(page: Page, message: string) {
     )
     .not.toBe("");
   const visibleAnswer = (await assistantMessages.last().innerText()).trim();
-  expect(visibleAnswer, "Kody must return a visible assistant response").not.toBe("");
-  expect(visibleAnswer, "Kody must not return a model or transport error").not.toMatch(
+  expect(
+    visibleAnswer,
+    "Kody must return a visible assistant response",
+  ).not.toBe("");
+  expect(
+    visibleAnswer,
+    "Kody must not return a model or transport error",
+  ).not.toMatch(
     /^\[?Error(?:\]|:)|model request failed|failed to (?:generate|respond)|reply could not be completed/i,
   );
   return visibleAnswer;
@@ -160,9 +146,7 @@ async function send(page: Page, message: string) {
 
 async function approve(page: Page, successText: string) {
   const chat = page.locator('[aria-label="Kody chat"]');
-  const approveButton = chat
-    .getByRole("button", { name: /^Approve/ })
-    .last();
+  const approveButton = chat.getByRole("button", { name: /^Approve/ }).last();
   await expect(approveButton).toBeVisible({ timeout: 120_000 });
   await approveButton.click();
   await expect(approveButton).toBeDisabled({ timeout: 30_000 });
@@ -184,7 +168,11 @@ test("four MatrAIx users complete real Kody feature journeys in parallel", async
     "Requires the local app, QA login, and tester repository",
   );
 
-  const login = await loadLoginCredentials();
+  const login = await loadLiveKodyAccountCredentialsFromDashboard(
+    page.request,
+    BASE_URL,
+    process.env,
+  );
   const signIn = await page.request.post(`${BASE_URL}/api/auth/sign-in/email`, {
     headers: { Origin: BASE_URL },
     data: { ...login, callbackURL: "/chat" },
@@ -206,8 +194,9 @@ test("four MatrAIx users complete real Kody feature journeys in parallel", async
     `${BASE_URL}/api/kody/account/repositories`,
   );
   expect(accountResponse.ok()).toBe(true);
-  const originalAuth = ((await accountResponse.json()) as { auth?: AccountAuth })
-    .auth;
+  const originalAuth = (
+    (await accountResponse.json()) as { auth?: AccountAuth }
+  ).auth;
   const repoUrl = `https://github.com/${OWNER}/${REPO}`;
   const repos = [
     ...(originalAuth?.repos ?? []).filter(
@@ -267,19 +256,22 @@ test("four MatrAIx users complete real Kody feature journeys in parallel", async
         );
         await approve(persona.page, "Created task #");
         await expect
-          .poll(async () => {
-            const response = await octokit.rest.issues.listForRepo({
-              owner: OWNER,
-              repo: REPO,
-              state: "all",
-              per_page: 100,
-            });
-            const matches = response.data.filter(
-              (issue) => !issue.pull_request && issue.title === taskTitle,
-            );
-            issueNumber = matches[0]?.number ?? null;
-            return matches.length;
-          }, { timeout: 60_000 })
+          .poll(
+            async () => {
+              const response = await octokit.rest.issues.listForRepo({
+                owner: OWNER,
+                repo: REPO,
+                state: "all",
+                per_page: 100,
+              });
+              const matches = response.data.filter(
+                (issue) => !issue.pull_request && issue.title === taskTitle,
+              );
+              issueNumber = matches[0]?.number ?? null;
+              return matches.length;
+            },
+            { timeout: 60_000 },
+          )
           .toBe(1);
         await expect(
           persona.page.getByText(new RegExp(`Created task #${issueNumber}`)),
@@ -361,7 +353,9 @@ test("four MatrAIx users complete real Kody feature journeys in parallel", async
           await workflowForm
             .getByLabel("Capability slug")
             .fill(capabilitySlug!);
-          await workflowForm.getByRole("button", { name: "Review workflow" }).click();
+          await workflowForm
+            .getByRole("button", { name: "Review workflow" })
+            .click();
           const createWorkflow = workflowChat.getByRole("button", {
             name: "Create workflow",
           });
@@ -398,7 +392,9 @@ test("four MatrAIx users complete real Kody feature journeys in parallel", async
         workflowCreated = true;
         await expect(
           persona.page.getByText(
-            completedViaGuidedFlow ? "GuidedFlow completed." : "Workflow saved.",
+            completedViaGuidedFlow
+              ? "GuidedFlow completed."
+              : "Workflow saved.",
           ),
         ).toBeVisible();
         expect(persona.failures).toEqual([]);
@@ -443,7 +439,12 @@ test("four MatrAIx users complete real Kody feature journeys in parallel", async
       outcome.status === "rejected"
         ? [
             {
-              journey: ["project-manager", "agency-admin", "workflow-designer", "repository-owner"][index],
+              journey: [
+                "project-manager",
+                "agency-admin",
+                "workflow-designer",
+                "repository-owner",
+              ][index],
               error:
                 outcome.reason instanceof Error
                   ? outcome.reason.message

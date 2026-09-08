@@ -1,7 +1,6 @@
 import { expect, resolveLiveGitHubUser, test } from "./live-test";
 import { createUserOctokit } from "@kody-ade/base/github/core";
-import { listVariables, readVariables } from "@kody-ade/base/variables/store";
-import { readVault } from "@kody-ade/base/vault/store";
+import { loadLiveKodyAccountCredentialsFromDashboard } from "./live-account-session";
 
 const BASE_URL = process.env.BASE_URL ?? "";
 const TEST_TOKEN = process.env.E2E_GITHUB_TOKEN ?? "";
@@ -16,20 +15,14 @@ function parseRepo(value: string) {
   return { owner, repo: repo.replace(/\.git$/i, "") };
 }
 
-async function loginCredentials(owner: string, repo: string, token: string) {
-  const [variables, vault] = await Promise.all([
-    readVariables(owner, repo, { force: true }),
-    readVault(createUserOctokit(token), owner, repo, { force: true }),
-  ]);
-  const loginUser = listVariables(variables.doc).find((value) => value.name === "LOGIN_USER")?.value;
-  const loginPassword = vault.doc.secrets.LOGIN_PASSWORD?.value;
-  if (!loginUser || !loginPassword) throw new Error("Live login credentials are missing");
-  return { loginUser, loginPassword };
-}
-
-test("Director turns a real CI failure Report into one Todo and closes it on recovery", async ({ page }) => {
+test("Director turns a real CI failure Report into one Todo and closes it on recovery", async ({
+  page,
+}) => {
   test.setTimeout(40 * 60_000);
-  test.skip(!BASE_URL || !TEST_TOKEN || !TEST_REPO, "Requires the dedicated live repository");
+  test.skip(
+    !BASE_URL || !TEST_TOKEN || !TEST_REPO,
+    "Requires the dedicated live repository",
+  );
 
   const { owner, repo } = parseRepo(TEST_REPO);
   const octokit = createUserOctokit(TEST_TOKEN);
@@ -47,7 +40,12 @@ test("Director turns a real CI failure Report into one Todo and closes it on rec
   };
   const user = await resolveLiveGitHubUser(page, BASE_URL, headers);
   headers["x-kody-user-login"] = user.login;
-  const credentials = await loginCredentials(owner, repo, TEST_TOKEN);
+  const { email: loginUser, password: loginPassword } =
+    await loadLiveKodyAccountCredentialsFromDashboard(
+      page.request,
+      BASE_URL,
+      process.env,
+    );
   const auth = {
     repoUrl: TEST_REPO,
     owner,
@@ -55,20 +53,38 @@ test("Director turns a real CI failure Report into one Todo and closes it on rec
     token: TEST_TOKEN,
     user,
     loggedInAt: Date.now(),
-    repos: [{ repoUrl: TEST_REPO, owner, repo, token: TEST_TOKEN, user, addedAt: Date.now(), isLogin: true }],
+    repos: [
+      {
+        repoUrl: TEST_REPO,
+        owner,
+        repo,
+        token: TEST_TOKEN,
+        user,
+        addedAt: Date.now(),
+        isLogin: true,
+      },
+    ],
     currentRepoIndex: 0,
   };
 
   await page.goto(BASE_URL, { waitUntil: "domcontentloaded" });
-  await page.evaluate((value) => localStorage.setItem("kody_auth", JSON.stringify(value)), auth);
+  await page.evaluate(
+    (value) => localStorage.setItem("kody_auth", JSON.stringify(value)),
+    auth,
+  );
   await page.goto(`${BASE_URL}/chat`, { waitUntil: "domcontentloaded" });
-  await expect.poll(async () => {
-    const text = await page.locator("body").innerText();
-    return text.includes("Sign in to Kody") || text.includes("Global chat");
-  }, { timeout: 30_000 }).toBe(true);
+  await expect
+    .poll(
+      async () => {
+        const text = await page.locator("body").innerText();
+        return text.includes("Sign in to Kody") || text.includes("Global chat");
+      },
+      { timeout: 30_000 },
+    )
+    .toBe(true);
   if (await page.getByText("Sign in to Kody", { exact: true }).isVisible()) {
-    await page.getByLabel("Email").fill(credentials.loginUser);
-    await page.getByLabel("Password").fill(credentials.loginPassword);
+    await page.getByLabel("Email").fill(loginUser);
+    await page.getByLabel("Password").fill(loginPassword);
     await page.getByRole("button", { name: "Sign in" }).click();
     await page.waitForURL(`${BASE_URL}/chat`);
   }
@@ -82,67 +98,114 @@ test("Director turns a real CI failure Report into one Todo and closes it on rec
 
   const runCycle = async () => {
     const beforeResponse = await page.request.get(liveUrl, { headers });
-    const before = (await beforeResponse.json()) as { status: { state: { revision: number } | null } };
+    const before = (await beforeResponse.json()) as {
+      status: { state: { revision: number } | null };
+    };
     const revision = before.status.state?.revision ?? -1;
-    const run = await page.request.post(liveUrl, { headers, data: { action: "run" } });
+    const run = await page.request.post(liveUrl, {
+      headers,
+      data: { action: "run" },
+    });
     expect(run.status(), await run.text()).toBe(202);
     let retryAt = Date.now() + RUN_RETRY_MS;
-    await expect.poll(async () => {
-      const response = await page.request.get(liveUrl, { headers });
-      if (!response.ok()) return -1;
-      const body = (await response.json()) as { status?: { state?: { revision?: number } | null } };
-      const currentRevision = body.status?.state?.revision ?? -1;
-      if (currentRevision <= revision && Date.now() >= retryAt) {
-        await page.request.post(liveUrl, { headers, data: { action: "run" } }).catch(() => null);
-        retryAt = Date.now() + RUN_RETRY_MS;
-      }
-      return currentRevision;
-    }, { timeout: 12 * 60_000, intervals: [5_000, 10_000, 15_000] }).toBeGreaterThan(revision);
+    await expect
+      .poll(
+        async () => {
+          const response = await page.request.get(liveUrl, { headers });
+          if (!response.ok()) return -1;
+          const body = (await response.json()) as {
+            status?: { state?: { revision?: number } | null };
+          };
+          const currentRevision = body.status?.state?.revision ?? -1;
+          if (currentRevision <= revision && Date.now() >= retryAt) {
+            await page.request
+              .post(liveUrl, { headers, data: { action: "run" } })
+              .catch(() => null);
+            retryAt = Date.now() + RUN_RETRY_MS;
+          }
+          return currentRevision;
+        },
+        { timeout: 12 * 60_000, intervals: [5_000, 10_000, 15_000] },
+      )
+      .toBeGreaterThan(revision);
   };
 
-  const waitForReport = async (status: "healthy" | "unhealthy", after: string) => {
+  const waitForReport = async (
+    status: "healthy" | "unhealthy",
+    after: string,
+  ) => {
     let retryAt = Date.now() + RUN_RETRY_MS;
-    await expect.poll(async () => {
-      const response = await page.request.get(reportUrl, { headers });
-      if (response.ok()) {
-        const body = (await response.json()) as { report?: { body?: string; updatedAt?: string } };
-        if (body.report?.updatedAt && body.report.updatedAt > after && body.report.body?.includes(`Status:** ${status}`)) {
-          return body.report.body;
-        }
-      }
-      if (Date.now() >= retryAt) {
-        await page.request.post(liveUrl, { headers, data: { action: "run" } }).catch(() => null);
-        retryAt = Date.now() + RUN_RETRY_MS;
-      }
-      return "";
-    }, { timeout: 12 * 60_000, intervals: [5_000, 10_000, 15_000] }).toContain(`Status:** ${status}`);
+    await expect
+      .poll(
+        async () => {
+          const response = await page.request.get(reportUrl, { headers });
+          if (response.ok()) {
+            const body = (await response.json()) as {
+              report?: { body?: string; updatedAt?: string };
+            };
+            if (
+              body.report?.updatedAt &&
+              body.report.updatedAt > after &&
+              body.report.body?.includes(`Status:** ${status}`)
+            ) {
+              return body.report.body;
+            }
+          }
+          if (Date.now() >= retryAt) {
+            await page.request
+              .post(liveUrl, { headers, data: { action: "run" } })
+              .catch(() => null);
+            retryAt = Date.now() + RUN_RETRY_MS;
+          }
+          return "";
+        },
+        { timeout: 12 * 60_000, intervals: [5_000, 10_000, 15_000] },
+      )
+      .toContain(`Status:** ${status}`);
     const response = await page.request.get(reportUrl, { headers });
-    const body = (await response.json()) as { report: { updatedAt: string; runId: string } };
+    const body = (await response.json()) as {
+      report: { updatedAt: string; runId: string };
+    };
     return body.report;
   };
 
   const waitForTodo = async (completed: boolean, reportRunId: string) => {
-    await expect.poll(async () => {
-      const response = await page.request.get(todoUrl, { headers });
-      if (!response.ok()) return null;
-      const body = (await response.json()) as {
-        todo?: { items?: Array<{ id: string; completed: boolean; meta?: { reportRunId?: string } }> };
-      };
-      const items = body.todo?.items ?? [];
-      return {
-        count: items.length,
-        completed: items[0]?.completed,
-        reportIsCurrent: (items[0]?.meta?.reportRunId ?? "") >= reportRunId,
-      };
-    }, { timeout: 7 * 60_000, intervals: [5_000, 10_000, 15_000] }).toEqual({
-      count: 1,
-      completed,
-      reportIsCurrent: true,
-    });
+    await expect
+      .poll(
+        async () => {
+          const response = await page.request.get(todoUrl, { headers });
+          if (!response.ok()) return null;
+          const body = (await response.json()) as {
+            todo?: {
+              items?: Array<{
+                id: string;
+                completed: boolean;
+                meta?: { reportRunId?: string };
+              }>;
+            };
+          };
+          const items = body.todo?.items ?? [];
+          return {
+            count: items.length,
+            completed: items[0]?.completed,
+            reportIsCurrent: (items[0]?.meta?.reportRunId ?? "") >= reportRunId,
+          };
+        },
+        { timeout: 7 * 60_000, intervals: [5_000, 10_000, 15_000] },
+      )
+      .toEqual({
+        count: 1,
+        completed,
+        reportIsCurrent: true,
+      });
   };
 
   try {
-    await page.request.delete(`${todoUrl}?actorLogin=${encodeURIComponent(user.login)}`, { headers }).catch(() => null);
+    await page.request
+      .delete(`${todoUrl}?actorLogin=${encodeURIComponent(user.login)}`, {
+        headers,
+      })
+      .catch(() => null);
     const intent = await page.request.post(`${BASE_URL}/api/kody/intents`, {
       headers,
       data: {
@@ -174,7 +237,11 @@ test("Director turns a real CI failure Report into one Todo and closes it on rec
     });
     expect(activation.status(), await activation.text()).toBe(200);
 
-    const activatedCommit = await octokit.repos.getCommit({ owner, repo, ref: branch });
+    const activatedCommit = await octokit.repos.getCommit({
+      owner,
+      repo,
+      ref: branch,
+    });
     statusSha = activatedCommit.data.sha;
     await octokit.repos.createCommitStatus({
       owner,
@@ -191,7 +258,10 @@ test("Director turns a real CI failure Report into one Todo and closes it on rec
     await waitForTodo(false, firstFailureReport.runId);
 
     await runCycle();
-    const repeatedFailureReport = await waitForReport("unhealthy", firstFailureReport.updatedAt);
+    const repeatedFailureReport = await waitForReport(
+      "unhealthy",
+      firstFailureReport.updatedAt,
+    );
     await runCycle();
     await waitForTodo(false, repeatedFailureReport.runId);
 
@@ -204,35 +274,64 @@ test("Director turns a real CI failure Report into one Todo and closes it on rec
       description: "Controlled Director E2E recovery",
     });
     await runCycle();
-    const recoveryReport = await waitForReport("healthy", repeatedFailureReport.updatedAt);
+    const recoveryReport = await waitForReport(
+      "healthy",
+      repeatedFailureReport.updatedAt,
+    );
     await runCycle();
     await waitForTodo(true, recoveryReport.runId);
 
-    await page.goto(`${BASE_URL}/repo/${owner}/${repo}/reports`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${BASE_URL}/repo/${owner}/${repo}/reports`, {
+      waitUntil: "domcontentloaded",
+    });
     await page.getByRole("treeitem", { name: /Repository CI health/ }).click();
-    await page.getByRole("treeitem", { name: new RegExp(recoveryReport.runId) }).click();
-    await expect(page.getByText("Repository CI health", { exact: true }).first()).toBeVisible();
-    await page.goto(`${BASE_URL}/repo/${owner}/${repo}/todos`, { waitUntil: "domcontentloaded" });
+    await page
+      .getByRole("treeitem", { name: new RegExp(recoveryReport.runId) })
+      .click();
+    await expect(
+      page.getByText("Repository CI health", { exact: true }).first(),
+    ).toBeVisible();
+    await page.goto(`${BASE_URL}/repo/${owner}/${repo}/todos`, {
+      waitUntil: "domcontentloaded",
+    });
     await page.getByRole("button", { name: /Repository CI health/ }).click();
-    await expect(page.getByText("1/1 items complete", { exact: true })).toBeVisible({ timeout: 30_000 });
+    await expect(
+      page.getByText("1/1 items complete", { exact: true }),
+    ).toBeVisible({ timeout: 30_000 });
   } finally {
     if (statusSha) {
-      await octokit.repos.createCommitStatus({
-        owner,
-        repo,
-        sha: statusSha,
-        state: "success",
-        context: "director-e2e",
-        description: "Director E2E cleanup",
-      }).catch(() => null);
+      await octokit.repos
+        .createCommitStatus({
+          owner,
+          repo,
+          sha: statusSha,
+          state: "success",
+          context: "director-e2e",
+          description: "Director E2E cleanup",
+        })
+        .catch(() => null);
     }
-    await page.request.delete(`${todoUrl}?actorLogin=${encodeURIComponent(user.login)}`, { headers }).catch(() => null);
+    await page.request
+      .delete(`${todoUrl}?actorLogin=${encodeURIComponent(user.login)}`, {
+        headers,
+      })
+      .catch(() => null);
     if (createdAgent) {
       await page.request.delete(liveUrl, { headers }).catch(() => null);
-      await page.request.delete(`${BASE_URL}/api/kody/agents/${agentSlug}?actorLogin=${encodeURIComponent(user.login)}`, { headers }).catch(() => null);
+      await page.request
+        .delete(
+          `${BASE_URL}/api/kody/agents/${agentSlug}?actorLogin=${encodeURIComponent(user.login)}`,
+          { headers },
+        )
+        .catch(() => null);
     }
     if (createdIntent) {
-      await page.request.delete(`${BASE_URL}/api/kody/intents/${intentSlug}?actorLogin=${encodeURIComponent(user.login)}`, { headers }).catch(() => null);
+      await page.request
+        .delete(
+          `${BASE_URL}/api/kody/intents/${intentSlug}?actorLogin=${encodeURIComponent(user.login)}`,
+          { headers },
+        )
+        .catch(() => null);
     }
   }
 });

@@ -7,7 +7,7 @@ import {
 } from "../../scripts/live-ui-gate/core.mjs";
 import {
   establishLiveKodyAccountSession,
-  loadLiveKodyAccountCredentials,
+  loadLiveKodyAccountCredentialsFromDashboard,
 } from "./live-account-session";
 
 const SECRET_ENVIRONMENT_NAMES = [
@@ -121,7 +121,11 @@ export const test = base.extend<{
     async ({ page }, use) => {
       const baseUrl = process.env.BASE_URL ?? "";
       if (!baseUrl) throw new Error("Kody Quality requires BASE_URL");
-      const credentials = await loadLiveKodyAccountCredentials(process.env);
+      const credentials = await loadLiveKodyAccountCredentialsFromDashboard(
+        page.request,
+        baseUrl,
+        process.env,
+      );
       await establishLiveKodyAccountSession(
         page.request,
         baseUrl,

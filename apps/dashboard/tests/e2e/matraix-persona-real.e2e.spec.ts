@@ -1,8 +1,6 @@
 import { expect, resolveLiveGitHubUser, test } from "./live-test";
 import type { Browser, TestInfo } from "@playwright/test";
-import { listVariables, readVariables } from "@kody-ade/base/variables/store";
-import { readVault } from "@kody-ade/base/vault/store";
-import { createUserOctokit } from "@kody-ade/base/github/core";
+import { loadLiveKodyAccountCredentialsFromDashboard } from "./live-account-session";
 
 const BASE_URL = process.env.BASE_URL ?? "";
 const TEST_TOKEN = process.env.E2E_GITHUB_TOKEN ?? "";
@@ -43,12 +41,6 @@ type AccountAuth = {
   [key: string]: unknown;
 };
 
-function parseRepo(value: string) {
-  const path = value.includes("://") ? new URL(value).pathname : value;
-  const [owner = "", repo = ""] = path.replace(/^\/+|\/+$/g, "").split("/");
-  return { owner, repo: repo.replace(/\.git$/i, "") };
-}
-
 function withTargetRepository(
   current: AccountAuth | null,
   user: GitHubUser,
@@ -83,26 +75,10 @@ function withTargetRepository(
   };
 }
 
-async function loadLoginCredentials() {
-  const source = parseRepo(CREDENTIAL_REPO);
-  const [variables, vault] = await Promise.all([
-    readVariables(source.owner, source.repo, { force: true }),
-    readVault(createUserOctokit(TEST_TOKEN), source.owner, source.repo, {
-      force: true,
-    }),
-  ]);
-  const email = listVariables(variables.doc).find(
-    (item) => item.name === "LOGIN_USER",
-  )?.value;
-  const password = vault.doc.secrets.LOGIN_PASSWORD?.value;
-  if (!email || !password) throw new Error("QA login credentials are missing");
-  return { email, password };
-}
-
 async function runUser(
   browser: Browser,
   activeAuth: AccountAuth,
-  login: Awaited<ReturnType<typeof loadLoginCredentials>>,
+  login: { email: string; password: string },
   user: (typeof USERS)[number],
   testInfo: TestInfo,
   createdConversationIds: Set<string>,
@@ -202,7 +178,11 @@ test("MatrAIx users receive completed repository capability answers in parallel"
     "Requires the deployed target and QA credential sources",
   );
 
-  const login = await loadLoginCredentials();
+  const login = await loadLiveKodyAccountCredentialsFromDashboard(
+    page.request,
+    BASE_URL,
+    process.env,
+  );
   const signInResult = await page.request.post(
     `${BASE_URL}/api/auth/sign-in/email`,
     {

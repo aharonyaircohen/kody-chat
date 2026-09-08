@@ -40,7 +40,7 @@ test("runs Fly actions, switches saved views, and opens a Dashboard task", async
   const credentials = await loadLiveKodyAccountCredentialsFromDashboard(
     page.request,
     BASE_URL,
-    headers,
+    process.env,
   );
   await establishLiveKodyAccountSession(page.request, BASE_URL, credentials);
 

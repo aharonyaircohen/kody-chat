@@ -5,7 +5,7 @@ import { createBackendClient } from "@kody-ade/backend/client";
 import { resolveLiveGitHubUser } from "./live-test";
 import {
   establishLiveKodyAccountSession,
-  loadLiveKodyAccountCredentials,
+  loadLiveKodyAccountCredentialsFromDashboard,
 } from "./live-account-session";
 import { mockDashboardShellRequests } from "./support/dashboard-shell-mocks";
 
@@ -44,7 +44,11 @@ test("shows a real MCP agent run and its inspectable calls", async ({
     await establishLiveKodyAccountSession(
       page.request,
       BASE_URL,
-      await loadLiveKodyAccountCredentials(process.env),
+      await loadLiveKodyAccountCredentialsFromDashboard(
+        page.request,
+        BASE_URL,
+        process.env,
+      ),
     );
   }
   const user = await resolveLiveGitHubUser(page, BASE_URL, dashboardHeaders);
@@ -257,10 +261,9 @@ test("shows a real MCP agent run and its inspectable calls", async ({
     ).toHaveAttribute("href", `/repo/${owner}/${repo}/todos/${recordId}`);
     await expect(page.getByText(/transcript/i)).toHaveCount(0);
 
-    await page.goto(
-      `${BASE_URL}/repo/${owner}/${repo}/todos/${recordId}`,
-      { waitUntil: "domcontentloaded" },
-    );
+    await page.goto(`${BASE_URL}/repo/${owner}/${repo}/todos/${recordId}`, {
+      waitUntil: "domcontentloaded",
+    });
     await expect(
       page.getByRole("heading", { name: "Live agent activity" }),
     ).toBeVisible({ timeout: 30_000 });

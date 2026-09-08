@@ -1,7 +1,5 @@
 import { expect, resolveLiveGitHubUser, test } from "./live-test";
-import { createUserOctokit } from "@kody-ade/base/github/core";
-import { listVariables, readVariables } from "@kody-ade/base/variables/store";
-import { readVault } from "@kody-ade/base/vault/store";
+import { loadLiveKodyAccountCredentialsFromDashboard } from "./live-account-session";
 
 const BASE_URL = process.env.BASE_URL ?? "";
 const TEST_TOKEN = process.env.E2E_GITHUB_TOKEN ?? "";
@@ -10,25 +8,6 @@ function parseRepo(value: string) {
   const path = value.includes("://") ? new URL(value).pathname : value;
   const [owner = "", repo = ""] = path.replace(/^\/+|\/+$/g, "").split("/");
   return { owner, repo: repo.replace(/\.git$/i, "") };
-}
-
-async function loadLoginCredentials(
-  owner: string,
-  repo: string,
-  token: string,
-) {
-  const [variables, vault] = await Promise.all([
-    readVariables(owner, repo, { force: true }),
-    readVault(createUserOctokit(token), owner, repo, { force: true }),
-  ]);
-  const loginUser = listVariables(variables.doc).find(
-    (variable) => variable.name === "LOGIN_USER",
-  )?.value;
-  const loginPassword = vault.doc.secrets.LOGIN_PASSWORD?.value;
-  if (!loginUser) throw new Error("LOGIN_USER is missing from Kody Variables");
-  if (!loginPassword)
-    throw new Error("LOGIN_PASSWORD is missing from Kody Secrets");
-  return { loginUser, loginPassword };
 }
 
 test("makes a real Agent live, executes one cycle, and shows its persisted activity", async ({
@@ -52,11 +31,12 @@ test("makes a real Agent live, executes one cycle, and shows its persisted activ
   };
   const user = await resolveLiveGitHubUser(page, BASE_URL, headers);
   headers["x-kody-user-login"] = user.login;
-  const { loginUser, loginPassword } = await loadLoginCredentials(
-    owner,
-    repo,
-    TEST_TOKEN,
-  );
+  const { email: loginUser, password: loginPassword } =
+    await loadLiveKodyAccountCredentialsFromDashboard(
+      page.request,
+      BASE_URL,
+      process.env,
+    );
 
   const repositoryAuth = {
     repoUrl: TEST_REPO,

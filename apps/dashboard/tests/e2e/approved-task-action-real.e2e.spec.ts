@@ -1,36 +1,13 @@
 import { createUserOctokit } from "@kody-ade/base/github/core";
-import { listVariables, readVariables } from "@kody-ade/base/variables/store";
-import { readVault } from "@kody-ade/base/vault/store";
 
 import { expect, resolveLiveGitHubUser, test } from "./live-test";
+import { loadLiveKodyAccountCredentialsFromDashboard } from "./live-account-session";
 
 const BASE_URL = process.env.BASE_URL ?? "";
 const TEST_TOKEN = process.env.E2E_GITHUB_TOKEN ?? "";
 const CREDENTIAL_REPO = process.env.E2E_GITHUB_REPO ?? "";
 const TARGET_OWNER = process.env.MATRAIX_KODY_OWNER ?? "aharonyaircohen";
 const TARGET_REPO = process.env.MATRAIX_KODY_REPO ?? "Kody-Engine-Tester";
-
-function parseRepo(value: string) {
-  const path = value.includes("://") ? new URL(value).pathname : value;
-  const [owner = "", repo = ""] = path.replace(/^\/+|\/+$/g, "").split("/");
-  return { owner, repo: repo.replace(/\.git$/i, "") };
-}
-
-async function loadLoginCredentials() {
-  const source = parseRepo(CREDENTIAL_REPO);
-  const [variables, vault] = await Promise.all([
-    readVariables(source.owner, source.repo, { force: true }),
-    readVault(createUserOctokit(TEST_TOKEN), source.owner, source.repo, {
-      force: true,
-    }),
-  ]);
-  const email = listVariables(variables.doc).find(
-    (item) => item.name === "LOGIN_USER",
-  )?.value;
-  const password = vault.doc.secrets.LOGIN_PASSWORD?.value;
-  if (!email || !password) throw new Error("QA login credentials are missing");
-  return { email, password };
-}
 
 test("approved task action creates exactly the task shown by Kody", async ({
   page,
@@ -41,7 +18,11 @@ test("approved task action creates exactly the task shown by Kody", async ({
     "Requires the real local target and QA credential sources",
   );
 
-  const login = await loadLoginCredentials();
+  const login = await loadLiveKodyAccountCredentialsFromDashboard(
+    page.request,
+    BASE_URL,
+    process.env,
+  );
   const signIn = await page.request.post(`${BASE_URL}/api/auth/sign-in/email`, {
     headers: { Origin: BASE_URL },
     data: {
@@ -63,7 +44,9 @@ test("approved task action creates exactly the task shown by Kody", async ({
   expect(accountResponse.status()).toBe(200);
   const accountBody = (await accountResponse.json()) as {
     auth?: Record<string, unknown> & {
-      repos?: Array<Record<string, unknown> & { owner?: string; repo?: string }>;
+      repos?: Array<
+        Record<string, unknown> & { owner?: string; repo?: string }
+      >;
     };
   };
   const originalAuth = accountBody.auth ?? null;
@@ -160,7 +143,9 @@ test("approved task action creates exactly the task shown by Kody", async ({
         { timeout: 60_000 },
       )
       .toBe(1);
-    await expect(chat.getByText(new RegExp(`Created task #${issueNumber}`))).toBeVisible({
+    await expect(
+      chat.getByText(new RegExp(`Created task #${issueNumber}`)),
+    ).toBeVisible({
       timeout: 30_000,
     });
   } finally {

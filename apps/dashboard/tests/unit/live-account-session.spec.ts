@@ -2,32 +2,9 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   establishLiveKodyAccountSession,
-  loadLiveKodyAccountCredentials,
   loadLiveKodyAccountCredentialsFromDashboard,
   readLiveKodyAccountCredentials,
 } from "../../tests/e2e/live-account-session";
-
-const githubMocks = vi.hoisted(() => ({
-  createUserOctokit: vi.fn(() => ({ kind: "octokit" })),
-  listVariables: vi.fn(() => [
-    { name: "LOGIN_USER", value: "repository-quality@example.test" },
-  ]),
-  readVariables: vi.fn(async () => ({ doc: { variables: {} } })),
-  readVault: vi.fn(async () => ({
-    doc: { secrets: { LOGIN_PASSWORD: { value: "repository-password" } } },
-  })),
-}));
-
-vi.mock("@kody-ade/base/github/core", () => ({
-  createUserOctokit: githubMocks.createUserOctokit,
-}));
-vi.mock("@kody-ade/base/variables/store", () => ({
-  listVariables: githubMocks.listVariables,
-  readVariables: githubMocks.readVariables,
-}));
-vi.mock("@kody-ade/base/vault/store", () => ({
-  readVault: githubMocks.readVault,
-}));
 
 const EMAIL = "quality@example.test";
 const PASSWORD = "password-that-must-not-leak";
@@ -36,30 +13,6 @@ describe("live Kody account session", () => {
   it("requires configured test-account credentials", () => {
     expect(() => readLiveKodyAccountCredentials({})).toThrow(
       "Kody Quality requires a configured test account",
-    );
-  });
-
-  it("loads the dedicated account from the tester repository when env credentials are absent", async () => {
-    await expect(
-      loadLiveKodyAccountCredentials({
-        E2E_GITHUB_REPO: "https://github.com/example/kody-quality.git",
-        E2E_GITHUB_TOKEN: "github-token",
-      }),
-    ).resolves.toEqual({
-      email: "repository-quality@example.test",
-      password: "repository-password",
-    });
-
-    expect(githubMocks.readVariables).toHaveBeenCalledWith(
-      "example",
-      "kody-quality",
-      { force: true },
-    );
-    expect(githubMocks.readVault).toHaveBeenCalledWith(
-      { kind: "octokit" },
-      "example",
-      "kody-quality",
-      { force: true },
     );
   });
 
@@ -90,9 +43,9 @@ describe("live Kody account session", () => {
         { get, post: vi.fn() },
         "https://candidate.example.test",
         {
-          "x-kody-token": "github-token",
-          "x-kody-owner": "example",
-          "x-kody-repo": "consumer",
+          E2E_GITHUB_TOKEN: "github-token",
+          E2E_KODY_CREDENTIALS_REPO:
+            "https://github.com/example/central-quality-account",
         },
       ),
     ).resolves.toEqual({
@@ -103,13 +56,38 @@ describe("live Kody account session", () => {
     expect(get).toHaveBeenNthCalledWith(
       1,
       "https://candidate.example.test/api/kody/variables",
-      { headers: expect.objectContaining({ "x-kody-repo": "consumer" }) },
+      {
+        headers: expect.objectContaining({
+          "x-kody-repo": "central-quality-account",
+        }),
+      },
     );
     expect(get).toHaveBeenNthCalledWith(
       2,
       "https://candidate.example.test/api/kody/secrets/LOGIN_PASSWORD/value",
-      { headers: expect.objectContaining({ "x-kody-repo": "consumer" }) },
+      {
+        headers: expect.objectContaining({
+          "x-kody-repo": "central-quality-account",
+        }),
+      },
     );
+  });
+
+  it("does not treat the target repository as the central credential source", async () => {
+    const get = vi.fn();
+
+    await expect(
+      loadLiveKodyAccountCredentialsFromDashboard(
+        { get, post: vi.fn() },
+        "https://candidate.example.test",
+        {
+          E2E_GITHUB_TOKEN: "github-token",
+          E2E_GITHUB_REPO: "https://github.com/example/target-repository",
+        },
+      ),
+    ).rejects.toThrow("Kody Quality requires a configured test account");
+
+    expect(get).not.toHaveBeenCalled();
   });
 
   it("signs in through Kody and verifies the resulting session", async () => {
