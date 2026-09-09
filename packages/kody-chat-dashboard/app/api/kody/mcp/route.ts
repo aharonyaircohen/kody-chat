@@ -276,14 +276,18 @@ export async function POST(req: NextRequest) {
 
 export async function handleKodyMcpPost(
   req: NextRequest,
-  options: { services?: KodyMcpActionServices } = {},
+  options: {
+    services?: KodyMcpActionServices;
+    /** Trusted host adapter; public callers cannot supply a principal. */
+    authenticate?: (req: NextRequest) => Promise<McpPrincipal | NextResponse>;
+  } = {},
 ) {
   if (!originAllowed(req))
     return NextResponse.json(
       { error: "invalid_origin" },
       { status: 403, headers: NO_STORE_HEADERS },
     );
-  const principal = await authenticate(req);
+  const principal = await (options.authenticate ?? authenticate)(req);
   if (principal instanceof NextResponse) return principal;
   const suppliedRunId = req.headers.get("mcp-session-id");
   if (

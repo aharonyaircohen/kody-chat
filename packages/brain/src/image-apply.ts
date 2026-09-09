@@ -8,6 +8,7 @@
  * infrastructure.
  */
 import "server-only";
+import { prepareBrainAgentFiles } from "./agent-files";
 
 import {
   brainFlyRuntimeImageRef,
@@ -102,6 +103,12 @@ async function recoverPreviousBrainRuntime(
     account: input.githubAccount ?? input.account,
   });
   const brain = await provisionServerBrain({
+    ...(input.dashboardUrl
+      ? {
+          prepareAgentFiles: (app: string) =>
+            prepareBrainAgentFiles(app, input.dashboardUrl!),
+        }
+      : {}),
     providerToken: service.flyToken,
     account: input.account,
     model: input.engineModel,
@@ -183,7 +190,11 @@ export async function applyBrainImageToRuntime(
       await writeBrainImage(input.account, input.githubToken, image);
     }
   }
-  if (!savedImage && input.githubAccount && isOwnedBrainImageRef(imageRef, input)) {
+  if (
+    !savedImage &&
+    input.githubAccount &&
+    isOwnedBrainImageRef(imageRef, input)
+  ) {
     savedImage = {
       imageRef,
       createdAt: new Date().toISOString(),
@@ -202,11 +213,7 @@ export async function applyBrainImageToRuntime(
 
   const started = input.operationId
     ? await readBrainRuntimeState(input.account, input.githubToken, true)
-    : await beginBrainRuntimeApply(
-        input.account,
-        input.githubToken,
-        imageRef,
-      );
+    : await beginBrainRuntimeApply(input.account, input.githubToken, imageRef);
   if (
     !started?.operation ||
     (input.operationId && started.operation.id !== input.operationId)
@@ -240,6 +247,12 @@ export async function applyBrainImageToRuntime(
     const operationFlyToken = service.flyToken;
     const operationOrgSlug = service.orgSlug;
     const brain = await provisionServerBrain({
+      ...(input.dashboardUrl
+        ? {
+            prepareAgentFiles: (app: string) =>
+              prepareBrainAgentFiles(app, input.dashboardUrl!),
+          }
+        : {}),
       providerToken: operationFlyToken,
       account: input.account,
       model: input.engineModel,

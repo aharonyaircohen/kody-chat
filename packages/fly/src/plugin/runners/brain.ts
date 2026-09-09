@@ -30,6 +30,7 @@
 
 import { createHash, randomBytes } from "node:crypto";
 import { prepareMachineSsh } from "../../ssh/machine-config";
+import { MACHINE_SSH_START_SCRIPT } from "../../ssh/start-script";
 
 import { logger } from "@kody-ade/base/logger";
 import { slugifyTitle } from "@kody-ade/base/slug";
@@ -104,6 +105,10 @@ export function isBrainFlyProvisionTransientError(
 }
 
 export interface ProvisionBrainInput {
+  prepareAgentFiles?: (
+    app: string,
+  ) => Promise<Array<{ guest_path: string; raw_value: string }>>;
+  agentFiles?: Array<{ guest_path: string; raw_value: string }>;
   flyToken: string;
   /**
    * The authenticated GitHub account the Brain belongs to — derives the app
@@ -1008,6 +1013,35 @@ function alignBrainMachineConfig(
   let next = config;
   let changed = false;
 
+  if (input.agentFiles) {
+    const previous = Array.isArray(next?.files)
+      ? (next.files as Array<{ guest_path: string }>)
+      : [];
+    const managedFiles = [...input.agentFiles];
+    if (previous.some((file) => file.guest_path === "/etc/kody-ssh/start.sh")) {
+      managedFiles.push({
+        guest_path: "/etc/kody-ssh/start.sh",
+        raw_value: Buffer.from(MACHINE_SSH_START_SCRIPT).toString("base64"),
+      });
+    }
+    const paths = new Set(managedFiles.map((file) => file.guest_path));
+    const files = [
+      ...previous.filter((file) => !paths.has(file.guest_path)),
+      ...managedFiles,
+    ];
+    if (
+      JSON.stringify(
+        [...files].sort((a, b) => a.guest_path.localeCompare(b.guest_path)),
+      ) !==
+      JSON.stringify(
+        [...previous].sort((a, b) => a.guest_path.localeCompare(b.guest_path)),
+      )
+    ) {
+      next = { ...(next ?? {}), files };
+      changed = true;
+    }
+  }
+
   const suspension = alignBrainSuspensionConfig(next, input);
   if (suspension.changed && suspension.config) {
     next = suspension.config;
@@ -1169,6 +1203,7 @@ async function createMachine(
     config: {
       image,
       env: buildMachineEnv(input, apiKey),
+      ...(input.agentFiles ? { files: input.agentFiles } : {}),
       mounts: [
         {
           volume: codexVolumeId,
@@ -1258,6 +1293,8 @@ export async function provisionBrain(
   const defaultRegion = brainRegion(input);
   const flyApp = await ensureApp(input.flyToken, requested, orgSlug);
   const app = flyApp.name;
+  if (input.prepareAgentFiles)
+    input = { ...input, agentFiles: await input.prepareAgentFiles(app) };
   const url = brainAppUrl(app);
   const codexVolume = await ensureCodexAuthVolume(
     input.flyToken,

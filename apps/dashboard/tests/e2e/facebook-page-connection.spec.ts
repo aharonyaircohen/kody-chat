@@ -69,7 +69,13 @@ test("configures Facebook and Instagram Connections without accepting token valu
     return json(route, { ok: true, connection });
   });
 
+  const catalogResponse = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return url.pathname === "/api/kody/models" &&
+      url.searchParams.get("catalog") === "opencode-free";
+  });
   await page.goto(`${BASE_URL}/repo/test-owner/test-repo/connections`);
+  expect((await catalogResponse).status()).toBe(200);
   await expect(page.getByRole("heading", { name: "Connections" })).toBeVisible();
   const contentGroup = page.getByRole("button", { name: "Content" });
   if ((await contentGroup.getAttribute("aria-expanded")) !== "true") await contentGroup.click();

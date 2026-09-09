@@ -6,6 +6,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PersonalBrainContext } from "@kody-ade/brain/personal-context";
 
+const agentAccess = vi.hoisted(() => ({
+  revokeAgentAccess: vi.fn(async () => undefined),
+}));
+vi.mock("@kody-ade/brain/agent-access", () => agentAccess);
+
 const store = vi.hoisted(() => ({
   clearBrainApp: vi.fn(async () => undefined),
   readBrainApp: vi.fn(async () => null),
@@ -110,6 +115,7 @@ describe("manageBrainServer", () => {
     ).rejects.toThrow("backend down");
 
     expect(brainFly.destroyBrain).toHaveBeenCalled();
+    expect(agentAccess.revokeAgentAccess).toHaveBeenCalledWith(context.userId);
     expect(runtimeManager.clearBrainRuntimeDeployment).toHaveBeenCalledWith(
       "octocat",
       "gh-token",
@@ -123,6 +129,7 @@ describe("manageBrainServer", () => {
     ).resolves.toEqual({ ok: true });
 
     expect(brainFly.destroyBrain).toHaveBeenCalled();
+    expect(agentAccess.revokeAgentAccess).toHaveBeenCalledWith(context.userId);
     expect(runtimeManager.clearBrainRuntimeDeployment).toHaveBeenCalledWith(
       "octocat",
       "gh-token",
@@ -167,4 +174,15 @@ describe("manageBrainServer", () => {
       terminalBridge.ensureServerProviderTerminalBridge,
     ).not.toHaveBeenCalled();
   });
+});
+
+it("supplies automatic agent setup to the provisioner", async () => {
+  await manageBrainServer({
+    command: "provision",
+    context,
+    dashboardUrl: "https://kody.example",
+  });
+  expect(brainFly.provisionBrain).toHaveBeenCalledWith(
+    expect.objectContaining({ prepareAgentFiles: expect.any(Function) }),
+  );
 });

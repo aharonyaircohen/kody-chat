@@ -96,6 +96,9 @@ export interface ProviderBrainStatusResult {
 }
 
 export interface ProviderProvisionBrainInput {
+  prepareAgentFiles?: (
+    app: string,
+  ) => Promise<Array<{ guest_path: string; raw_value: string }>>;
   providerToken: string;
   account: string;
   repo?: string;
@@ -211,7 +214,9 @@ export interface ProviderSpawnRunnerInput {
 }
 
 export interface InfrastructureServerOperations {
-  resolveContext(input: unknown): Promise<
+  resolveContext(
+    input: unknown,
+  ): Promise<
     | { ok: true; context: ProviderContext }
     | { ok: false; error: string; status: number }
   >;
@@ -266,7 +271,9 @@ export interface InfrastructureServerOperations {
   resumeBrain(input: Record<string, unknown>): Promise<unknown>;
   suspendBrain(input: Record<string, unknown>): Promise<unknown>;
   destroyBrain(input: Record<string, unknown>): Promise<unknown>;
-  brainStatus(input: Record<string, unknown>): Promise<ProviderBrainStatusResult>;
+  brainStatus(
+    input: Record<string, unknown>,
+  ): Promise<ProviderBrainStatusResult>;
   updateBrainSuspension(
     input: Record<string, unknown>,
   ): Promise<{ app: string; machineId: string; suspendOnIdle: boolean }>;
@@ -276,9 +283,7 @@ export interface InfrastructureServerOperations {
   findTerminalBridge(
     cfg: ProviderRuntimeConfig,
   ): Promise<ProviderTerminalBridgeInfo | null>;
-  computeActivity(
-    file: ProviderActivityFile,
-  ): ProviderMachineActivity[];
+  computeActivity(file: ProviderActivityFile): ProviderMachineActivity[];
   readActivityFile(
     octokit: Octokit,
     owner: string,
@@ -306,7 +311,10 @@ export interface InfrastructureServerOperations {
     cfg: ProviderRuntimeConfig,
     options: { idleSuspend: boolean; healthCheck: boolean; memoryMb: number },
   ): Promise<{ changed: boolean; skipped?: boolean }>;
-  listAppsByPrefix(prefix: string, cfg: ProviderRuntimeConfig): Promise<string[]>;
+  listAppsByPrefix(
+    prefix: string,
+    cfg: ProviderRuntimeConfig,
+  ): Promise<string[]>;
   destroyMachine(
     appName: string,
     machineId: string,

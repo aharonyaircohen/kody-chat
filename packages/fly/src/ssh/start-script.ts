@@ -40,5 +40,8 @@ MaxStartups 10:30:30
 StrictModes yes
 Subsystem sftp internal-sftp
 EOF
+if [ -f /etc/kody-agent/setup.sh ]; then
+  sh /etc/kody-agent/setup.sh
+fi
 exec /usr/sbin/sshd -f "$state_dir/sshd_config"
 `;

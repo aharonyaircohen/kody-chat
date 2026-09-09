@@ -244,6 +244,12 @@ test("bookmarks, browser controls, picker, URL saving, and stream state stay ali
     "https://www.iana.org/help/example-domains",
   );
 
+  // Reconnecting to the current bookmark must not add another history entry.
+  expect(history).toEqual([
+    "https://kody.example/app",
+    "https://www.iana.org/help/example-domains",
+  ]);
+
   await expect(page.getByLabel("Go back in preview")).toBeEnabled({
     timeout: 5_000,
   });

@@ -317,8 +317,10 @@ export function PreviewWorkspace({
     router.push(scopedHref(selectionPath("/preview", env.id)));
   };
 
+  // The route-selection effect owns fallback. Opening the first environment
+  // here would navigate the remote browser before the saved selection loads.
   const selectedEnv =
-    environments.find((e) => e.id === selectedId) ?? environments[0] ?? null;
+    environments.find((e) => e.id === selectedId) ?? null;
   const [remoteActiveEnvironmentId, setRemoteActiveEnvironmentId] = useState<
     string | null | undefined
   >(undefined);

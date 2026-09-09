@@ -100,7 +100,7 @@ export async function mockDashboardShellRequests(page: Page): Promise<void> {
   await mockKodyAccountSession(page);
   await Promise.all(
     Object.entries(SHELL_RESPONSES).map(([pathname, response]) =>
-      page.route(`**${pathname}`, (route) => fulfillJson(route, response)),
+      page.route((url) => url.pathname === pathname, (route) => fulfillJson(route, response)),
     ),
   );
   await page.route("**/api/kody/chat/machines**", (route) =>

@@ -6,7 +6,7 @@ export interface PersonalBrainUser {
 }
 
 export type PersonalBrainStateName =
-  "app" | "images" | "image-save" | "runtime" | "models";
+  "app" | "images" | "image-save" | "runtime" | "models" | "agent-access";
 
 export interface PersonalBrainServices {
   resolveUser(): Promise<PersonalBrainUser | null>;

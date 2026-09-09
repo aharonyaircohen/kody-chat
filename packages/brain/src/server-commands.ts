@@ -7,6 +7,8 @@
  * authenticated context; this layer decides which Brain app/machine to mutate.
  */
 import "server-only";
+import { prepareBrainAgentFiles } from "./agent-files";
+import { revokeAgentAccess } from "./agent-access";
 
 import {
   destroyServerBrain,
@@ -96,6 +98,12 @@ async function provisionManagedBrain(
   });
   try {
     const result = await provisionServerBrain({
+      ...(input.dashboardUrl
+        ? {
+            prepareAgentFiles: (app: string) =>
+              prepareBrainAgentFiles(app, input.dashboardUrl!),
+          }
+        : {}),
       providerToken: flyToken,
       account: context.account,
       model: context.engineModel,
@@ -215,6 +223,7 @@ export async function manageBrainServer(input: ManageBrainServerInput) {
     const destroyedStoredBrain =
       !input.appNameOverride || brain.stored?.appName === brain.app;
     if (destroyedStoredBrain) {
+      await revokeAgentAccess(context.userId);
       await clearBrainRuntimeDeployment(context.account, context.githubToken);
       await clearBrainApp(context.account, context.githubToken);
     }

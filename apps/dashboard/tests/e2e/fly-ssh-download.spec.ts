@@ -244,6 +244,18 @@ for (const mobile of [false, true]) {
       }),
     );
     await page.goto(`/repo/${OWNER}/${REPO}/fly/machines`);
+    // Desktop selects the first machine on initial load. Let that route
+    // transition finish before this journey exercises searching the list.
+    if (!mobile) {
+      await expect(page).toHaveURL(/\/fly\/machines\/test-app\/abc123$/);
+      await expect(page.getByRole("heading", {
+        name: "A machine with a very long readable name",
+      })).toBeVisible();
+    } else {
+      await expect(page.getByRole("button", {
+        name: "Select A machine with a very long readable name",
+      })).toBeVisible();
+    }
     const search = page.getByRole("searchbox", { name: "Search machines" });
     await search.fill("missing");
     await expect(

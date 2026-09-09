@@ -2187,3 +2187,75 @@ describe("resumeBrain", () => {
     ).toBe(true);
   });
 });
+
+it("installs agent files for the actual provisioned app", async () => {
+  const files = [
+    { guest_path: "/etc/kody-agent/connection.json", raw_value: "e30=" },
+  ];
+  const prepareAgentFiles = vi.fn(async () => files);
+  const calls = installFetchStub((call) => {
+    if (call.method === "GET" && call.url.endsWith("/apps/kody-brain-alice"))
+      return { json: { name: "kody-brain-alice" } };
+    if (call.method === "GET" && call.url.endsWith("/machines"))
+      return { json: [] };
+    if (call.method === "POST" && call.url.endsWith("/machines"))
+      return { json: { id: "new-agent-machine", state: "starting" } };
+    throw new Error("unexpected request: " + call.method + " " + call.url);
+  });
+  await provisionBrain({
+    flyToken: TOKEN,
+    account: "alice",
+    githubToken: "owner-token",
+    prepareAgentFiles,
+  });
+  expect(prepareAgentFiles).toHaveBeenCalledExactlyOnceWith("kody-brain-alice");
+  const creation = calls.find(
+    (call) => call.method === "POST" && call.url.endsWith("/machines"),
+  )!;
+  expect(creation.body).toMatchObject({
+    config: { files: expect.arrayContaining(files) },
+  });
+});
+
+it("updates managed agent files once while preserving other injected files", async () => {
+  const files = [
+    { guest_path: "/etc/kody-agent/connection.json", raw_value: "e30=" },
+  ];
+  let config: Record<string, unknown> = {
+    env: { BRAIN_API_KEY: "existing-key" },
+    mounts: [{ volume: "vol-codex", name: "codex", path: "/root/.codex" }],
+    files: [{ guest_path: "/etc/user-file", raw_value: "keep" }],
+  };
+  const calls = installFetchStub(
+    (call) => {
+      if (call.method === "GET" && call.url.endsWith("/apps/kody-brain-alice"))
+        return { json: { name: "kody-brain-alice" } };
+      if (call.method === "GET" && call.url.endsWith("/machines"))
+        return { json: [{ id: "existing", state: "started", config }] };
+      if (call.method === "POST" && call.url.endsWith("/machines/existing")) {
+        config = (call.body as { config: Record<string, unknown> }).config;
+        return { json: { id: "existing", state: "started", config } };
+      }
+      throw new Error("unexpected request: " + call.method + " " + call.url);
+    },
+    { codexVolume: { id: "vol-codex", name: "codex_auth", region: "fra" } },
+  );
+  const input = {
+    flyToken: TOKEN,
+    account: "alice",
+    githubToken: "owner-token",
+    prepareAgentFiles: async () => files,
+  };
+  await provisionBrain(input);
+  await provisionBrain(input);
+  expect(config.files).toEqual([
+    { guest_path: "/etc/user-file", raw_value: "keep" },
+    ...files,
+  ]);
+  expect(
+    calls.filter(
+      (call) =>
+        call.method === "POST" && call.url.endsWith("/machines/existing"),
+    ),
+  ).toHaveLength(1);
+});

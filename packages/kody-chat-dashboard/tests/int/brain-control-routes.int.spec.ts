@@ -211,3 +211,7 @@ describe("Brain control routes", () => {
     expect(brainFly.provisionBrain).not.toHaveBeenCalled();
   });
 });
+
+vi.mock("@kody-ade/brain/agent-access", () => ({
+  revokeAgentAccess: vi.fn(async () => undefined),
+}));

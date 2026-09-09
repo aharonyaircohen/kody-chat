@@ -121,3 +121,7 @@ describe("manageBrainServer", () => {
     expect(store.clearBrainApp).toHaveBeenCalled();
   });
 });
+
+vi.mock("@kody-ade/brain/agent-access", () => ({
+  revokeAgentAccess: vi.fn(async () => undefined),
+}));
