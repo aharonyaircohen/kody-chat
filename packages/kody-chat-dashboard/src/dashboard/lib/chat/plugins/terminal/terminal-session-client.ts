@@ -37,6 +37,14 @@ export interface TerminalStartupIssue {
   action: TerminalStartupAction;
 }
 
+export interface TerminalTransportRecovery {
+  phase: "connecting" | "reconnecting" | "unavailable";
+  message: string;
+  attempt?: number;
+  retryInMs?: number;
+  details?: string;
+}
+
 export class TerminalSessionRequestError extends Error {
   readonly code: string;
   readonly retryable: boolean;
@@ -61,6 +69,7 @@ export interface TerminalSessionClientState {
   session: TerminalSession | null;
   error: string | null;
   issue: TerminalStartupIssue | null;
+  recovery: TerminalTransportRecovery | null;
 }
 
 interface TerminalSessionClientOptions {
@@ -89,8 +98,9 @@ export function shouldSendBrainActivityLimit(
 }
 
 const SOCKET_OPEN = 1;
-const MAX_SUBSCRIPTION_RETRIES = 4;
+const FAST_SUBSCRIPTION_RETRIES = 4;
 const RETRY_BASE_MS = 750;
+const RETRY_MAX_MS = 30_000;
 const SUBSCRIPTION_READY_TIMEOUT_MS = 20_000;
 
 function parseMessage(
@@ -99,6 +109,7 @@ function parseMessage(
   | { kind: "event"; event: TerminalEvent }
   | { kind: "pong" }
   | { kind: "rejected"; code?: string; message: string }
+  | { kind: "transport-status"; recovery: TerminalTransportRecovery }
   | null {
   let value: unknown;
   try {
@@ -109,6 +120,30 @@ function parseMessage(
   if (value && typeof value === "object") {
     const record = value as Record<string, unknown>;
     if (record.type === "pong") return { kind: "pong" };
+    if (
+      record.type === "transport-status" &&
+      ["connecting", "reconnecting", "unavailable"].includes(
+        String(record.phase),
+      ) &&
+      typeof record.message === "string"
+    ) {
+      return {
+        kind: "transport-status",
+        recovery: {
+          phase: record.phase as TerminalTransportRecovery["phase"],
+          message: record.message,
+          ...(Number.isInteger(record.attempt)
+            ? { attempt: Number(record.attempt) }
+            : {}),
+          ...(Number.isFinite(record.retryInMs)
+            ? { retryInMs: Math.max(0, Number(record.retryInMs)) }
+            : {}),
+          ...(typeof record.details === "string"
+            ? { details: record.details }
+            : {}),
+        },
+      };
+    }
     if (record.type === "input-rejected") {
       return {
         kind: "rejected",
@@ -141,6 +176,7 @@ export class TerminalSessionClient {
     session: null,
     error: null,
     issue: null,
+    recovery: null,
   };
 
   constructor(private readonly options: TerminalSessionClientOptions) {}
@@ -160,8 +196,9 @@ export class TerminalSessionClient {
     connection: ChatTerminalConnectionState,
     error: string | null = null,
     issue: TerminalStartupIssue | null = null,
+    recovery: TerminalTransportRecovery | null = null,
   ): void {
-    this.state = { connection, session: this.session, error, issue };
+    this.state = { connection, session: this.session, error, issue, recovery };
     this.options.onState?.(this.state);
   }
 
@@ -216,31 +253,26 @@ export class TerminalSessionClient {
 
   private retry(reason: string): void {
     if (!this.canRetry() || this.retryTimer !== null) return;
-    if (this.retryCount >= MAX_SUBSCRIPTION_RETRIES) {
-      const diagnosis =
-        this.lastRetryReason && reason === "network connection closed"
-          ? this.lastRetryReason
-          : reason;
-      this.publish(
-        "error",
-        `Terminal subscription failed after ${MAX_SUBSCRIPTION_RETRIES} attempts: ${diagnosis}`,
-        {
-          code: "terminal_subscription_failed",
-          message: `Terminal subscription failed after ${MAX_SUBSCRIPTION_RETRIES} attempts: ${diagnosis}`,
-          action: "retry",
-        },
-      );
-      return;
-    }
     if (reason !== "network connection closed") this.lastRetryReason = reason;
     this.retryCount += 1;
-    this.publish("connecting");
+    const slowRetry = this.retryCount > FAST_SUBSCRIPTION_RETRIES;
+    this.publish("connecting", null, null, {
+      phase: slowRetry ? "unavailable" : "reconnecting",
+      message: slowRetry
+        ? "Connection unavailable — retrying shortly"
+        : "Reconnecting to Brain…",
+      attempt: this.retryCount + 1,
+    });
+    const delayMs = Math.min(
+      RETRY_MAX_MS,
+      RETRY_BASE_MS * 2 ** Math.min(this.retryCount - 1, 6),
+    );
     this.retryTimer = this.schedule(
       () => {
         this.retryTimer = null;
         void this.openSubscription();
       },
-      RETRY_BASE_MS * 2 ** (this.retryCount - 1),
+      delayMs,
     );
   }
 
@@ -330,6 +362,11 @@ export class TerminalSessionClient {
         if (this.socket !== socket || this.stopped) return;
         const message = parseMessage(data);
         if (!message || message.kind === "pong") return;
+        if (message.kind === "transport-status") {
+          this.clearReadinessTimer();
+          this.publish("connecting", null, null, message.recovery);
+          return;
+        }
         if (message.kind === "rejected") {
           if (message.code === "terminal_transport_unavailable") {
             this.retry(message.message);

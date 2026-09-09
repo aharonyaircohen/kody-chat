@@ -333,6 +333,26 @@ export async function pollBrainImageSave(input: {
     });
   }
 
+  const stale = staleRunningSaveFailure(save);
+  if (stale) {
+    await writeBrainImageSave(context.account, context.githubToken, stale);
+    await finishBrainImageSaveOperation(
+      context.account,
+      context.githubToken,
+      save.jobId,
+      stale.error,
+    );
+    throw new BrainImageManagementError(
+      stale.error ?? "Brain image save timed out",
+      500,
+      "brain_image_save_failed",
+      {
+        jobId: save.jobId,
+        lastOutput: stale.lastOutput,
+      },
+    );
+  }
+
   const service = await resolveBrainService({
     flyToken: context.flyToken,
     account: context.account,
@@ -372,11 +392,63 @@ export async function pollBrainImageSave(input: {
     ttlSeconds: 120,
     secret: bridge.secret,
   });
-  const job = await getTerminalBridgeExecJob({
-    bridgeUrl: bridge.url,
-    token,
-    jobId: save.jobId,
-  });
+  let job: TerminalBridgeExecJob;
+  try {
+    job = await getTerminalBridgeExecJob({
+      bridgeUrl: bridge.url,
+      token,
+      jobId: save.jobId,
+    });
+  } catch (error) {
+    if (
+      !error ||
+      typeof error !== "object" ||
+      !("status" in error) ||
+      error.status !== 404
+    ) {
+      throw error;
+    }
+    const completedAfterInterruption = await findCompletedBrainImageSave(
+      context,
+      save,
+    );
+    if (completedAfterInterruption) {
+      return recordCompletedBrainImageSave({
+        account: context.account,
+        githubToken: context.githubToken,
+        save,
+        imageRef: save.expectedImageRef,
+        finishedAt: completedAfterInterruption.updatedAt,
+      });
+    }
+    const interruptionMessage =
+      "Brain image save was interrupted because its gateway restarted. Start a new save.";
+    const interrupted: BrainImageSaveFile = {
+      ...save,
+      status: "failed",
+      phase: "failed",
+      message: "Brain image save was interrupted",
+      updatedAt: new Date().toISOString(),
+      error: interruptionMessage,
+    };
+    await writeBrainImageSave(
+      context.account,
+      context.githubToken,
+      interrupted,
+    );
+    await finishBrainImageSaveOperation(
+      context.account,
+      context.githubToken,
+      save.jobId,
+      interruptionMessage,
+    );
+    throw new BrainImageManagementError(
+      interruptionMessage,
+      500,
+      "brain_image_save_failed",
+      { jobId: save.jobId, lastOutput: save.lastOutput },
+    );
+  }
   const progress = brainImageSaveProgressFromOutput(job);
 
   if (job.status === "running") {

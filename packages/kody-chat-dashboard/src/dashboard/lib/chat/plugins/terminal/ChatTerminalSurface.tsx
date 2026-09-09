@@ -229,6 +229,7 @@ export const ChatTerminalSurface = forwardRef<
     session: remoteSession,
     error: remoteError,
     issue: remoteIssue,
+    recovery: remoteRecovery,
     sendInput: sendRemoteInput,
     resize: resizeRemote,
     clear: clearRemote,
@@ -654,7 +655,7 @@ export const ChatTerminalSurface = forwardRef<
           : "closed";
   const error = isRemoteTransport(transport) ? remoteError : localError;
   const statusText = isRemoteTransport(transport)
-    ? (error ??
+    ? (error ?? remoteRecovery?.message ??
       `${transport.label ?? (transport.type === "brain" ? "Brain terminal" : transport.app)} · ${connection}`)
     : (error ??
       (localSession?.alive
@@ -700,6 +701,7 @@ export const ChatTerminalSurface = forwardRef<
               }
             : null
       }
+      recovery={isRemoteTransport(transport) ? remoteRecovery : null}
       startupActionBusy={
         isRemoteTransport(transport) ? setupBusy : connectingLocal
       }

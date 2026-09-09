@@ -235,14 +235,39 @@ for (const scenario of ["ready", "setup", "timeout", "transport"] as const) {
       });
     });
     await page.routeWebSocket("ws://terminal.test/session", (socket) => {
-      const ready =
+      let ready =
         setupDone &&
         !((transientTimeout || transientTransport) && sessionRequests === 1);
       const sessionId = ready && needsSetup ? "terminal-2" : "terminal-1";
       let revision = 0;
       let cleared = false;
+      let recoveryStarted = false;
       socket.onMessage((raw) => {
         const command = JSON.parse(String(raw));
+        if (transientTransport && !ready && !recoveryStarted) {
+          recoveryStarted = true;
+          socket.send(
+            JSON.stringify({
+              type: "transport-status",
+              phase: "reconnecting",
+              attempt: 2,
+              retryInMs: 1500,
+              message: "Reconnecting to Brain…",
+            }),
+          );
+          setTimeout(() => {
+            ready = true;
+            socket.send(
+              JSON.stringify({
+                type: "state",
+                sessionId,
+                generation: 1,
+                state: "ready",
+              }),
+            );
+          }, 1500);
+          return;
+        }
         if (ready && ["input", "clear"].includes(command.type)) {
           if (command.type === "clear") cleared = true;
           socket.send(
@@ -313,6 +338,12 @@ for (const scenario of ["ready", "setup", "timeout", "transport"] as const) {
       await expect(
         page.getByTestId("terminal-startup-issue"),
       ).not.toBeVisible();
+    }
+    if (transientTransport) {
+      await expect(page.getByTestId("terminal-recovery-status")).toContainText(
+        "Reconnecting to Brain",
+      );
+      await expect(page.getByTestId("terminal-startup-issue")).toHaveCount(0);
     }
     await expect(
       page.getByRole("button", { name: "Send command", exact: true }),

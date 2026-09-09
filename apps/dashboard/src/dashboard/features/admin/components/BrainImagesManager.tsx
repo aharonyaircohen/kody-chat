@@ -282,7 +282,11 @@ export function BrainImagesManager() {
       try {
         const res = await fetch(
           `/api/kody/brain/image?jobId=${encodeURIComponent(jobId)}`,
-          { headers, cache: "no-store" },
+          {
+            headers,
+            cache: "no-store",
+            signal: AbortSignal.timeout(30_000),
+          },
         );
         const body = (await res
           .json()
@@ -347,6 +351,7 @@ export function BrainImagesManager() {
         const message =
           error instanceof Error ? error.message : "Brain image save failed";
         setError(message);
+        await loadImages();
       }
     },
     [headers, loadImages],

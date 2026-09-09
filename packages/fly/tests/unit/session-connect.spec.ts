@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { waitForServerProviderMachineHealth } from "../../src/terminal/session-connect";
+import {
+  isFlyBridgeAuthError,
+  waitForServerProviderMachineHealth,
+} from "../../src/terminal/session-connect";
 
 describe("terminal machine readiness", () => {
   afterEach(() => {
@@ -34,5 +37,17 @@ describe("terminal machine readiness", () => {
       code: "machine_not_running",
       status: 409,
     });
+  });
+});
+
+describe("terminal Fly access classification", () => {
+  it("does not treat transient network failures as credential failures", () => {
+    expect(isFlyBridgeAuthError(new Error("fetch failed: Connect Timeout"))).toBe(
+      false,
+    );
+    expect(isFlyBridgeAuthError(new Error("read ECONNRESET"))).toBe(false);
+    expect(
+      isFlyBridgeAuthError(new Error("Fly Machines API 403 on /apps/brain")),
+    ).toBe(true);
   });
 });

@@ -1,5 +1,123 @@
 # Terminal and Brain images stabilization plan
 
+## Terminal recovery implementation plan — 2026-09-09
+
+Status: implemented and locally verified; deployed verification is pending.
+This section supersedes earlier terminal completion claims for sustained transport failure recovery.
+It covers all items in the terminal recovery ROI discussion; the image restore
+work below remains a separate, existing scope.
+
+### Outcome and boundaries
+
+Opening or reconnecting a terminal automatically reaches the current Brain.
+Temporary outages preserve visible output and the existing remote process,
+and recovery does not depend on repeatedly pressing Try again. Permanent
+access/setup failures have a specific action. Actual process exit and Brain
+replacement are reported honestly; an image restore cannot preserve a process
+from the replaced machine.
+
+Reuse the existing Brain runtime authority, terminal protocol/client, Fly
+gateway, and Brain-owned agent. The gateway owns transient transport resources,
+never durable PTY state, generation, or screen history. Convex remains the
+owner of dashboard runtime records; do not add GitHub state or another store.
+
+Current source evidence: `attachTerminalSocket` spawns `flyctl ssh console`
+for each subscriber and closes the socket when the child exits. The browser
+retries four times, with 750 ms exponential delay and a 20-second readiness
+timeout, then exposes the raw provider diagnosis. `flyctlOrgArgs` omits an
+explicit organization for `personal`. The exact cause of the reported live
+Fly timeout, and whether that organization is correct, remain unverified.
+
+### Delivery sequence and acceptance
+
+| Phase | Owner and implementation | Acceptance gate |
+| --- | --- | --- |
+| 0. Capture the real failure | Trace the actual user's mounted route, authenticated account, authoritative Brain app/machine/org, gateway version, and connection attempt. Correlate API, gateway SSH stderr, and agent readiness timestamps; redact credentials. Compare warm attach with cold wake. | Identify the failing hop and record whether `personal` is intended, a fallback, or provider diagnostic text. Do not substitute a successful QA connection for reproduction. |
+| 1. Resolve one authorized target | In Brain service resolution and Fly session-connect, carry machine, organization, credential authority, and runtime identity together. Separate transient network failure from denied access; audit the current auth-error helper that also matches network timeouts. Reuse bounded existing caches if suitable; invalidate on replacement, credential change, or verified target mismatch. | Wrong account cannot attach; real organization is preserved; timeouts never trigger credential fallback; stale target is rejected or refreshed without changing an unrelated session. |
+| 2. Define recovery contracts | Extend the existing terminal protocol with typed transport status/error data, keeping it separate from agent process state. Define retryability, user action, sanitized diagnostics, and attempt correlation. Retain session ID, generation, output revision, and input acknowledgement contracts. | Tests distinguish browser disconnect, provider outage, missing agent, denied access, process exit, and runtime replacement. Transport failure cannot mark the PTY exited or restart it. |
+| 3. Recover gateway-to-Brain transport | Refactor the existing Fly gateway attach path to own one bounded upstream attempt per attachment and retry transient SSH/tunnel failure while the browser subscription remains open. Clean up children/timers before retry, back off with jitter, and emit recovery status. Browser detach cleans up transport only; reattach opens the same Brain-owned session. Do not add a durable gateway session registry. | A sustained upstream outage recovers on the same machine/session/generation/PID; concurrent attempts cannot accumulate; gateway replacement still reattaches to the agent-owned session. |
+| 4. Recover browser subscriptions | In TerminalSessionClient, retry only browser-to-gateway loss; do not start another subscription because the gateway reports its own recovery. Replace the four-attempt dead end with bounded attempts followed by a slower retry cadence while the terminal remains wanted. Pause while offline; cancel on disposal/logout/target change; reconnect on network return. Gate input on current subscription readiness. | Outages beyond four retries recover automatically; no stale socket can publish ready or send input; no duplicate commands; no reconnect timer survives disposal. |
+| 5. Clean terminal UX | Reuse the existing terminal surface and startup-issue mapper. Show Waking Brain, Connecting, Reconnecting, or Connection unavailable with the next retry. Preserve output and unsent draft input. Put provider details behind Details; use existing credential/setup actions only for confirmed problems. Avoid stacking an error card, spinner, and duplicate banners. | Desktop/mobile browser tests prove each state and recovery, keyboard focus, accessible announcements, output retention, and disabled disconnected input. Normal recovery needs no click. |
+| 6. Coordinate image/runtime changes | Consume the existing runtime operation and target identity. While restore replaces the machine, show Restoring Brain and stop attempts against the obsolete target. After authoritative readiness, connect to the new runtime explicitly; do not represent it as the old process continuing. Keep save progress distinct from terminal connection state. | Failed or completed restore updates the terminal accurately; late events from old machines are ignored; saving alone does not reset a shell; page refresh reconstructs the current operation. |
+| 7. Prove and release | Run regression, contract, real gateway-process, mounted browser, and deployed candidate journeys. Roll out compatible protocol consumers before producers, verify gateway and agent versions, then promote the tested dashboard candidate. Record exact deployed identities and retain a compatible rollback path. | All required gates below pass on the final candidate; a provider outage stays recoverable, and no user-owned Brain is replaced merely to make a test pass. |
+
+### Retry and process safety
+
+- Proposed initial policy: one upstream attempt at a time, a 30-second attempt
+  deadline, exponential backoff with jitter capped at 30 seconds, and a clear
+  unavailable state after 90 seconds. These are starting values to validate
+  against Phase 0 cold-start measurements, not current guarantees.
+- Wake, tunnel establishment, and agent attachment report distinct phases.
+  Do not apply a short generic browser readiness timeout to gateway-reported
+  progress. Bound every attempt; a long outage must not mean a silent spinner.
+- The browser owns its WebSocket reconnect; the gateway owns upstream tunnel
+  recovery; the Brain agent alone owns PTY lifecycle. No retry implies restart.
+- Preserve the existing activity policy. Recovery must not keep an unwanted
+  terminal or sleeping Brain alive indefinitely. Active work preservation is
+  subject to actual Brain machine lifetime; test suspension behavior explicitly.
+- Validate authorization on every new subscription. Do not share upstream
+  connections across users or retain revoked credentials in a warm transport.
+- Do not blindly resend unacknowledged input. Verify existing agent deduplication
+  across transport reconnect; otherwise expose uncertain delivery rather than
+  risk executing a command twice. Preserve drafts separately from sent input.
+- Keep replay bounded and revision-aware. Stale generations, duplicate events,
+  and replaced machine events cannot clear or overwrite the current screen.
+
+### UX scope
+
+User goal: open the terminal and continue work without troubleshooting network
+plumbing. Keep only terminal target, output, input, connection status, and
+explicit restart where available. Recovery is automatic; Retry now can be a
+secondary action during a long outage. It must not reset the shell.
+
+No new page or settings panel is required. Preserve the mounted chat terminal
+layout. Any necessary image-manager adjustment uses the existing standard
+content layout, `/secrets` reference, and PageShell/PageHeader. Technical retry
+counts, organization names, and tunnel stderr belong in diagnostic details.
+
+### Required proof matrix
+
+1. Cold open from a suspended Brain and repeated warm opens.
+2. Browser offline/online, refresh, tab return, and dropped WebSocket.
+3. Gateway-to-Fly outage longer than the old four-attempt limit, followed by
+   recovery without a user click or changed process identity.
+4. Gateway restart/deployment with the same Brain session and real full-screen
+   application still usable afterward.
+5. Credential revocation, wrong organization, missing agent, and genuinely
+   exited process: correct action, no retry storm, no hidden restart.
+6. Save progress, successful image replacement, failed replacement, and stale
+   completion/events. Use disposable resources for replacement tests.
+7. Multiple subscribers, rapid mount/unmount, delayed ready events, and command
+   acknowledgement loss: no duplicate writer, command, replay, or leaked child.
+
+Run focused regressions before implementation and after each phase. Run root
+`pnpm verify`, the canonical `test:e2e:gate`, and affected `test:e2e:live:gate`
+journeys according to docs/testing-policy.md. Fault injection is allowed only
+in controlled test resources and is reported separately from unmodified live
+journeys. The local HTTP 403 from the earlier attempt must be resolved through
+the actual supported test-auth configuration, not by weakening authentication.
+
+Live proof must use the mounted local repository URL and the exact deployed
+candidate. Verify a command's effect and subsequent output, not merely an
+echoed marker or open socket. Record session/generation/PID continuity where
+the machine is unchanged. Test the actual user's failing route/account again
+after candidate qualification. Repeat connect/disconnect cycles and a bounded
+soak; record counts, latency, and failures rather than claiming universal uptime.
+
+Report separately: regression tests, typecheck/lint, mocked browser tests,
+live local tests, deployed live tests, build, commit/push, and deployment.
+Blocked or skipped live checks remain unverified. Planning does not authorize
+destructive production fault injection or automatic replacement of user data.
+
+### Architecture decision checkpoint
+
+First fix the verified authority/recovery gaps in the current transport. If
+correctly scoped SSH still cannot meet the measured recovery requirements,
+evaluate an authenticated direct stream to the existing Brain agent as a
+replacement for the SSH hop. Require evidence, authentication/isolation review,
+compatible agent/image rollout, and removal of the old primary path. Do not
+build a second transport merely to hide an uninvestigated Fly timeout.
+
 Status: the terminal reliability slice is implemented and live-verified locally and in production. The complete seven-priority restore outcome is not implemented; destructive image restore coverage remains open.
 
 ## Implementation checkpoint — 2026-09-08

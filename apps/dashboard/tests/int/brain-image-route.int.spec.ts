@@ -165,6 +165,8 @@ function mockRepoWithoutFlyToken() {
 describe("GET /api/kody/brain/image", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-02T12:30:00.000Z"));
     personalCredentials = {
       FLY_API_TOKEN: "fly-token",
       GITHUB_TOKEN: "gh-token",
@@ -374,6 +376,46 @@ describe("GET /api/kody/brain/image", () => {
     );
   });
 
+  it("marks a stale running save as failed while polling its job", async () => {
+    vi.setSystemTime(new Date("2026-07-09T12:00:00.000Z"));
+    mocks.readSave.mockResolvedValue({
+      version: 1,
+      status: "running",
+      phase: "pushing-image",
+      message: "Pushing the Brain image to GHCR",
+      jobId: "0123456789abcdef0123456789abcdef",
+      app: "brain-1",
+      machineId: "machine-1",
+      bridgeApp: "kody-terminal-guy-koren",
+      orgSlug: "guy-koren",
+      defaultRegion: "fra",
+      expectedImageRef:
+        "ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:brain-stale",
+      startedAt: "2026-07-06T12:00:00.000Z",
+      updatedAt: "2026-07-06T12:00:00.000Z",
+      heartbeatAt: "2026-07-06T12:00:00.000Z",
+    });
+
+    const res = await GET(
+      request(
+        "GET",
+        "https://dash.test/api/kody/brain/image?jobId=0123456789abcdef0123456789abcdef",
+      ),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(500);
+    expect(body).toMatchObject({
+      status: "failed",
+      message: expect.stringContaining("Brain image save timed out"),
+    });
+    expect(mocks.writeSave).toHaveBeenCalledWith(
+      "user-c6c289e49e9c05b2",
+      "gh-token",
+      expect.objectContaining({ status: "failed", phase: "failed" }),
+    );
+  });
+
   it("keeps forgotten image tags hidden when a new save completes", async () => {
     mocks.readSave.mockResolvedValue({
       version: 1,
@@ -508,6 +550,50 @@ describe("GET /api/kody/brain/image", () => {
         heartbeatAt: "2026-07-02T12:03:04Z",
         lastOutput: "pushing layer",
       }),
+    );
+  });
+
+  it("marks a save as interrupted when its gateway job disappeared", async () => {
+    mocks.readSave.mockResolvedValue({
+      version: 1,
+      status: "running",
+      phase: "pushing-image",
+      message: "Pushing the Brain image to GHCR",
+      jobId: "0123456789abcdef0123456789abcdef",
+      app: "brain-1",
+      machineId: "machine-1",
+      bridgeApp: "kody-terminal-guy-koren",
+      orgSlug: "guy-koren",
+      defaultRegion: "fra",
+      expectedImageRef:
+        "ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:brain-interrupted",
+      startedAt: "2026-07-02T12:00:00.000Z",
+      updatedAt: "2026-07-02T12:05:00.000Z",
+    });
+    mocks.getJob.mockRejectedValue(
+      Object.assign(new Error("job not found"), {
+        status: 404,
+        code: "job_not_found",
+      }),
+    );
+
+    const res = await GET(
+      request(
+        "GET",
+        "https://dash.test/api/kody/brain/image?jobId=0123456789abcdef0123456789abcdef",
+      ),
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(500);
+    expect(body).toMatchObject({
+      status: "failed",
+      message: expect.stringContaining("interrupted"),
+    });
+    expect(mocks.writeSave).toHaveBeenCalledWith(
+      "user-c6c289e49e9c05b2",
+      "gh-token",
+      expect.objectContaining({ status: "failed", phase: "failed" }),
     );
   });
 

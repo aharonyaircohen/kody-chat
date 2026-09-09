@@ -7,6 +7,9 @@ import { StringDecoder } from "node:string_decoder";
 
 const TOKEN_VERSION = "kody-terminal-v1";
 const AGENT_STATUS_TIMEOUT_MS = 20000;
+const TERMINAL_UPSTREAM_RETRY_BASE_MS = Math.max(10, Number(process.env.TERMINAL_UPSTREAM_RETRY_BASE_MS) || 1000);
+const TERMINAL_UPSTREAM_RETRY_MAX_MS = Math.max(TERMINAL_UPSTREAM_RETRY_BASE_MS, Number(process.env.TERMINAL_UPSTREAM_RETRY_MAX_MS) || 30000);
+const TERMINAL_UPSTREAM_ATTEMPT_TIMEOUT_MS = Math.max(1000, Number(process.env.TERMINAL_UPSTREAM_ATTEMPT_TIMEOUT_MS) || 30000);
 const MAX_FRAME_BYTES = 1024 * 1024;
 const MAX_EXEC_OUTPUT_BYTES = 96 * 1024 * 1024;
 const MAX_EXEC_TIMEOUT_MS = 2 * 60 * 60 * 1000;
@@ -236,14 +239,38 @@ function normalizeCommand(value, claims) {
   throw new Error("unknown terminal command");
 }
 
+function publicTransportDetail(diagnostics, wasReady) {
+  if (/timed? out|context deadline exceeded|ETIMEDOUT/i.test(diagnostics)) {
+    return "Fly terminal tunnel timed out.";
+  }
+  if (/ECONNRESET|connection reset|connection closed/i.test(diagnostics)) {
+    return "Fly terminal tunnel closed.";
+  }
+  return wasReady
+    ? "Brain terminal connection closed."
+    : "Brain terminal transport is temporarily unavailable.";
+}
+
 function attachTerminalSocket(socket, claims) {
   let child = null;
   let stopped = false;
+  let retryTimer = null;
+  let attemptTimer = null;
+  let attempt = 0;
   let afterRevision = Number.isInteger(claims.afterRevision) ? claims.afterRevision : 0;
+
+  const clearAttemptTimer = () => {
+    if (!attemptTimer) return;
+    clearTimeout(attemptTimer);
+    attemptTimer = null;
+  };
 
   const stop = () => {
     if (stopped) return;
     stopped = true;
+    if (retryTimer) clearTimeout(retryTimer);
+    retryTimer = null;
+    clearAttemptTimer();
     if (child?.stdin?.writable) {
       child.stdin.write(JSON.stringify({ type: "detach", sessionId: claims.chatSessionId }) + "\n");
       child.stdin.end();
@@ -253,11 +280,41 @@ function attachTerminalSocket(socket, claims) {
     } catch {}
   };
 
-  const active = spawnBrainAgent(claims);
-  child = active;
-  let lines = "";
-  let diagnostics = "";
+  const scheduleReconnect = (diagnostics) => {
+    if (stopped || !socket.writable || retryTimer) return;
+    const nextAttempt = attempt + 1;
+    const baseDelay = Math.min(
+      TERMINAL_UPSTREAM_RETRY_MAX_MS,
+      TERMINAL_UPSTREAM_RETRY_BASE_MS * 2 ** Math.min(Math.max(0, attempt - 1), 6),
+    );
+    const delayMs = Math.round(baseDelay * (0.8 + Math.random() * 0.4));
+    sendJson(socket, {
+      type: "transport-status",
+      phase: "reconnecting",
+      attempt: nextAttempt,
+      retryInMs: delayMs,
+      message: "Reconnecting to Brain…",
+      ...(diagnostics ? { details: diagnostics.trim().slice(-500) } : {}),
+    });
+    retryTimer = setTimeout(() => {
+      retryTimer = null;
+      connectUpstream();
+    }, delayMs);
+  };
+
+  const connectUpstream = () => {
+    if (stopped || !socket.writable) return;
+    attempt += 1;
+    const active = spawnBrainAgent(claims);
+    child = active;
+    let lines = "";
+    let diagnostics = "";
+    let ready = false;
     active.stdin.write(JSON.stringify(openRequest(claims, afterRevision)) + "\n");
+    attemptTimer = setTimeout(() => {
+      diagnostics = diagnostics || "Brain terminal connection timed out";
+      try { active.kill("SIGTERM"); } catch {}
+    }, TERMINAL_UPSTREAM_ATTEMPT_TIMEOUT_MS);
     active.stdout.on("data", (chunk) => {
       lines += chunk.toString("utf8");
       while (lines.includes("\n")) {
@@ -266,6 +323,10 @@ function attachTerminalSocket(socket, claims) {
         lines = lines.slice(index + 1);
         const event = parseAgentEvent(line, claims);
         if (!event) continue;
+        if (event.type === "state" && event.state === "ready") {
+          ready = true;
+          clearAttemptTimer();
+        }
         if (event.type === "output") afterRevision = Math.max(afterRevision, event.revision);
         sendJson(socket, event);
       }
@@ -277,15 +338,24 @@ function attachTerminalSocket(socket, claims) {
       diagnostics = error.message;
     });
     active.on("close", () => {
+      clearAttemptTimer();
       if (child === active) child = null;
       if (stopped || !socket.writable) return;
-      sendJson(socket, {
-        type: "input-rejected",
-        code: "terminal_transport_unavailable",
-        message: diagnostics.trim().slice(-500) || "Brain terminal transport unavailable",
-      });
-      closeSocket(socket, 1011, "Brain terminal transport unavailable");
+      const detail = diagnostics.trim().slice(-500);
+      if (/brain-terminal-agent.*(?:not found|unknown command)|(?:not found|unknown command).*brain-terminal-agent/i.test(detail)) {
+        sendJson(socket, {
+          type: "input-rejected",
+          code: "terminal_agent_missing",
+          message: "This Brain image needs terminal setup.",
+        });
+        closeSocket(socket, 1011, "Brain terminal agent missing");
+        return;
+      }
+      scheduleReconnect(publicTransportDetail(detail, ready));
     });
+  };
+
+  connectUpstream();
 
   socket.on("close", stop);
   socket.on("end", stop);
@@ -304,7 +374,7 @@ function attachTerminalSocket(socket, claims) {
     try {
       const command = normalizeCommand(value, claims);
       if (!child?.stdin?.writable) {
-        sendJson(socket, { type: "input-rejected", inputId: command.inputId, message: "Brain terminal transport is reconnecting" });
+        sendJson(socket, { type: "input-rejected", code: "terminal_transport_reconnecting", inputId: command.inputId, message: "Brain terminal transport is reconnecting" });
         return;
       }
       child.stdin.write(JSON.stringify(command) + "\n");

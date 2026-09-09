@@ -23,6 +23,7 @@ const INITIAL_STATE: TerminalSessionClientState = {
   session: null,
   error: null,
   issue: null,
+  recovery: null,
 };
 
 function sessionRequestError(input: {

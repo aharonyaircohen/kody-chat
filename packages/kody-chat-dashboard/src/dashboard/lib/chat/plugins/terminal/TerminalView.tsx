@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { RepoScopedLink } from "../../../components/RepoScopedLink";
 import { mountChatTerminal, resetTerminalUiForRestart } from "./xterm-setup";
 import type { VisibleTerminalStartupIssue } from "./terminal-startup-issue";
+import type { TerminalTransportRecovery } from "./terminal-session-client";
 
 export interface TerminalViewHandle {
   write(data: string): void;
@@ -31,6 +32,7 @@ interface TerminalViewProps {
   active: boolean;
   topToolbar?: ReactNode;
   startupIssue: VisibleTerminalStartupIssue | null;
+  recovery: TerminalTransportRecovery | null;
   startupActionBusy: boolean;
   onStartupAction: () => void;
   onData: (data: string) => void;
@@ -44,6 +46,7 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
       active,
       topToolbar,
       startupIssue,
+      recovery,
       startupActionBusy,
       onStartupAction,
       onData,
@@ -160,6 +163,23 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
           </div>
         )}
         <div className="relative min-h-0 flex-1 overflow-hidden p-2">
+          {recovery && !startupIssue && (
+            <section
+              role="status"
+              data-testid="terminal-recovery-status"
+              className="absolute left-1/2 top-4 z-20 max-w-[calc(100%-2rem)] -translate-x-1/2 rounded-md border border-border/70 bg-background/95 px-3 py-2 text-center text-body-xs text-muted-foreground shadow-sm"
+            >
+              <span>{recovery.message}</span>
+              {recovery.details && (
+                <details className="mt-1 text-left">
+                  <summary className="cursor-pointer">Connection details</summary>
+                  <p className="mt-1 break-words font-mono text-[11px]">
+                    {recovery.details}
+                  </p>
+                </details>
+              )}
+            </section>
+          )}
           {startupIssue && (
             <section
               role="alert"

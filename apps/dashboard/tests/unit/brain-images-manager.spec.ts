@@ -153,4 +153,10 @@ describe("BrainImagesManager", () => {
     expect(SOURCE).toContain("heartbeatAt: body.heartbeatAt");
     expect(SOURCE).toContain("liveSignalLabel(save.heartbeatAt)");
   });
+
+  it("bounds save polling and reloads authoritative state after a dropped poll", () => {
+    expect(SOURCE).toContain("signal: AbortSignal.timeout(30_000)");
+    expect(SOURCE).toContain("setError(message);");
+    expect(SOURCE).toContain("await loadImages();");
+  });
 });

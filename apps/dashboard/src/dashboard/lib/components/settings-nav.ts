@@ -58,7 +58,10 @@ export interface SettingsNavItem {
   description?: string;
   /** Tailwind classes for the mobile menu's icon tint chip. */
   tint?: string;
-  /** When true, only the exact path is active unless extra patterns match. */
+  /**
+   * Items own their path and every detail route below it by default.
+   * Set this only when child paths are separate pages owned elsewhere.
+   */
   exact?: boolean;
   /** Extra route shapes owned by this item, e.g. task issue-number pages. */
   activePathPatterns?: readonly RegExp[];
@@ -342,7 +345,6 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         href: "/fly/machines",
         label: "Live machines",
         icon: Cpu,
-        exact: true,
         description: "Current Fly machines and actions.",
         tint: "text-emerald-300 bg-emerald-500/10",
       },

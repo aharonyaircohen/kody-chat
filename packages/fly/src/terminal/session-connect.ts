@@ -139,12 +139,11 @@ export async function waitForServerProviderMachineHealth(
   });
 }
 
-function isFlyBridgeAuthError(err: unknown): boolean {
+export function isFlyBridgeAuthError(err: unknown): boolean {
   const text = err instanceof Error ? err.message : String(err);
   return (
     /Fly Machines API (401|403) on \/(apps|apps\/)/.test(text) ||
-    /(startServerProviderMachine|startMachine) failed: (401|403)/.test(text) ||
-    /fetch failed|Connect Timeout|ETIMEDOUT|ECONNRESET/i.test(text)
+    /(startServerProviderMachine|startMachine) failed: (401|403)/.test(text)
   );
 }
 

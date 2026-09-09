@@ -287,4 +287,79 @@ lines.on("line", (line) => {
       message: expect.stringContaining("tunnel unavailable"),
     });
   });
+
+  it("recovers Fly tunnel failures without closing the browser socket", async () => {
+    const root = mkdtempSync(join(tmpdir(), "kody-gateway-recovery-"));
+    roots.push(root);
+    const gatewayPath = join(root, "bridge.mjs");
+    const flyctlPath = join(root, "flyctl");
+    const attemptsPath = join(root, "attempts");
+    writeFileSync(gatewayPath, TERMINAL_BRIDGE_SCRIPT);
+    writeFileSync(
+      flyctlPath,
+      `#!/usr/bin/env node
+const fs = require("node:fs");
+const path = process.env.ATTEMPTS_PATH;
+const attempt = fs.existsSync(path) ? Number(fs.readFileSync(path, "utf8")) + 1 : 1;
+fs.writeFileSync(path, String(attempt));
+if (attempt < 3) {
+  process.stderr.write('tunnel unavailable: context deadline exceeded\\n');
+  process.exit(1);
+}
+const readline = require("node:readline");
+readline.createInterface({ input: process.stdin }).on("line", (line) => {
+  const value = JSON.parse(line);
+  if (value.type === "open") {
+    process.stdout.write(JSON.stringify({ type: "state", sessionId: value.session.id, generation: 1, state: "ready" }) + "\\n");
+  }
+});
+`,
+    );
+    chmodSync(flyctlPath, 0o755);
+    const port = await unusedPort();
+    const child = spawn(process.execPath, [gatewayPath], {
+      env: {
+        ...process.env,
+        PATH: `${root}:${process.env.PATH ?? ""}`,
+        PORT: String(port),
+        BRIDGE_AUTH_SECRET: SECRET,
+        ATTEMPTS_PATH: attemptsPath,
+        TERMINAL_UPSTREAM_RETRY_BASE_MS: "10",
+        TERMINAL_UPSTREAM_RETRY_MAX_MS: "20",
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    children.push(child);
+    await waitForHealth(port);
+
+    const socket = new WebSocket(`ws://127.0.0.1:${port}/?token=${token()}`);
+    const messages = nextMessages(socket, 3);
+    await new Promise<void>((resolve, reject) => {
+      socket.addEventListener("open", () => resolve(), { once: true });
+      socket.addEventListener("error", () => reject(new Error("open failed")), {
+        once: true,
+      });
+    });
+
+    const [firstRetry, secondRetry, ready] = await messages;
+    expect(firstRetry).toMatchObject({
+      type: "transport-status",
+      phase: "reconnecting",
+      attempt: 2,
+      message: "Reconnecting to Brain…",
+    });
+    expect(secondRetry).toMatchObject({
+      type: "transport-status",
+      phase: "reconnecting",
+      attempt: 3,
+    });
+    expect(ready).toMatchObject({
+      type: "state",
+      sessionId: "terminal-1",
+      state: "ready",
+    });
+    expect(socket.readyState).toBe(WebSocket.OPEN);
+    expect(readFileSync(attemptsPath, "utf8")).toBe("3");
+    socket.close();
+  });
 });

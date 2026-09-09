@@ -124,7 +124,7 @@ describe("TerminalSessionClient", () => {
     expect(harness.requests[1]).not.toHaveProperty("resetSession");
   });
 
-  it("stops repeated Fly timeouts with a retry action rather than setup", async () => {
+  it("keeps retrying slowly after repeated subscription failures", async () => {
     const pending: Array<() => void> = [];
     const harness = setup((callback) => {
       pending.push(callback);
@@ -141,34 +141,58 @@ describe("TerminalSessionClient", () => {
         await Promise.resolve();
       }
     }
-    expect(pending).toHaveLength(0);
+    expect(pending).toHaveLength(1);
     expect(harness.requests).toHaveLength(5);
     expect(harness.client.getState()).toMatchObject({
-      connection: "error",
-      issue: { action: "retry" },
+      connection: "connecting",
+      error: null,
+      issue: null,
+      recovery: {
+        phase: "unavailable",
+        message: "Connection unavailable — retrying shortly",
+      },
     });
   });
 
-  it("keeps the transport diagnosis when the final socket closes", async () => {
+  it("keeps the gateway socket open while its upstream transport reconnects", async () => {
     const pending: Array<() => void> = [];
     const harness = setup((callback) => {
       pending.push(callback);
       return pending.length;
     });
     await harness.client.connect();
-    for (let attempt = 0; attempt < 5; attempt++) {
-      harness.sockets[attempt]!.message({
-        type: "input-rejected",
-        code: "terminal_transport_unavailable",
-        message: "tunnel unavailable: context deadline exceeded",
-      });
-      harness.sockets[attempt]!.drop();
-      if (attempt < 4) {
-        pending.shift()!();
-        await Promise.resolve();
-      }
-    }
-    expect(harness.client.getState().error).toContain("tunnel unavailable");
+    harness.sockets[0]!.open();
+    harness.sockets[0]!.message({
+      type: "transport-status",
+      phase: "reconnecting",
+      attempt: 2,
+      retryInMs: 1500,
+      message: "Reconnecting to Brain…",
+    });
+
+    expect(harness.sockets).toHaveLength(1);
+    expect(pending).toHaveLength(1);
+    expect(harness.client.getState()).toMatchObject({
+      connection: "connecting",
+      error: null,
+      issue: null,
+      recovery: {
+        phase: "reconnecting",
+        attempt: 2,
+        message: "Reconnecting to Brain…",
+      },
+    });
+
+    harness.sockets[0]!.message({
+      type: "state",
+      sessionId: "terminal-1",
+      generation: 1,
+      state: "ready",
+    });
+    expect(harness.client.getState()).toMatchObject({
+      connection: "connected",
+      recovery: null,
+    });
   });
 
   it("does not accept input on a replacement socket until ready", async () => {

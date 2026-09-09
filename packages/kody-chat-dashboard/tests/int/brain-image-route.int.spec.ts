@@ -140,6 +140,8 @@ function mockPersonalAccountWithoutFlyToken() {
 describe("GET /api/kody/brain/image", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-02T12:30:00.000Z"));
     mocks.readSave.mockResolvedValue(null);
     mocks.readRuntimeView.mockResolvedValue({
       desiredImageRef:

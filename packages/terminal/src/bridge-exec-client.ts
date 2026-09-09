@@ -10,6 +10,17 @@ function bridgeBaseUrl(url: string): string {
   return url.replace(/\/+$/, "");
 }
 
+export class BridgeExecRequestError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly code: string,
+  ) {
+    super(message);
+    this.name = "BridgeExecRequestError";
+  }
+}
+
 export async function runTerminalBridgeLocalExec(input: {
   bridgeUrl: string;
   token: string;
@@ -115,8 +126,10 @@ export async function getTerminalBridgeExecJob(input: {
     error?: string;
   };
   if (!res.ok || !body.ok || !body.job) {
-    throw new Error(
+    throw new BridgeExecRequestError(
       body.error ?? `Bridge job read failed (HTTP ${res.status})`,
+      res.status,
+      res.status === 404 ? "job_not_found" : "job_read_failed",
     );
   }
   return body.job;
