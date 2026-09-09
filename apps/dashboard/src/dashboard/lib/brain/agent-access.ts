@@ -11,6 +11,10 @@ import {
   backendApi,
   getConvexClient,
 } from "@dashboard/lib/backend/convex-backend";
+import {
+  ACCOUNT_REPOSITORY_CREDENTIAL_NAME,
+  parseAccountRepositoryCredentials,
+} from "@dashboard/lib/auth/account-repository-connections";
 
 export const privateHeaders = { "Cache-Control": "no-store, max-age=0" };
 export const agentError = (error: string, status: number) =>
@@ -43,10 +47,24 @@ export async function requireAgentRepository(
 ) {
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository))
     return agentError("repository_required", 400);
-  const token = await getPersonalBrainServices().getCredential(
-    userId,
-    "GITHUB_TOKEN",
-  );
+  const services = getPersonalBrainServices();
+  let token = await services.getCredential(userId, "GITHUB_TOKEN");
+  if (!token) {
+    const saved = await services.getCredential(
+      userId,
+      ACCOUNT_REPOSITORY_CREDENTIAL_NAME,
+    );
+    if (saved) {
+      try {
+        token =
+          parseAccountRepositoryCredentials(JSON.parse(saved)).find(
+            (entry) => `${entry.owner}/${entry.repo}` === repository,
+          )?.token ?? null;
+      } catch {
+        token = null;
+      }
+    }
+  }
   if (!token) return agentError("personal_github_token_missing", 403);
   const [owner, repo] = repository.split("/");
   return verifyRepoWriteAccess(
