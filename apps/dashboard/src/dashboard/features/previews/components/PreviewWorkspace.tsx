@@ -216,6 +216,10 @@ export function PreviewWorkspace({
 
   // Remember the last-picked environment per repo so /preview restores it.
   const [storedId, setStoredId] = useState<string | null>(null);
+  const selectionScope = owner && repo ? selectionKey(owner, repo) : "";
+  const [loadedSelectionScope, setLoadedSelectionScope] = useState<
+    string | null
+  >(null);
   const [websiteName, setWebsiteName] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
   const pendingSelectionRef = useRef<string | null>(null);
@@ -224,19 +228,26 @@ export function PreviewWorkspace({
     revision: number;
   } | null>(null);
   useEffect(() => {
-    if (!owner || !repo) return;
+    setStoredId(null);
+    if (!selectionScope) {
+      setLoadedSelectionScope("");
+      return;
+    }
     try {
-      const stored = window.localStorage.getItem(selectionKey(owner, repo));
+      const stored = window.localStorage.getItem(selectionScope);
       if (stored) setStoredId(stored);
     } catch {
       /* private mode — ignore */
+    } finally {
+      setLoadedSelectionScope(selectionScope);
     }
-  }, [owner, repo]);
+  }, [selectionScope]);
 
   // Keep selection valid: default to the stored env or first env when none
   // chosen, or when the chosen one was removed.
   useEffect(() => {
     if (configQuery.isLoading || !configLoaded) return;
+    if (loadedSelectionScope !== selectionScope) return;
     if (environments.length === 0) {
       if (selectedId) router.replace(scopedHref("/preview"));
       return;
@@ -277,11 +288,13 @@ export function PreviewWorkspace({
     configLoaded,
     configQuery.isLoading,
     environments,
+    loadedSelectionScope,
     owner,
     repo,
     router,
     scopedHref,
     selectedId,
+    selectionScope,
     storedId,
   ]);
 

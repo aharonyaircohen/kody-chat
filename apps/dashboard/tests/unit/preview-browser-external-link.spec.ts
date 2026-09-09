@@ -139,6 +139,18 @@ describe("PreviewBrowser new-tab action", () => {
     );
   });
 
+  it("hydrates the saved bookmark before choosing a fallback", () => {
+    expect(PREVIEW_WORKSPACE_SOURCE).toMatch(
+      /const \[loadedSelectionScope, setLoadedSelectionScope\] = useState<[\s\S]*?null>\(null\);/,
+    );
+    expect(PREVIEW_WORKSPACE_SOURCE).toMatch(
+      /if \(loadedSelectionScope !== selectionScope\) return;/,
+    );
+    expect(PREVIEW_WORKSPACE_SOURCE).toContain(
+      "setLoadedSelectionScope(selectionScope);",
+    );
+  });
+
   it("shows browser Machines while preserving the stable repository app", () => {
     expect(FLY_MACHINES_TABLE_SOURCE).toMatch(
       /const FEATURE_ORDER[\s\S]*"browser"/,

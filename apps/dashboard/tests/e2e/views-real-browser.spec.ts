@@ -235,6 +235,15 @@ test("bookmarks, browser controls, picker, URL saving, and stream state stay ali
   );
   await expect.poll(() => sessionStarts).toBe(1);
 
+  // A browser refresh can briefly mount an old/invalid route id while the
+  // saved-view list is loading. The last selected bookmark must win instead
+  // of falling back to the first saved view.
+  await page.goto("/repo/test-owner/test-repo/preview/removed-bookmark");
+  await expect(page).toHaveURL(/\/preview\/iana$/);
+  await expect(address).toHaveValue(
+    "https://www.iana.org/help/example-domains",
+  );
+
   await expect(page.getByLabel("Go back in preview")).toBeEnabled({
     timeout: 5_000,
   });
