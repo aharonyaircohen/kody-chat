@@ -2,8 +2,8 @@ import { z } from "zod";
 
 export const KODY_MCP_PROTOCOL_VERSION = "2026-07-28";
 export const KODY_MCP_LEGACY_PROTOCOL_VERSION = "2025-11-25";
-export const KODY_MCP_CONTRACT_VERSION = "2026-09-04.1";
-export const KODY_MCP_SERVER_VERSION = "0.6.0";
+export const KODY_MCP_CONTRACT_VERSION = "2026-09-08.1";
+export const KODY_MCP_SERVER_VERSION = "0.7.0";
 
 export const permissionClassSchema = z.enum([
   "read",

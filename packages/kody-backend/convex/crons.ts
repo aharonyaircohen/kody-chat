@@ -10,4 +10,10 @@ crons.interval(
   internal.loopWakes.dispatchDue,
 );
 
+crons.interval(
+  "requeue interrupted Brain restores",
+  { minutes: 1 },
+  internal.brainRestoreJobs.requeueStale,
+);
+
 export default crons;

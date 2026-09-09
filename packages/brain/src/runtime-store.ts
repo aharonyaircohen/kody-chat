@@ -65,6 +65,7 @@ export interface BrainRuntimeOperation {
   startedAt: string;
   updatedAt: string;
   error?: string;
+  recoveredImageRef?: string;
 }
 
 export interface BrainRuntimeStateFile {
@@ -106,7 +107,9 @@ function isRuntimeOperation(value: unknown): value is BrainRuntimeOperation {
     isValidBrainImageRef(v.imageRef) &&
     typeof v.startedAt === "string" &&
     typeof v.updatedAt === "string" &&
-    (v.error === undefined || typeof v.error === "string")
+    (v.error === undefined || typeof v.error === "string") &&
+    (v.recoveredImageRef === undefined ||
+      typeof v.recoveredImageRef === "string")
   );
 }
 

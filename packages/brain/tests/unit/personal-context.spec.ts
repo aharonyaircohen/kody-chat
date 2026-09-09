@@ -86,6 +86,30 @@ describe("personal Brain context", () => {
     ).toMatchObject({ ok: false, status: 401, error: "github_token_invalid" });
   });
 
+  it("derives the GitHub registry owner from a stored PAT for worker restores", async () => {
+    setPersonalBrainServices({
+      resolveUser: vi.fn().mockResolvedValue({ id: "user-1", label: "User" }),
+      getCredential: vi.fn(),
+      getCredentials: vi.fn().mockResolvedValue({
+        FLY_API_TOKEN: "fly-token",
+        GITHUB_TOKEN: "stored-pat",
+      }),
+      loadState: vi.fn(),
+      saveState: vi.fn(),
+    });
+    vi.mocked(resolveActorFromToken).mockResolvedValue({
+      login: "stored-owner",
+      githubId: 456,
+      avatarUrl: "",
+    });
+    const result = await resolvePersonalBrainContext();
+    expect(resolveActorFromToken).toHaveBeenCalledWith("stored-pat");
+    expect(result).toMatchObject({
+      ok: true,
+      context: { githubToken: "stored-pat", githubAccount: "stored-owner" },
+    });
+  });
+
   it("rejects unauthenticated requests", async () => {
     setPersonalBrainServices({
       resolveUser: vi.fn().mockResolvedValue(null),

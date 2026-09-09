@@ -61,7 +61,7 @@ describe("Brain bounded context architecture", () => {
       "manageBrainServer(",
     );
     expect(source("../brain/src/routes/image-apply.ts")).toContain(
-      "applyBrainImage(",
+      "enqueueRestore",
     );
     // Fly-backed terminal routes live in the Fly package, not Kody Chat.
   });

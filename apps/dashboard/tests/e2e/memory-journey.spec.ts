@@ -211,10 +211,31 @@ test("creates, revises, reviews, and deletes typed memory", async ({
     });
   });
   await page.route("**/api/kody/agents", (route) => json(route, { agent: [] }));
+  await page.route("**/api/kody/chat/conversations**", (route) => {
+    const request = route.request();
+    const pathname = new URL(request.url()).pathname;
+    const isCollection = pathname.endsWith("/conversations");
+    return json(
+      route,
+      request.method() === "GET" && isCollection
+        ? { conversations: [] }
+        : request.method() === "GET"
+          ? {
+              conversation: null,
+              entries: [],
+              checkpoints: [],
+              runtimeBindings: [],
+              attachments: [],
+            }
+          : { ok: true },
+      request.method() === "POST" && isCollection ? 201 : 200,
+    );
+  });
+  await page.route("**/api/kody/models*", (route) =>
+    json(route, { models: [] }),
+  );
   for (const path of [
-    "models",
     "commands",
-    "chat/conversations**",
     "system-events",
     "guided-flows",
   ]) {

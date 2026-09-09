@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   MemoryAccessDeniedError,
+  MemoryConflictError,
   MemoryNotFoundError,
   createMemoryApplication,
   type Memory,
@@ -282,6 +283,38 @@ describe("memory application", () => {
 
     expect(corrected.currentRevisionId).toBe("revision-2");
     expect(corrected.content.summary).toBe("Prefers short replies.");
+    expect(store.revisions.size).toBe(2);
+  });
+
+  it("rejects stale corrections and retires memory with an auditable revision", async () => {
+    const { application, store } = createTestApplication();
+    const created = await application.remember({
+      principal,
+      scope: { kind: "user", userId: "user-1" },
+      kind: "fact",
+      content: { title: "Fact", summary: "Current", body: "Current body" },
+      evidence: [{ source: "message", id: "message-1" }],
+      reason: "Initial fact.",
+    });
+    await expect(
+      application.correct({
+        principal,
+        memoryId: created.id,
+        expectedRevisionId: "stale",
+        kind: created.kind,
+        content: created.content,
+        evidence: [{ source: "message", id: "message-2" }],
+        reason: "Stale correction.",
+      }),
+    ).rejects.toBeInstanceOf(MemoryConflictError);
+    const retired = await application.retire({
+      principal,
+      memoryId: created.id,
+      expectedRevisionId: created.currentRevisionId,
+      evidence: [{ source: "message", id: "message-3" }],
+      reason: "No longer current.",
+    });
+    expect(retired.status).toBe("superseded");
     expect(store.revisions.size).toBe(2);
   });
 

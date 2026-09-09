@@ -43,6 +43,14 @@ const services = {
   requestWebhookReconcile: vi.fn(),
   requestNotificationRuleCreate: vi.fn(),
   requestNotificationRuleDelete: vi.fn(),
+  listMemories: vi.fn(),
+  getMemory: vi.fn(),
+  createMemory: vi.fn(),
+  searchMemories: vi.fn(),
+  getMemoryHistory: vi.fn(),
+  reviseMemory: vi.fn(),
+  retireMemory: vi.fn(),
+  deleteMemory: vi.fn(),
 };
 
 vi.mock("@kody-ade/backend/client", () => ({
@@ -125,6 +133,14 @@ describe("public MCP action catalog", () => {
       "work.handoff.create",
       "work.artifact.add",
       "context.search",
+      "memory.list",
+      "memory.get",
+      "memory.search",
+      "memory.history",
+      "memory.create",
+      "memory.revise",
+      "memory.retire",
+      "memory.delete",
       "policy.list",
       "policy.get",
       "instruction.get",
@@ -222,6 +238,108 @@ describe("public MCP action catalog", () => {
     });
   });
 
+  it("exposes the complete memory lifecycle through delegated actions", async () => {
+    services.listMemories.mockResolvedValue({ memories: [] });
+    services.getMemory.mockResolvedValue({ id: "memory-1" });
+    services.createMemory.mockResolvedValue({ id: "memory-1" });
+    services.searchMemories.mockResolvedValue({ items: [] });
+    services.getMemoryHistory.mockResolvedValue({
+      memoryId: "memory-1",
+      revisions: [],
+    });
+    services.reviseMemory.mockResolvedValue({
+      id: "memory-1",
+      currentRevisionId: "revision-2",
+    });
+    services.retireMemory.mockResolvedValue({
+      id: "memory-1",
+      status: "superseded",
+    });
+    services.deleteMemory.mockResolvedValue({ deleted: true });
+
+    await expect(
+      executeKodyAction(
+        "memory.list",
+        { scope: "repository", limit: 10 },
+        principal,
+        { services },
+      ),
+    ).resolves.toEqual({ memories: [] });
+    await expect(
+      executeKodyAction("memory.get", { memoryId: "memory-1" }, principal, {
+        services,
+      }),
+    ).resolves.toEqual({ id: "memory-1" });
+    await expect(
+      executeKodyAction(
+        "memory.create",
+        {
+          scope: "repository",
+          kind: "fact",
+          title: "T",
+          summary: "S",
+          body: "B",
+        },
+        principal,
+        { services, idempotencyKey: "memory-create" },
+      ),
+    ).resolves.toEqual({ id: "memory-1" });
+    await expect(
+      executeKodyAction(
+        "memory.search",
+        { query: "T", scope: "repository", limit: 10 },
+        principal,
+        { services },
+      ),
+    ).resolves.toEqual({ items: [] });
+    await expect(
+      executeKodyAction("memory.history", { memoryId: "memory-1" }, principal, {
+        services,
+      }),
+    ).resolves.toEqual({ memoryId: "memory-1", revisions: [] });
+    await expect(
+      executeKodyAction(
+        "memory.revise",
+        {
+          memoryId: "memory-1",
+          expectedRevisionId: "revision-1",
+          kind: "fact",
+          title: "T",
+          summary: "S2",
+          body: "B2",
+        },
+        principal,
+        { services, idempotencyKey: "memory-revise" },
+      ),
+    ).resolves.toMatchObject({ currentRevisionId: "revision-2" });
+    await expect(
+      executeKodyAction(
+        "memory.retire",
+        {
+          memoryId: "memory-1",
+          expectedRevisionId: "revision-2",
+          reason: "Done",
+        },
+        principal,
+        { services, idempotencyKey: "memory-retire" },
+      ),
+    ).resolves.toMatchObject({ status: "superseded" });
+    await expect(
+      executeKodyAction("memory.delete", { memoryId: "memory-1" }, principal, {
+        services,
+        idempotencyKey: "memory-delete",
+      }),
+    ).resolves.toEqual({ deleted: true });
+    expect(getKodyAction("memory.create")).toMatchObject({
+      permission: "write",
+      sideEffects: true,
+    });
+    expect(getKodyAction("memory.list")).toMatchObject({
+      permission: "read",
+      sideEffects: false,
+    });
+  });
+
   it("executes all initial read-only actions under verified scope", async () => {
     await expect(
       executeKodyAction("repository.scope.get", {}, principal),
@@ -229,7 +347,7 @@ describe("public MCP action catalog", () => {
     await expect(
       executeKodyAction("mcp.contract.get", {}, principal),
     ).resolves.toMatchObject({
-      contractVersion: "2026-09-04.1",
+      contractVersion: "2026-09-08.1",
       workSystem: "todos",
     });
     await expect(

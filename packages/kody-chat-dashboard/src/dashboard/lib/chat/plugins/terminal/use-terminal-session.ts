@@ -9,6 +9,7 @@ import {
 
 import { authHeaders } from "../../../kody-chat-live-session";
 import { getStoredBrainTerminalActivityLimit } from "../../../integration-api";
+import { fetchWithTimeout, TERMINAL_START_TIMEOUT_MS } from "./terminal-http";
 import {
   TerminalSessionClient,
   TerminalSessionRequestError,
@@ -115,11 +116,11 @@ export function useTerminalSession({
       activityLimit: getStoredBrainTerminalActivityLimit(),
       getSize: () => getSizeRef.current(),
       requestSession: async (body) => {
-        const response = await fetch("/api/kody/terminal/session", {
+        const response = await fetchWithTimeout("/api/kody/terminal/session", {
           method: "POST",
           headers: { "Content-Type": "application/json", ...authHeaders() },
           body: JSON.stringify(body),
-        });
+        }, TERMINAL_START_TIMEOUT_MS);
         const value = (await response.json().catch(() => ({}))) as {
           webSocketUrl?: string;
           session?: unknown;

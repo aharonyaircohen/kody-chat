@@ -10,7 +10,7 @@
  * KodyChat.tsx (phase 1.6d). Owns:
  *   - the per-mount terminal registry (useChatTerminalRegistry) + aliases
  *   - display-mode arbitration (registry.resolveDisplayMode → chatMode)
- *   - checkpoint load/save fetches + the pending-restore hand-off
+ *   - checkpoint saves
  *   - Kody→terminal payload hand-off (sendKodyTerminalPayloadToTerminal)
  *   - composer→terminal line sends (sendInputToTerminal)
  *   - terminal chrome state (per-instance ChatTerminalChromeState) and
@@ -50,12 +50,8 @@ import { authHeaders } from "../kody-chat-live-session";
 // heavy render-gated components load via React.lazy further down.
 import { LOCAL_TERMINAL_TRANSPORT } from "../chat/plugins/terminal/registry-state";
 import { TERMINAL_DISPLAY_MODE } from "../chat/plugins/terminal/mode";
-import {
-  checkpointTransportFromChatTransport,
-  shouldLoadTerminalCheckpoint,
-  terminalCheckpointLoadKey,
-  terminalCheckpointSearchParams,
-} from "../chat/plugins/terminal/checkpoints";
+import { checkpointTransportFromChatTransport } from "../chat/plugins/terminal/checkpoints";
+import { TerminalTopControls } from "../chat/plugins/terminal/TerminalControls";
 import { useBrainImageSave } from "../chat/plugins/terminal/use-brain-image-save";
 import { useChatTerminalRegistry } from "../chat/plugins/terminal/useChatTerminalRegistry";
 import type {
@@ -65,10 +61,7 @@ import type {
   ChatTerminalTransport,
 } from "../chat/plugins/terminal/types";
 import type { ChatTerminalSurfaceHandle } from "../chat/plugins/terminal/ChatTerminalSurface";
-import {
-  terminalCheckpointLabel,
-  type TerminalCheckpoint,
-} from "@kody-ade/terminal/checkpoint-types";
+import { type TerminalCheckpoint } from "@kody-ade/terminal/checkpoint-types";
 
 // Render-gated terminal plugin components (Step 7 bundle check): loaded via
 // React.lazy so the xterm surface, Fly connection stack and terminal chrome
@@ -85,11 +78,6 @@ const ChatTerminalSurface = lazy(() =>
 const TerminalModeToggle = lazy(() =>
   import("../chat/plugins/terminal/TerminalControls").then((m) => ({
     default: m.TerminalModeToggle,
-  })),
-);
-const TerminalTopControls = lazy(() =>
-  import("../chat/plugins/terminal/TerminalControls").then((m) => ({
-    default: m.TerminalTopControls,
   })),
 );
 const TerminalBottomControls = lazy(() =>
@@ -207,86 +195,43 @@ export function useTerminalHost({
   // Brain image save action + status (plugin hook — called here so a save
   // keeps polling while the user leaves terminal mode).
   const brainImageSave = useBrainImageSave();
-  const [pendingTerminalRestore, setPendingTerminalRestore] =
-    useState<TerminalCheckpoint | null>(null);
   const [pendingKodyTerminalPayload, setPendingKodyTerminalPayload] = useState<
     string | null
   >(null);
-  const loadedTerminalCheckpointKeyRef = useRef<string | null>(null);
 
   const terminalSurfaceRefs: MutableRefObject<
     Record<string, ChatTerminalSurfaceHandle | null>
   > = useRef({});
 
-  const loadTerminalCheckpoint = useCallback(
-    async (transport: ChatTerminalTransport, chatSessionId: string) => {
-      const headers = authHeaders();
-      if (Object.keys(headers).length === 0) return;
-      try {
-        const res = await fetch(
-          `/api/kody/chat/terminal/checkpoint${terminalCheckpointSearchParams(
-            actorLogin,
-            transport,
-            chatSessionId,
-          )}`,
-          { headers },
-        );
-        const body = (await res.json().catch(() => ({}))) as {
-          checkpoint?: TerminalCheckpoint | null;
-          message?: string;
-          error?: string;
-        };
-        if (!res.ok) {
-          throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
-        }
-        if (body.checkpoint?.output?.trim()) {
-          setPendingTerminalRestore(body.checkpoint);
-        }
-      } catch (err) {
-        toast.error(
-          err instanceof Error
-            ? err.message
-            : "Failed to load terminal checkpoint",
-        );
+  // Brain image replacement changes the machine behind the logical Brain
+  // target. Invalidate the visible terminal immediately, then create a fresh
+  // server session once the apply request reports success. This prevents the
+  // user from being left with a connected-looking terminal backed by the old
+  // machine.
+  useEffect(() => {
+    const handleBrainRuntimeChange = (event: Event) => {
+      if (activeTerminalTransport.type !== "brain") return;
+      const phase = (event as CustomEvent<{ phase?: string }>).detail?.phase;
+      const terminal = activeTerminalInstanceId
+        ? terminalSurfaceRefs.current[activeTerminalInstanceId]
+        : null;
+      if (!terminal) return;
+      if (phase === "start" || phase === "failed") {
+        terminal.prepareForRuntimeChange();
+      } else if (phase === "complete") {
+        void terminal.reconnectFresh();
       }
-    },
-    [actorLogin],
-  );
-  useEffect(() => {
-    if (!activeSessionIdForReset) return;
-    const checkpointKey = terminalCheckpointLoadKey({
-      actorLogin,
-      activeSessionId: activeSessionIdForReset,
-      activeTargetValue: activeTerminalValue,
-    });
-    if (
-      !shouldLoadTerminalCheckpoint({
-        chatMode,
-        activeSessionId: activeSessionIdForReset,
-        hasLiveTerminal: activeSessionHasLiveTerminal,
-        loadedKey: loadedTerminalCheckpointKeyRef.current,
-        nextKey: checkpointKey,
-      })
-    ) {
-      return;
-    }
-    loadedTerminalCheckpointKeyRef.current = checkpointKey;
-    void loadTerminalCheckpoint(
-      activeTerminalTransport,
-      activeSessionIdForReset,
+    };
+    window.addEventListener(
+      "kody:brain-runtime-change",
+      handleBrainRuntimeChange,
     );
-  }, [
-    activeSessionIdForReset,
-    activeTerminalTransport,
-    activeTerminalValue,
-    activeSessionHasLiveTerminal,
-    actorLogin,
-    chatMode,
-    loadTerminalCheckpoint,
-  ]);
-  useEffect(() => {
-    loadedTerminalCheckpointKeyRef.current = null;
-  }, [sessionStoreScope]);
+    return () =>
+      window.removeEventListener(
+        "kody:brain-runtime-change",
+        handleBrainRuntimeChange,
+      );
+  }, [activeTerminalInstanceId, activeTerminalTransport.type]);
 
   const saveTerminalCheckpoint = useCallback(
     async (
@@ -410,26 +355,6 @@ export function useTerminalHost({
     setSlashMenuOpen(false);
   }, [terminalRegistry, setSlashMenuOpen]);
 
-  useEffect(() => {
-    if (
-      !pendingTerminalRestore ||
-      chatMode !== "terminal" ||
-      !activeTerminalInstanceId
-    ) {
-      return;
-    }
-    const terminal = terminalSurfaceRefs.current[activeTerminalInstanceId];
-    if (!terminal) return;
-    terminal.restoreSnapshot({
-      name: `${terminalCheckpointLabel(
-        pendingTerminalRestore.transport,
-      )} checkpoint`,
-      output: pendingTerminalRestore.output,
-    });
-    setPendingTerminalRestore(null);
-    toast.success("Terminal checkpoint restored");
-  }, [activeTerminalInstanceId, chatMode, pendingTerminalRestore]);
-
   const sendInputToTerminal = useCallback(() => {
     const command = input;
     if (!command.trim()) return;
@@ -487,20 +412,18 @@ export function useTerminalHost({
 
   const terminalTopControls =
     chatMode === "terminal" ? (
-      <Suspense fallback={null}>
-        <TerminalTopControls
-          activeTargetValue={activeTerminalValue}
-          onSelectTarget={handleTerminalTargetSelect}
-          activeTransport={activeTerminalTransport}
-          terminalMachines={terminalMachines}
-          flyInventoryError={flyInventoryError}
-          flyInventoryLoading={flyInventoryLoading}
-          onRefreshMachines={() => void refreshChatTerminalFlyMachines()}
-          brainImageBusy={brainImageSave.busy}
-          brainImageSaveLabel={brainImageSave.label}
-          onSaveBrainImage={() => void brainImageSave.save()}
-        />
-      </Suspense>
+      <TerminalTopControls
+        activeTargetValue={activeTerminalValue}
+        onSelectTarget={handleTerminalTargetSelect}
+        activeTransport={activeTerminalTransport}
+        terminalMachines={terminalMachines}
+        flyInventoryError={flyInventoryError}
+        flyInventoryLoading={flyInventoryLoading}
+        onRefreshMachines={() => void refreshChatTerminalFlyMachines()}
+        brainImageBusy={brainImageSave.busy}
+        brainImageSaveLabel={brainImageSave.label}
+        onSaveBrainImage={() => void brainImageSave.save()}
+      />
     ) : null;
   const activeTerminalSurface = activeTerminalInstanceId
     ? terminalSurfaceRefs.current[activeTerminalInstanceId]

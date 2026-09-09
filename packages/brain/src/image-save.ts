@@ -279,6 +279,9 @@ tar -C / \\
   --exclude=media \\
   --exclude=lost+found \\
   --exclude=var/tmp \\
+  --exclude=etc/kody-ssh \\
+  --exclude=root/.kody-ssh \\
+  --exclude='home/*/.kody-ssh' \\
   -czf "$tmp" . || status=$?
 if [ "$status" -gt 1 ]; then exit "$status"; fi
 mv "$tmp" "$archive"

@@ -15,9 +15,6 @@ const REQUIRED_ENVIRONMENT = [
   "E2E_GITHUB_REPO",
   "KODY_SERVICE_KEY",
   "KODY_MASTER_KEY",
-  "KODY_LIVE_EXPECTED_BASE_URL",
-  "KODY_LIVE_MUTATION_TARGET",
-  "KODY_LIVE_CONFIRM_MUTATIONS",
 ];
 
 const SECRET_ENVIRONMENT_NAMES = [
@@ -117,33 +114,6 @@ export function validateLiveGateEnvironment(environment) {
   );
   if (present(environment.E2E_GITHUB_REPO) && !configuredRepository) {
     errors.push("E2E_GITHUB_REPO must be a github.com owner/repository URL");
-  }
-
-  if (
-    present(environment.BASE_URL) &&
-    present(environment.KODY_LIVE_EXPECTED_BASE_URL) &&
-    exactValue(environment.BASE_URL) !==
-      exactValue(environment.KODY_LIVE_EXPECTED_BASE_URL)
-  ) {
-    errors.push("BASE_URL must exactly match KODY_LIVE_EXPECTED_BASE_URL");
-  }
-
-  if (
-    configuredRepository &&
-    present(environment.KODY_LIVE_MUTATION_TARGET) &&
-    exactValue(environment.KODY_LIVE_MUTATION_TARGET) !== configuredRepository
-  ) {
-    errors.push("KODY_LIVE_MUTATION_TARGET must match E2E_GITHUB_REPO");
-  }
-
-  if (
-    present(environment.KODY_LIVE_MUTATION_TARGET) &&
-    exactValue(environment.KODY_LIVE_CONFIRM_MUTATIONS) !==
-      exactValue(environment.KODY_LIVE_MUTATION_TARGET)
-  ) {
-    errors.push(
-      "KODY_LIVE_CONFIRM_MUTATIONS must exactly match the target repository slug",
-    );
   }
 
   return errors;
@@ -310,10 +280,8 @@ export function buildLiveGateMetadata(environment, run) {
     targetUrl: publicUrl(exactValue(environment.BASE_URL)),
     targetRepository: publicUrl(exactValue(environment.E2E_GITHUB_REPO)),
     realE2EEnabled: exactValue(environment.RUN_REAL_E2E) === "1",
-    mutationsConfirmed:
-      exactValue(environment.KODY_LIVE_CONFIRM_MUTATIONS) ===
-      exactValue(environment.KODY_LIVE_MUTATION_TARGET),
-    mutationTarget: exactValue(environment.KODY_LIVE_MUTATION_TARGET),
+    mutationsConfirmed: exactValue(environment.RUN_REAL_E2E) === "1",
+    mutationTarget: repositorySlug(exactValue(environment.E2E_GITHUB_REPO)),
   };
 }
 

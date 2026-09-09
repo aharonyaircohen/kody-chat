@@ -91,6 +91,7 @@ export function shouldSendBrainActivityLimit(
 const SOCKET_OPEN = 1;
 const MAX_SUBSCRIPTION_RETRIES = 4;
 const RETRY_BASE_MS = 750;
+const SUBSCRIPTION_READY_TIMEOUT_MS = 20_000;
 
 function parseMessage(
   raw: string,
@@ -128,10 +129,13 @@ export class TerminalSessionClient {
   private identity: TerminalSessionInput | null = null;
   private session: TerminalSession | null = null;
   private retryTimer: number | null = null;
+  private readinessTimer: number | null = null;
   private retryCount = 0;
+  private lastRetryReason: string | null = null;
   private connectSequence = 0;
   private stopped = false;
   private startupBlocked = false;
+  private subscriptionReady = false;
   private state: TerminalSessionClientState = {
     connection: "idle",
     session: null,
@@ -195,6 +199,12 @@ export class TerminalSessionClient {
     this.retryTimer = null;
   }
 
+  private clearReadinessTimer(): void {
+    if (this.readinessTimer === null) return;
+    this.cancelSchedule(this.readinessTimer);
+    this.readinessTimer = null;
+  }
+
   private canRetry(): boolean {
     return (
       !this.stopped &&
@@ -207,17 +217,22 @@ export class TerminalSessionClient {
   private retry(reason: string): void {
     if (!this.canRetry() || this.retryTimer !== null) return;
     if (this.retryCount >= MAX_SUBSCRIPTION_RETRIES) {
+      const diagnosis =
+        this.lastRetryReason && reason === "network connection closed"
+          ? this.lastRetryReason
+          : reason;
       this.publish(
         "error",
-        `Terminal subscription failed after ${MAX_SUBSCRIPTION_RETRIES} attempts: ${reason}`,
+        `Terminal subscription failed after ${MAX_SUBSCRIPTION_RETRIES} attempts: ${diagnosis}`,
         {
           code: "terminal_subscription_failed",
-          message: `Terminal subscription failed after ${MAX_SUBSCRIPTION_RETRIES} attempts: ${reason}`,
+          message: `Terminal subscription failed after ${MAX_SUBSCRIPTION_RETRIES} attempts: ${diagnosis}`,
           action: "retry",
         },
       );
       return;
     }
+    if (reason !== "network connection closed") this.lastRetryReason = reason;
     this.retryCount += 1;
     this.publish("connecting");
     this.retryTimer = this.schedule(
@@ -257,6 +272,7 @@ export class TerminalSessionClient {
     this.options.onEvent?.(event);
     if (this.session.state === "ready") {
       this.retryCount = 0;
+      this.lastRetryReason = null;
       this.publish("connected");
     } else if (this.session.state === "detached") {
       this.publish("connecting");
@@ -285,6 +301,8 @@ export class TerminalSessionClient {
       const socket = this.options.createSocket(response.webSocketUrl);
       this.socket?.close(1000, "terminal subscription replaced");
       this.socket = socket;
+      this.subscriptionReady = false;
+      this.clearReadinessTimer();
       socket.onopen = () => {
         if (this.socket !== socket || this.stopped) return;
         const { cols, rows } = this.options.getSize();
@@ -296,6 +314,17 @@ export class TerminalSessionClient {
             rows,
           }),
         );
+        this.readinessTimer = this.schedule(() => {
+          this.readinessTimer = null;
+          if (this.socket === socket && !this.subscriptionReady) {
+            try {
+              socket.close(1013, "terminal readiness timed out");
+            } catch {
+              // The retry below still runs when a socket implementation rejects close.
+            }
+            this.retry("terminal readiness timed out");
+          }
+        }, SUBSCRIPTION_READY_TIMEOUT_MS);
       };
       socket.onmessage = ({ data }) => {
         if (this.socket !== socket || this.stopped) return;
@@ -330,6 +359,17 @@ export class TerminalSessionClient {
           }
           return;
         }
+        if (message.event.type === "state") {
+          if (message.event.state === "ready") {
+            this.subscriptionReady = true;
+            this.clearReadinessTimer();
+          } else if (
+            message.event.state === "failed" ||
+            message.event.state === "exited"
+          ) {
+            this.subscriptionReady = false;
+          }
+        }
         this.applyEvent(message.event);
       };
       socket.onerror = () => {
@@ -337,6 +377,8 @@ export class TerminalSessionClient {
       };
       socket.onclose = () => {
         if (this.socket !== socket) return;
+        this.clearReadinessTimer();
+        this.subscriptionReady = false;
         this.socket = null;
         this.retry("network connection closed");
       };
@@ -358,6 +400,8 @@ export class TerminalSessionClient {
   connect(): Promise<void> {
     this.stopped = false;
     this.startupBlocked = false;
+    this.subscriptionReady = false;
+    this.lastRetryReason = null;
     this.clearRetry();
     return this.openSubscription();
   }
@@ -371,6 +415,7 @@ export class TerminalSessionClient {
     this.stopped = false;
     this.startupBlocked = false;
     this.retryCount = 0;
+    this.lastRetryReason = null;
     this.clearRetry();
     return this.openSubscription();
   }
@@ -379,6 +424,8 @@ export class TerminalSessionClient {
     this.stopped = true;
     this.connectSequence += 1;
     this.clearRetry();
+    this.clearReadinessTimer();
+    this.subscriptionReady = false;
     if (this.socket?.readyState === SOCKET_OPEN && this.identity) {
       this.socket.send(
         JSON.stringify({ type: "detach", sessionId: this.identity.id }),
@@ -393,6 +440,7 @@ export class TerminalSessionClient {
     if (
       this.socket?.readyState !== SOCKET_OPEN ||
       !this.identity ||
+      !this.subscriptionReady ||
       this.session?.state !== "ready"
     ) {
       return false;
@@ -409,7 +457,11 @@ export class TerminalSessionClient {
   }
 
   resize(cols: number, rows: number): boolean {
-    if (this.socket?.readyState !== SOCKET_OPEN || !this.identity) return false;
+    if (
+      this.socket?.readyState !== SOCKET_OPEN ||
+      !this.identity ||
+      !this.subscriptionReady
+    ) return false;
     this.socket.send(
       JSON.stringify({
         type: "resize",
@@ -425,6 +477,7 @@ export class TerminalSessionClient {
     if (
       this.socket?.readyState !== SOCKET_OPEN ||
       !this.identity ||
+      !this.subscriptionReady ||
       this.session?.state !== "ready"
     )
       return false;
@@ -438,6 +491,7 @@ export class TerminalSessionClient {
     if (
       this.socket?.readyState !== SOCKET_OPEN ||
       !this.identity ||
+      !this.subscriptionReady ||
       !this.session
     ) {
       return false;

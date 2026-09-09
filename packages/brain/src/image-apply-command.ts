@@ -19,6 +19,7 @@ export interface ApplyBrainImageCommandInput {
   dashboardUrl: string;
   imageRef?: string;
   reset?: boolean;
+  operationId?: string;
 }
 
 export async function applyBrainImage(
@@ -36,7 +37,7 @@ export async function applyBrainImage(
     );
   }
   return applyBrainImageToRuntime({
-    owner: context.githubOwner ?? context.account,
+    owner: context.githubOwner ?? context.githubAccount ?? context.account,
     repo: "personal-brain",
     account: context.account,
     githubAccount: context.githubAccount,
@@ -51,5 +52,6 @@ export async function applyBrainImage(
     perfTier: context.perfTier,
     imageRef: input.imageRef,
     resetExistingMachine: input.reset === true,
+    operationId: input.operationId,
   });
 }

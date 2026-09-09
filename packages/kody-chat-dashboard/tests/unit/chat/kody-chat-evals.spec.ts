@@ -57,6 +57,17 @@ describe("Kody chat evals", () => {
     );
   });
 
+  it("requires outcome-level context for every approval question", () => {
+    expect(prompt).toContain("Decision questions must be outcome-level");
+    expect(prompt).toContain("current state, why a decision is needed now");
+    expect(prompt).toContain("what approval will cause");
+    expect(prompt).toContain("recommendation and its tradeoff");
+    expect(prompt).toContain("Never ask permission to call a tool");
+    expect(prompt).toContain(
+      "repository actions, credentials, deployment, and destructive operations",
+    );
+  });
+
   it("does not encourage endless clarification loops in Vibe mode", () => {
     expect(prompt).not.toContain("Ask in small batches");
     expect(prompt).not.toContain("repeat. Stop ONLY");
@@ -143,9 +154,7 @@ describe("Kody chat evals", () => {
     expect(route).toContain(
       "settledToolAttempts(SHOW_VIEW_TOOL, MAX_SHOW_VIEW_ATTEMPTS)",
     );
-    expect(route).toContain(
-      'successfulToolResult("browser_capability_act")',
-    );
+    expect(route).toContain('successfulToolResult("browser_capability_act")');
     expect(route).toContain("successfulToolResult(FINAL_ANSWER_TOOL)");
   });
 
@@ -171,9 +180,7 @@ describe("Kody chat evals", () => {
     expect(route).toContain("createAgencyRequestApproval");
     expect(route).toContain("readAgencyRequestApproval");
     expect(route).toContain('activeTools: ["run_agency_request"]');
-    expect(route).toContain(
-      'successfulToolResult("update_agency_request")',
-    );
+    expect(route).toContain('successfulToolResult("update_agency_request")');
     expect(route).toContain("NEW_AGENCY_REQUEST_FLOW_ID");
     expect(route).toContain('activeTools: ["guided_flow_start"]');
     expect(route).toContain(

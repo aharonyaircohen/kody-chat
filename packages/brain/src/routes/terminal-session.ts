@@ -9,7 +9,22 @@ import { resolvePersonalBrainContext } from "../personal-context";
 import { resolveBrainService } from "../service-resolver";
 
 export async function POST(req: NextRequest) {
-  const resolved = await resolvePersonalBrainContext();
+  let resolved: Awaited<ReturnType<typeof resolvePersonalBrainContext>>;
+  try {
+    resolved = await resolvePersonalBrainContext();
+  } catch (error) {
+    const diagnostic = (error instanceof Error ? error.message : String(error))
+      .replace(/FlyV1[^\s"']+/g, "[redacted-token]")
+      .replace(/Bearer\s+[^\s"']+/gi, "Bearer [redacted-token]")
+      .slice(0, 240);
+    return NextResponse.json(
+      {
+        error: "terminal_context_failed",
+        message: `Could not load Brain terminal credentials. ${diagnostic || "Try again."}`,
+      },
+      { status: 503 },
+    );
+  }
   if (!resolved.ok)
     return NextResponse.json(
       { error: resolved.error },
@@ -94,12 +109,16 @@ export async function POST(req: NextRequest) {
         { status: error.status },
       );
     }
+    const diagnostic = (error instanceof Error ? error.message : String(error))
+      .replace(/FlyV1[^\s"']+/g, "[redacted-token]")
+      .replace(/Bearer\s+[^\s"']+/gi, "Bearer [redacted-token]")
+      .slice(0, 240);
     return NextResponse.json(
       {
         error: "terminal_session_failed",
-        message: "Could not connect to your Brain terminal. Try again.",
+        message: `Could not connect to your Brain terminal. ${diagnostic || "Try again."}`,
       },
-      { status: 502 },
+      { status: 503 },
     );
   }
 }

@@ -33,11 +33,11 @@ function registerPersonalBrainServices() {
 
 vi.mock("@kody-ade/base/auth", () => ({
   requireKodyAuth: vi.fn(async () => null),
-  resolveActorFromToken: vi.fn(async () => ({
-    login: "pat-owner",
-    githubId: 123,
-    avatarUrl: "",
-  })),
+  resolveActorFromToken: vi.fn(async (token: string) =>
+    token === "connected-pat"
+      ? { login: "pat-owner", githubId: 123, avatarUrl: "" }
+      : null,
+  ),
 }));
 
 vi.mock("@kody-ade/fly/plugin/runners/context", () => ({

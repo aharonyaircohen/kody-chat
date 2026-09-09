@@ -47,6 +47,14 @@ const activeToken = {
   expiresAt: "2026-10-02T08:00:00.000Z",
 };
 const phaseFourServices = {
+  listMemories: vi.fn(),
+  getMemory: vi.fn(),
+  createMemory: vi.fn(),
+  searchMemories: vi.fn(),
+  getMemoryHistory: vi.fn(),
+  reviseMemory: vi.fn(),
+  retireMemory: vi.fn(),
+  deleteMemory: vi.fn(),
   listWork: vi.fn(),
   getWork: vi.fn(),
   createWork: vi.fn(),
@@ -436,6 +444,47 @@ describe("public Kody MCP endpoint", () => {
     );
   });
 
+  it("executes memory lifecycle actions through the same MCP facade", async () => {
+    phaseFourServices.createMemory.mockResolvedValue({
+      memory: { id: "memory-1", currentRevisionId: "revision-1" },
+    });
+    const response = await handleKodyMcpPost(
+      request({
+        jsonrpc: "2.0",
+        id: "memory-create",
+        method: "tools/call",
+        params: {
+          name: "kody_execute_tool",
+          arguments: {
+            actionId: "memory.create",
+            idempotencyKey: "memory-create-1",
+            input: {
+              scope: "repository",
+              kind: "decision",
+              title: "MCP memory",
+              summary: "Agents share durable context.",
+              body: "Persist important decisions in Kody memory.",
+            },
+          },
+        },
+      }),
+      { services: phaseFourServices },
+    );
+    await expect(response.json()).resolves.toMatchObject({
+      result: {
+        isError: false,
+        structuredContent: { memory: { id: "memory-1" } },
+      },
+    });
+    expect(phaseFourServices.createMemory).toHaveBeenCalledWith(
+      expect.objectContaining({
+        idempotencyKey: "memory-create-1",
+        scope: "repository",
+      }),
+      expect.objectContaining({ tenantId: "acme/widgets" }),
+    );
+  });
+
   it("returns scoped status and full action details", async () => {
     const status = await mcpPOST(
       request({
@@ -808,7 +857,9 @@ describe("MCP access-token issuance", () => {
     expect((await tokenPOST(req)).status).toBe(201);
     expect(backend.mutation).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ scopes: ["mcp:read"] }),
+      expect.objectContaining({
+        scopes: ["mcp:read", "memory:personal:read", "memory:repository:read"],
+      }),
     );
   });
 

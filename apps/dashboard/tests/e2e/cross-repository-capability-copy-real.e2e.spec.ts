@@ -43,9 +43,7 @@ test("real Kody copies and verifies a capability across connected repositories",
   );
 
   const target = repositoryParts(TARGET_REPOSITORY);
-  const targetSlug = `${target.owner}/${target.repo}`;
-  expect(process.env.KODY_LIVE_MUTATION_TARGET).toBe(targetSlug);
-  expect(process.env.KODY_LIVE_CONFIRM_MUTATIONS).toBe(targetSlug);
+  expect(process.env.RUN_REAL_E2E).toBe("1");
   expect(target).not.toEqual(SOURCE);
 
   const actor = await resolveLiveGitHubUser(

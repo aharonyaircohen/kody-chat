@@ -61,8 +61,17 @@ export async function POST(req: NextRequest) {
       actorGithubId: access.actorGithubId,
       scopes:
         input.data.access === "read"
-          ? ["mcp:read"]
-          : ["mcp:read", "mcp:execute"],
+          ? ["mcp:read", "memory:personal:read", "memory:repository:read"]
+          : [
+              "mcp:read",
+              "mcp:execute",
+              "memory:personal:read",
+              "memory:personal:write",
+              "memory:personal:delete",
+              "memory:repository:read",
+              "memory:repository:write",
+              "memory:repository:delete",
+            ],
       createdAt: createdAt.toISOString(),
       expiresAt: expiresAt.toISOString(),
     },

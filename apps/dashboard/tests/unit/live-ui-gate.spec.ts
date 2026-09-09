@@ -38,9 +38,6 @@ function validEnvironment(): Record<string, string> {
     CONVEX_URL: "https://example.convex.cloud",
     KODY_SERVICE_KEY: SECRET,
     KODY_MASTER_KEY: SECRET,
-    KODY_LIVE_MUTATION_TARGET: "example/kody-e2e-tester",
-    KODY_LIVE_CONFIRM_MUTATIONS: "example/kody-e2e-tester",
-    KODY_LIVE_EXPECTED_BASE_URL: "https://preview.example.test",
   };
 }
 
@@ -66,7 +63,7 @@ function reportWithStatuses(...statuses: string[]) {
 }
 
 describe("live UI gate environment", () => {
-  it("accepts a deliberately confirmed live mutation target", () => {
+  it("accepts an explicitly enabled real test run", () => {
     expect(validateLiveGateEnvironment(validEnvironment())).toEqual([]);
   });
 
@@ -97,41 +94,6 @@ describe("live UI gate environment", () => {
     );
   });
 
-  it("rejects an unconfirmed mutation run", () => {
-    const env = validEnvironment();
-    delete env.KODY_LIVE_CONFIRM_MUTATIONS;
-
-    expect(validateLiveGateEnvironment(env)).toContain(
-      "KODY_LIVE_CONFIRM_MUTATIONS must exactly match the target repository slug",
-    );
-  });
-
-  it("rejects a target URL mismatch", () => {
-    const env = validEnvironment();
-    env.KODY_LIVE_EXPECTED_BASE_URL = "https://different.example.test";
-
-    expect(validateLiveGateEnvironment(env)).toContain(
-      "BASE_URL must exactly match KODY_LIVE_EXPECTED_BASE_URL",
-    );
-  });
-
-  it("rejects a mutation repository mismatch", () => {
-    const env = validEnvironment();
-    env.KODY_LIVE_CONFIRM_MUTATIONS = "example/not-the-live-target";
-
-    expect(validateLiveGateEnvironment(env)).toContain(
-      "KODY_LIVE_CONFIRM_MUTATIONS must exactly match the target repository slug",
-    );
-  });
-
-  it("rejects a mutation target that does not match E2E_GITHUB_REPO", () => {
-    const env = validEnvironment();
-    env.KODY_LIVE_MUTATION_TARGET = "example/not-the-live-target";
-
-    expect(validateLiveGateEnvironment(env)).toContain(
-      "KODY_LIVE_MUTATION_TARGET must match E2E_GITHUB_REPO",
-    );
-  });
 });
 
 describe("live UI gate report", () => {

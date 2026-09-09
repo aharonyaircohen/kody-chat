@@ -116,6 +116,7 @@ const inventoryServer = vi.hoisted(() => ({
 
 const flyPreview = vi.hoisted(() => ({
   startMachine: vi.fn(async () => {}),
+  flyHostname: vi.fn((app: string) => `https://${app}.fly.dev`),
 }));
 
 const bridge = vi.hoisted(() => ({
@@ -322,6 +323,10 @@ function mockSavedBrainInventory(
 
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => ({ ok: true, status: 200 }) as Response),
+  );
   // Host wiring normally done in instrumentation.ts — the session route needs
   // the brain remote-runtime connector registered into @kody-ade/terminal.
   registerBrainHostHooks();
@@ -423,6 +428,9 @@ beforeEach(() => {
     },
   );
   flyPreview.startMachine.mockResolvedValue(undefined);
+  flyPreview.flyHostname.mockImplementation(
+    (app: string) => `https://${app}.fly.dev`,
+  );
   bridge.findTerminalBridge.mockResolvedValue({
     app: "kody-terminal",
     url: "https://bridge.example/ws",

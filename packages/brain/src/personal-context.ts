@@ -40,8 +40,8 @@ export async function resolvePersonalBrainContext(
   const flyToken = credentials.FLY_API_TOKEN || credentials.FLY_IO_TOKEN;
   const requestToken = request?.headers.get(KODY_AUTH_HEADERS.token)?.trim();
   const githubToken = requestToken || credentials.GITHUB_TOKEN || "";
-  const githubIdentity = requestToken
-    ? await resolveActorFromToken(requestToken)
+  const githubIdentity = githubToken
+    ? await resolveActorFromToken(githubToken)
     : null;
   if (requestToken && !githubIdentity) {
     return { ok: false, status: 401, error: "github_token_invalid" };

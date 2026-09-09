@@ -185,6 +185,13 @@ export const TABLES: readonly TableDef[] = [
     transient: true,
   },
   {
+    table: "brainRestoreJobs",
+    naturalKey: ["operationId"],
+    upsertIndex: "by_operation",
+    global: true,
+    transient: true,
+  },
+  {
     table: "agencyApprovals",
     naturalKey: ["approvalId"],
     upsertIndex: "by_approval_id",

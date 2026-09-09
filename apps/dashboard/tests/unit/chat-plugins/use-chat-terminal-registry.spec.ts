@@ -333,6 +333,21 @@ describe("useChatTerminalRegistry defaults", () => {
     expect(registry.mode).toBe("ai");
     expect(registry.activeInstanceId).toBeNull();
   });
+
+  it("keeps a target change while a newly created chat session is being attached", () => {
+    const view = mountRegistry({ activeSessionId: null, sessions: [] });
+    const registry = view.result.current as Registry;
+    const createdSessionId = registry.openTerminalMode(
+      BRAIN_TERMINAL_TRANSPORT,
+    );
+
+    (view.result.current as Registry).selectTarget("local");
+
+    expect((view.result.current as Registry).activeTargetValue).toBe("local");
+    expect((view.result.current as Registry).transportBySessionId).toEqual({
+      [createdSessionId]: { type: "local" },
+    });
+  });
 });
 
 describe("useChatTerminalRegistry registration", () => {

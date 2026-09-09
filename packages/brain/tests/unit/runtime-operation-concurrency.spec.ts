@@ -8,8 +8,10 @@ import { setPersonalBrainServices } from "../../src/personal-services";
 
 describe("runtime operation ownership", () => {
   let value: any = null;
+  let conflictNext = false;
   beforeEach(() => {
     value = null;
+    conflictNext = false;
     _resetBrainRuntimeCache();
     setPersonalBrainServices({
       resolveUser: async () => ({ id: "a", label: "A" }),
@@ -17,6 +19,10 @@ describe("runtime operation ownership", () => {
       getCredentials: async () => ({}),
       loadState: async () => value,
       saveState: async (_user, _name, next, expected) => {
+        if (conflictNext && expected !== undefined) {
+          conflictNext = false;
+          throw new Error("conflict");
+        }
         if (expected !== undefined && (value?.updatedAt ?? null) !== expected)
           throw new Error("conflict");
         value = next;
@@ -45,10 +51,43 @@ describe("runtime operation ownership", () => {
     ).rejects.toThrow();
     expect(value.operation.status).toBe("running");
   });
+  it("retries completion after a concurrent runtime revision", async () => {
+    await beginBrainRuntimeApply("a", "", "ghcr.io/a/brain:one");
+    conflictNext = true;
+    const completed = await completeBrainRuntimeApply("a", "", {
+      operationId: value.operation.id,
+      imageRef: "ghcr.io/a/brain:one",
+      app: "brain-a",
+      machineId: "m1",
+      orgSlug: "org",
+    });
+    expect(completed.operation?.status).toBe("completed");
+  });
   it("rejects restore while an image save owns the Brain", async () => {
     await beginBrainRuntimeApply("a", "", "ghcr.io/a/brain:save", "save-image");
     await expect(
       beginBrainRuntimeApply("a", "", "ghcr.io/a/brain:restore"),
     ).rejects.toThrow("Another Brain operation");
+  });
+  it("reclaims an orphaned stale image save before restore", async () => {
+    value = {
+      version: 1,
+      operation: {
+        id: "orphaned-save",
+        type: "save-image",
+        status: "running",
+        imageRef: "ghcr.io/a/brain:save",
+        startedAt: "2026-09-08T15:00:00.000Z",
+        updatedAt: "2026-09-08T15:00:00.000Z",
+      },
+      updatedAt: "2026-09-08T15:00:00.000Z",
+    };
+    const started = await beginBrainRuntimeApply(
+      "a",
+      "",
+      "ghcr.io/a/brain:restore",
+    );
+    expect(started.operation?.type).toBe("apply-image");
+    expect(value.operation?.id).not.toBe("orphaned-save");
   });
 });

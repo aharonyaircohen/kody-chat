@@ -37,4 +37,28 @@ describe("Chat workflow approval view", () => {
       ),
     ).toBeNull();
   });
+
+  it("renders decision context for a workflow approval", () => {
+    const directive = createWorkflowRunApproval({
+      owner: "acme",
+      repo: "app",
+      workflowId: "repair-branch",
+      workflowInput: { issue: 23 },
+      approvalToken: "server.challenge",
+      decisionContext: {
+        currentState: "The existing pull request is waiting on a repair run.",
+        whyNow: "The failed check blocks review from continuing.",
+        recommendedAction: "Run the repair against the existing pull request.",
+        cancelChoice: "Leave the pull request unchanged for now.",
+      },
+    });
+
+    const body = String((directive.data as { body?: string }).body ?? "");
+    expect(body).toContain("**Current:** The existing pull request");
+    expect(body).toContain("**Why:** The failed check blocks review");
+    expect(body).toContain("**Approving will:** Run the repair");
+    expect(body).toContain(
+      "**Cancelling will:** Leave the pull request unchanged",
+    );
+  });
 });

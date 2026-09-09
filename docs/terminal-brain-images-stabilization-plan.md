@@ -1,8 +1,18 @@
 # Terminal and Brain images stabilization plan
 
-Status: implementation in progress. The complete seven-priority outcome is not implemented or live-verified. See the implementation checkpoint below.
+Status: the terminal reliability slice is implemented and live-verified locally and in production. The complete seven-priority restore outcome is not implemented; destructive image restore coverage remains open.
+
+## Implementation checkpoint — 2026-09-08
+
+The first reliability slice is implemented. Terminal subscriptions now keep the gateway's transport diagnosis, time out sockets that open without a ready event, and reject input, resize, clear, and restart until the replacement subscription is ready. Terminal session startup has a bounded request timeout. The gateway reports Brain-agent and Fly-tunnel failures as transport errors with redacted diagnostics instead of authentication failures. Restore jobs use Convex leases, reject stale worker completion, and mark exhausted jobs failed. Brain image export excludes injected SSH material, and the engine's file metadata store rejects lower-generation or lower-revision writes from an old agent. Brain terminal re-export routes now register the host-owned personal service boundary.
+
+Focused terminal, gateway, restore-worker, image-export, engine-agent, typecheck, lint, and production build checks passed. The live terminal journey passed locally after terminal setup and passed against the production alias after provisioning the production Brain and resuming the shared gateway; the final artifact is `apps/dashboard/test-results/live-ui-gate/deployed-terminal-full`. The journey covered Brain selection, prompt readiness, input, reload/reconnect, copy selection, a 75-second stall window, and a second command.
+
+The mocked setup suite still has five failures around target-selection and mocked history/clear timing, so that suite is not green. Full save/apply/rollback image restore remains unverified against disposable resources; this checkpoint does not close the full reliability gates below.
 
 ## Outcome
+
+The detailed restore-to-terminal UX delivery plan is [Brain restore and terminal experience](brain-restore-terminal-ux-plan.md). It expands the shared lifecycle, operation progress, terminal invalidation, recovery, and verification work below; its proposed work is not yet implemented.
 
 A user can open a terminal, save their Brain, restore a saved image, and continue working without choosing a different machine accidentally, losing track of an operation, or receiving misleading setup instructions. Failures leave a clear, recoverable state.
 
@@ -199,9 +209,39 @@ Final local `pnpm verify` exited successfully after the source changes: typechec
 
 The live gate refuses to run without `KODY_LIVE_EXPECTED_BASE_URL`, `KODY_LIVE_MUTATION_TARGET`, and `KODY_LIVE_CONFIRM_MUTATIONS`. A disposable account/Brain is still needed for replacement and filesystem-loss tests. The existing user Brain must not be treated as disposable merely because the mounted UI session is labelled QA.
 
+## Disposable deployed lifecycle attempt — 2026-09-08
+
+A disposable Brain was provisioned through the deployed dashboard and the real image-save operation was started. The test ran for 21 minutes and reached its cleanup path, but the final wait for the re-provisioned original Brain timed out in the dashboard status route. Fly inspection then showed the original app `kody-brain-user-323ed452939dd096` with machine `87473e4c001438`; it was started manually and the authenticated dashboard status route returned `200`, `running`, and the original app name.
+
+This is not a passing save → restore → rollback proof. The test reached its cleanup path, but the final dashboard status wait timed out, so the run cannot certify the original-app recovery boundary. The temporary app/test resources were removed; the original app remains the only Brain runtime. Treat deployed destructive lifecycle verification as failed/unverified until the status timeout is resolved.
+
+## Post-resume terminal readiness fix — 2026-09-08
+
+The terminal wake path had been constructing `https://https://<app>.fly.dev/healthz`, silently skipping the readiness probe. It now uses the provider URL directly and waits up to 60 seconds for a healthy response before issuing the terminal websocket token. Two unit regressions cover transient startup and a permanent readiness timeout. The deployed candidate was rebuilt and the stable alias was updated; an authenticated live check woke the original Brain from a deliberate suspended state, received `state: "ready"`, executed one command, and returned the Brain to `running`.
+
+The destructive image lifecycle remains unverified at its cleanup boundary because the earlier deployed run timed out while waiting for the original app status after reprovisioning. The new terminal readiness fix is live-verified separately; it does not by itself prove the full save → restore → failed-restore rollback matrix.
+
+The Brain status route now bounds runtime reads at 15 seconds and returns a retryable `503` with `Retry-After: 5` instead of hanging during a Fly reprovision. Terminal route integration coverage now stubs the provider health boundary explicitly; all 26 terminal route integration tests pass. The full repository verification gate passes again: 489 dashboard test files passed, 3,268 dashboard tests passed, typecheck passed, lint passed with warnings only, and the production build passed. The production alias remains `https://kody-dashboard-aguy.vercel.app`, deployment `dpl_3Z9JQG5jPr92RcR4oj6ikTfFRScd` is READY, and the authenticated live terminal check passed after another run against the restored Brain.
+
 Do not deploy the partial operation exclusion without finishing recovery: an uncertain dispatch or interrupted apply currently retains its running operation conservatively; automatic recovery/unblocking is still required. The backend comparison argument must be supported on the target Convex deployment before callers send it.
 
 Registry implementation references: [Skopeo auth-file options](https://raw.githubusercontent.com/containers/skopeo/main/docs/skopeo-copy.1.md), [Fly token normalization](https://raw.githubusercontent.com/superfly/fly-go/master/tokens/tokens.go), and [Fly CLI v0.4.50 Docker authentication](https://raw.githubusercontent.com/superfly/flyctl/v0.4.50/internal/command/auth/docker.go). Fly CLI's no-Docker fallback writes to the home directory, so restore now authenticates Skopeo directly into the operation's temporary file.
+
+## Deployed restore and terminal proof — 2026-09-08
+
+The deployed candidate now bounds orphaned Brain operations, retries Convex runtime writes after a revision race, derives the GitHub registry owner from a stored or request PAT, and accepts an explicitly requested image when its GHCR owner/package prefix matches the verified GitHub account. The terminal wake path still waits for Brain health before minting the websocket session.
+
+Live evidence through `https://kody-dashboard-aguy.vercel.app`:
+
+- A real save-produced image `ghcr.io/aguyaharonyair/kody-brain-aguyaharonyair:20260908t164854z` was restored after the original Brain had been destroyed and was initially off.
+- The normal apply route returned `202` and created operation `25209d68fb614717b71e9ed8a944b125`.
+- Brain status returned `running` with machine `d895791c090108`; image management reported the saved GHCR image as both desired and running.
+- Runtime state reported that operation `completed` after the Convex completion retry.
+- The authenticated terminal websocket accepted input and returned the marker `LIVE_TERMINAL_READY_OK` on a fresh session after restore.
+
+The earlier retry failures were real production findings: a queued worker lacked request-only GitHub identity, image discovery used the internal account hash when no explicit owner existed, and completion writes could lose a Convex revision race. Those boundaries now have focused regressions. This is a passing deployed restore plus terminal proof; the broader failure-injection and two-user matrix remains outside this targeted run.
+
+Final verification after the bookkeeping fix: `rtk pnpm verify` passed (typecheck, lint with existing warnings, all tests, and production build). The stable alias currently points to READY deployment `dpl_HchbFk7YTEJV3UqjDRn4ukaai8GS`; the final authenticated live snapshot still reports the restored machine running and the operation completed.
 
 ## Disposable live test checkpoint — 2026-09-05, after approval
 

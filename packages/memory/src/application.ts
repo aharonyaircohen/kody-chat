@@ -47,6 +47,13 @@ export class MemoryNotFoundError extends Error {
   }
 }
 
+export class MemoryConflictError extends Error {
+  constructor() {
+    super("Memory revision is stale");
+    this.name = "MemoryConflictError";
+  }
+}
+
 interface MemoryApplicationDependencies {
   readonly store: MemoryStore;
   readonly nextId: () => string;
@@ -70,6 +77,16 @@ interface CorrectCommand {
   readonly content: Readonly<MemoryContent>;
   readonly evidence: readonly Readonly<EvidenceRef>[];
   readonly reason: string;
+  readonly expectedRevisionId?: string;
+  readonly expiresAt?: string;
+}
+
+interface RetireCommand {
+  readonly principal: Readonly<MemoryPrincipal>;
+  readonly memoryId: string;
+  readonly expectedRevisionId?: string;
+  readonly reason: string;
+  readonly evidence: readonly Readonly<EvidenceRef>[];
 }
 
 interface ForgetCommand {
@@ -191,6 +208,12 @@ export function createMemoryApplication({
         command.memoryId,
         "write",
       );
+      if (
+        command.expectedRevisionId !== undefined &&
+        command.expectedRevisionId !== current.currentRevisionId
+      ) {
+        throw new MemoryConflictError();
+      }
       const result = reviseMemory(current, {
         revisionId: nextId(),
         kind: command.kind,
@@ -200,8 +223,39 @@ export function createMemoryApplication({
         actor: command.principal.actor,
         createdAt: now(),
       });
-      await store.revise(result.memory, result.revision);
-      return result.memory;
+      const revised =
+        command.expiresAt === undefined
+          ? result.memory
+          : createMemory({ ...result.memory, expiresAt: command.expiresAt });
+      await store.revise(revised, result.revision);
+      return revised;
+    },
+
+    async retire(command: RetireCommand): Promise<Readonly<Memory>> {
+      const current = await findAccessibleMemory(
+        store,
+        command.principal,
+        command.memoryId,
+        "write",
+      );
+      if (
+        command.expectedRevisionId !== undefined &&
+        command.expectedRevisionId !== current.currentRevisionId
+      ) {
+        throw new MemoryConflictError();
+      }
+      const result = reviseMemory(current, {
+        revisionId: nextId(),
+        kind: current.kind,
+        content: current.content,
+        evidence: command.evidence,
+        reason: command.reason,
+        actor: command.principal.actor,
+        createdAt: now(),
+      });
+      const retired = createMemory({ ...result.memory, status: "superseded" });
+      await store.revise(retired, result.revision);
+      return retired;
     },
 
     async forget(command: ForgetCommand): Promise<Readonly<{ deleted: true }>> {

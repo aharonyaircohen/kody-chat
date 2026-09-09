@@ -47,7 +47,8 @@ const SERVER_INSTRUCTIONS =
   "Use kody_search_tools to find an action, kody_get_tool_details to inspect " +
   "its exact schema and permissions. Call kody_read_tool with {actionId, input} " +
   "for read actions; use kody_execute_tool for changes with an idempotencyKey. " +
-  "Search finds action definitions, not resource contents: use discovered list/get actions to inspect actual work, workflows, or runs.";
+  "Search finds action definitions, not resource contents: use discovered list/get actions to inspect actual work, workflows, runs, or durable memory. " +
+  "Memory writes include revision history and require the latest expectedRevisionId for corrections or retirement.";
 const FACADE_TOOL_NAMES = [
   "kody_status",
   "kody_search_tools",

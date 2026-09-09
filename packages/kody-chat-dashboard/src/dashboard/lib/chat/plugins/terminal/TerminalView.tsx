@@ -30,10 +30,8 @@ export interface TerminalViewHandle {
 interface TerminalViewProps {
   active: boolean;
   topToolbar?: ReactNode;
-  history: { name: string; output: string } | null;
   startupIssue: VisibleTerminalStartupIssue | null;
   startupActionBusy: boolean;
-  onCloseHistory: () => void;
   onStartupAction: () => void;
   onData: (data: string) => void;
   onResize: (cols: number, rows: number) => void;
@@ -45,10 +43,8 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
     {
       active,
       topToolbar,
-      history,
       startupIssue,
       startupActionBusy,
-      onCloseHistory,
       onStartupAction,
       onData,
       onResize,
@@ -135,7 +131,8 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
         focus: () => terminalRef.current?.focus(),
         fit: () => fitAddonRef.current?.fit(),
         resetModes: () => {
-          if (terminalRef.current) resetTerminalUiForRestart(terminalRef.current);
+          if (terminalRef.current)
+            resetTerminalUiForRestart(terminalRef.current);
         },
         getSize: () => ({
           cols: terminalRef.current?.cols ?? 120,
@@ -161,26 +158,6 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
           <div className="flex min-h-12 items-center border-b border-border bg-background px-3 py-2">
             {topToolbar}
           </div>
-        )}
-        {history && (
-          <section
-            aria-label="Historical terminal checkpoint"
-            className="max-h-40 shrink-0 overflow-auto border-b border-border bg-muted/30 px-3 py-2 text-body-xs text-muted-foreground"
-          >
-            <div className="mb-1 flex items-center justify-between gap-2">
-              <span>History: {history.name}</span>
-              <button
-                type="button"
-                className="rounded px-2 py-0.5 hover:bg-muted"
-                onClick={onCloseHistory}
-              >
-                Close history
-              </button>
-            </div>
-            <pre className="whitespace-pre-wrap font-mono">
-              {history.output || "No captured output"}
-            </pre>
-          </section>
         )}
         <div className="relative min-h-0 flex-1 overflow-hidden p-2">
           {startupIssue && (
@@ -210,9 +187,7 @@ export const TerminalView = forwardRef<TerminalViewHandle, TerminalViewProps>(
                     onClick={onStartupAction}
                     className="mt-4 inline-flex h-8 items-center rounded-md bg-primary px-3 text-body-xs font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {startupActionBusy
-                      ? "Working…"
-                      : startupIssue.actionLabel}
+                    {startupActionBusy ? "Working…" : startupIssue.actionLabel}
                   </button>
                 )}
               </div>

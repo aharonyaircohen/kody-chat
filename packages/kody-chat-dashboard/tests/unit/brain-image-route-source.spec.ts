@@ -38,6 +38,10 @@ const APPLY_SERVICE_SOURCE = readFileSync(
   resolve(__dirname, "../../../brain/src/image-apply.ts"),
   "utf8",
 );
+const WORKER_ROUTE_SOURCE = readFileSync(
+  resolve(__dirname, "../../../../apps/dashboard/app/api/kody/brain/image/worker/route.ts"),
+  "utf8",
+);
 
 describe("Brain image save route", () => {
   it("exports Brain state through the terminal bridge and records a GHCR image ref", () => {
@@ -87,9 +91,13 @@ describe("Brain image save route", () => {
       expect(source).not.toContain("resolveRuntimeImageRef");
       expect(source).not.toContain("prepareRuntimeImage");
     }
-    expect(APPLY_ROUTE_SOURCE).toContain("applyBrainImage");
+    expect(APPLY_ROUTE_SOURCE).toContain("enqueueRestore");
+    expect(APPLY_ROUTE_SOURCE).toContain("after(work)");
+    expect(APPLY_ROUTE_SOURCE).toContain("isLocalOrigin");
+    expect(APPLY_ROUTE_SOURCE).toContain("const dashboardUrl = requestOrigin(req)");
+    expect(APPLY_ROUTE_SOURCE).not.toContain("NEXT_PUBLIC_SERVER_URL");
     expect(APPLY_ROUTE_SOURCE).toContain("const body =");
-    expect(APPLY_ROUTE_SOURCE).toContain("imageRef: body.imageRef");
+    expect(APPLY_ROUTE_SOURCE).toContain("imageRef,");
     expect(APPLY_ROUTE_SOURCE).toContain("reset: body.reset === true");
     expect(APPLY_SERVICE_SOURCE).toContain("readBrainImage");
     expect(APPLY_SERVICE_SOURCE).toContain("input.imageRef?.trim()");
@@ -111,5 +119,9 @@ describe("Brain image save route", () => {
     expect(APPLY_SERVICE_SOURCE).toContain("brainImageCatalogFile");
     expect(APPLY_SERVICE_SOURCE).not.toContain("selectBrainImage");
     expect(APPLY_SERVICE_SOURCE).not.toContain("markBrainImageRunning");
+    expect(WORKER_ROUTE_SOURCE).toContain("KODY_SERVICE_KEY");
+    expect(WORKER_ROUTE_SOURCE).toContain("resolvePersonalBrainContextForUser");
+    expect(WORKER_ROUTE_SOURCE).toContain("operationId");
+    expect(WORKER_ROUTE_SOURCE).toContain("new URL(req.url).origin");
   });
 });

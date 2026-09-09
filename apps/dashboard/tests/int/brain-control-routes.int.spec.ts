@@ -47,6 +47,7 @@ const runtimeManager = vi.hoisted(() => ({
 
 vi.mock("@kody-ade/base/auth", () => ({
   requireKodyAuth: vi.fn(async () => null),
+  resolveActorFromToken: vi.fn(async () => null),
   verifyActorLogin: vi.fn(async () => ({
     identity: { login: "octocat", avatar_url: "", githubId: 1 },
   })),

@@ -35,6 +35,7 @@ const HOSTED_BRAIN_ROUTES = [
   "app/api/kody/brain/status/route.ts",
   "app/api/kody/brain/image/route.ts",
   "app/api/kody/brain/image/apply/route.ts",
+  "app/api/kody/brain/image/worker/route.ts",
   "app/api/kody/brain/login/route.ts",
   "app/api/kody/brain/suspension/route.ts",
   "app/api/kody/brain/stored/route.ts",

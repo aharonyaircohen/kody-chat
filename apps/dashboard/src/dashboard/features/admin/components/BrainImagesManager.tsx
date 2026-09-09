@@ -7,7 +7,7 @@
  */
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Brain,
   CheckCircle2,
@@ -56,6 +56,7 @@ interface BrainImageSaveState {
 
 interface BrainImagesResponse {
   ok?: boolean;
+  status?: "running" | "completed" | "failed";
   runningImageRef?: string | null;
   runningAt?: string | null;
   runningApp?: string | null;
@@ -64,6 +65,16 @@ interface BrainImagesResponse {
   machineState?: string | null;
   images?: BrainSavedImage[];
   save?: BrainImageSaveState | null;
+  runtime?: {
+    operation?: {
+      type?: "apply-image" | "save-image";
+      status?: "running" | "completed" | "failed";
+      imageRef?: string;
+      startedAt?: string;
+      updatedAt?: string;
+      error?: string;
+    };
+  } | null;
   message?: string;
   error?: string;
 }
@@ -79,6 +90,13 @@ interface BrainImageSavePollResponse {
   imageRef?: string;
   startedAt?: string;
   updatedAt?: string;
+  error?: string;
+}
+
+interface BrainImageApplyState {
+  imageRef: string;
+  status: "running" | "failed";
+  startedAt: string;
   error?: string;
 }
 
@@ -168,6 +186,10 @@ export function BrainImagesManager() {
   const [machineImageRef, setMachineImageRef] = useState<string | null>(null);
   const [machineState, setMachineState] = useState<string | null>(null);
   const [save, setSave] = useState<BrainImageSaveState | null>(null);
+  const [applyState, setApplyState] = useState<BrainImageApplyState | null>(
+    null,
+  );
+  const applyStateRef = useRef<BrainImageApplyState | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyRef, setBusyRef] = useState<string | null>(null);
   const [pendingApplyRef, setPendingApplyRef] = useState<string | null>(null);
@@ -194,6 +216,49 @@ export function BrainImagesManager() {
       setMachineImageRef(body.machineImageRef ?? null);
       setMachineState(body.machineState ?? null);
       setSave(body.save ?? null);
+      const operation = body.runtime?.operation;
+      if (
+        operation?.type === "apply-image" &&
+        operation.status === "running" &&
+        operation.imageRef
+      ) {
+        setApplyState({
+          imageRef: operation.imageRef,
+          status: "running",
+          startedAt: operation.startedAt ?? new Date().toISOString(),
+        });
+      } else if (
+        operation?.type === "apply-image" &&
+        operation.status === "failed" &&
+        operation.imageRef
+      ) {
+        setApplyState({
+          imageRef: operation.imageRef,
+          status: "failed",
+          startedAt: operation.startedAt ?? new Date().toISOString(),
+          error: operation.error,
+        });
+      } else if (operation?.type === "apply-image") {
+        const activeApply = applyStateRef.current;
+        const completedCurrentApply =
+          activeApply?.status === "running" &&
+          activeApply.imageRef === operation.imageRef &&
+          operation.status === "completed" &&
+          (!activeApply.startedAt ||
+            !operation.updatedAt ||
+            operation.updatedAt >= activeApply.startedAt);
+        if (completedCurrentApply) {
+          window.dispatchEvent(
+            new CustomEvent("kody:brain-runtime-change", {
+              detail: { phase: "complete", imageRef: operation.imageRef },
+            }),
+          );
+          toast.success("Brain image applied");
+          setApplyState(null);
+        } else if (operation.status !== "completed") {
+          setApplyState(null);
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load images");
       setImages([]);
@@ -206,6 +271,10 @@ export function BrainImagesManager() {
       setLoading(false);
     }
   }, [headers]);
+
+  useEffect(() => {
+    applyStateRef.current = applyState;
+  }, [applyState]);
 
   const pollSave = useCallback(
     async (jobId: string) => {
@@ -318,8 +387,21 @@ export function BrainImagesManager() {
     return () => window.clearInterval(interval);
   }, [pollSave, save?.jobId, save?.status]);
 
+  useEffect(() => {
+    if (applyState?.status !== "running") return;
+    const interval = window.setInterval(() => void loadImages(), 5000);
+    return () => window.clearInterval(interval);
+  }, [applyState?.status, loadImages]);
+
   async function applyImage(imageRef: string, reset = false) {
     if (!headers) return;
+    const startedAt = new Date().toISOString();
+    setApplyState({ imageRef, status: "running", startedAt });
+    window.dispatchEvent(
+      new CustomEvent("kody:brain-runtime-change", {
+        detail: { phase: "start", imageRef },
+      }),
+    );
     setBusyRef(imageRef);
     try {
       const res = await fetch("/api/kody/brain/image/apply", {
@@ -333,11 +415,19 @@ export function BrainImagesManager() {
           body.message ?? body.error ?? `Apply failed (${res.status})`,
         );
       }
-      await loadImages();
-      window.dispatchEvent(new Event("kody:fly-machines-refresh"));
-      toast.success("Brain image applied");
+      if (res.status !== 202 && body.status !== "running") {
+        await loadImages();
+        window.dispatchEvent(new Event("kody:fly-machines-refresh"));
+      }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Apply failed");
+      const message = err instanceof Error ? err.message : "Apply failed";
+      setApplyState({ imageRef, status: "failed", startedAt, error: message });
+      window.dispatchEvent(
+        new CustomEvent("kody:brain-runtime-change", {
+          detail: { phase: "failed", imageRef },
+        }),
+      );
+      toast.error(message);
     } finally {
       setBusyRef(null);
     }
@@ -488,6 +578,38 @@ export function BrainImagesManager() {
                 Last save failed: {save.error ?? save.jobId}
               </div>
             )}
+            {applyState?.status === "running" && (
+              <div
+                className="rounded-md border border-violet-400/20 bg-violet-400/[0.06] px-3 py-2 text-xs text-violet-100"
+                role="status"
+                aria-live="polite"
+              >
+                <div className="flex items-center gap-2 font-medium">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Restoring Brain image
+                </div>
+                <div className="mt-1 text-violet-100/70">
+                  {imageLabel(applyState.imageRef)} · The terminal will
+                  reconnect when the new machine is ready.
+                </div>
+              </div>
+            )}
+            {applyState?.status === "failed" && (
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-rose-400/20 bg-rose-400/[0.06] px-3 py-2 text-xs text-rose-200">
+                <span>
+                  Brain image restore failed: {applyState.error ?? "Try again."}
+                </span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-7 border-rose-300/30 bg-transparent text-rose-100 hover:bg-rose-300/10"
+                  onClick={() => requestApplyImage(applyState.imageRef)}
+                >
+                  Try again
+                </Button>
+              </div>
+            )}
             <div className="sr-only">
               <div className="text-sm font-semibold text-white">
                 Brain image state summary
@@ -520,6 +642,7 @@ export function BrainImagesManager() {
             images.map((image) => {
               const running = image.imageRef === runningImageRef;
               const busy = busyRef === image.imageRef;
+              const applyBusy = applyState?.status === "running";
               return (
                 <div
                   key={image.imageRef}
@@ -555,7 +678,7 @@ export function BrainImagesManager() {
                       type="button"
                       size="icon"
                       variant={running ? "outline" : "default"}
-                      disabled={busy}
+                      disabled={busy || applyBusy}
                       title={running ? "Rerun Brain image" : "Run Brain image"}
                       aria-label={
                         running ? "Rerun Brain image" : "Run Brain image"
@@ -600,7 +723,7 @@ export function BrainImagesManager() {
                           : "Delete image"
                       }
                       aria-label="Delete image"
-                      disabled={busy || running}
+                      disabled={busy || running || applyBusy}
                       onClick={() => setPendingDeleteRef(image.imageRef)}
                     >
                       {busy ? (
@@ -636,8 +759,10 @@ export function BrainImagesManager() {
         }
         confirmLabel={pendingApplyIsRunning ? "Rerun image" : "Run image"}
         onConfirm={() => {
-          if (pendingApplyRef)
+          if (pendingApplyRef) {
+            setPendingApplyRef(null);
             void applyImage(pendingApplyRef, pendingApplyIsRunning);
+          }
         }}
         onClose={() => setPendingApplyRef(null)}
       />

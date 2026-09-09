@@ -48,6 +48,7 @@ const marker = `kody-live-${new Date().toISOString()}-${Math.random()
   .toString(36)
   .slice(2, 10)}`;
 const chatSessionId = `live-brain-${Date.now()}`;
+let savedRestoreImageRef;
 
 if (process.argv.includes("--help")) {
   printHelp();
@@ -89,6 +90,7 @@ try {
   }
 
   const savedImage = await saveBrainImage();
+  savedRestoreImageRef = savedImage.imageRef;
   await destroyBrain();
   brain = await applyBrainImage(savedImage.imageRef);
   await verifyTerminalSession(brain, {
@@ -99,6 +101,16 @@ try {
 
   finish();
 } catch (err) {
+  if (savedRestoreImageRef) {
+    try {
+      step("Recovering saved Brain image", savedRestoreImageRef);
+      await applyBrainImage(savedRestoreImageRef);
+    } catch (recoveryError) {
+      console.error(
+        `WARN failed to recover saved Brain image: ${redact(recoveryError instanceof Error ? recoveryError.message : recoveryError)}`,
+      );
+    }
+  }
   console.error(`\nFAIL ${redact(err instanceof Error ? err.message : err)}`);
   process.exit(1);
 }
@@ -170,6 +182,7 @@ function authHeaders() {
     ...(env("KODY_LIVE_STORE_REF")
       ? { "x-kody-store-ref": env("KODY_LIVE_STORE_REF") }
       : {}),
+    ...(env("KODY_LIVE_COOKIE") ? { cookie: env("KODY_LIVE_COOKIE") } : {}),
   };
 }
 
@@ -510,7 +523,14 @@ async function runTerminalCommand(webSocketUrl, command, expect, timeoutMs) {
       if (sent || ws.readyState !== WebSocket.OPEN) return;
       sent = true;
       ws.send(JSON.stringify({ type: "resize", cols: 120, rows: 36 }));
-      ws.send(JSON.stringify({ type: "input", data: `${command}\r` }));
+      ws.send(
+        JSON.stringify({
+          type: "input",
+          id: 1,
+          inputId: `${chatSessionId}-input`,
+          data: `${command}\r`,
+        }),
+      );
     }
 
     ws.addEventListener("open", () => {
@@ -524,7 +544,10 @@ async function runTerminalCommand(webSocketUrl, command, expect, timeoutMs) {
             append(raw);
             return;
           }
-          if (message.type === "ready") {
+          if (
+            message.type === "ready" ||
+            (message.type === "state" && message.state === "ready")
+          ) {
             sendCommand();
             return;
           }

@@ -90,6 +90,8 @@ const TARGET_MESSAGE: Record<string, string> = {
 const WAKE_POLL_ATTEMPTS = 60;
 const WAKE_POLL_INTERVAL_MS = 1000;
 const EDGE_WAKE_TIMEOUT_MS = 15_000;
+const MACHINE_HEALTH_TIMEOUT_MS = 60_000;
+const MACHINE_HEALTH_POLL_INTERVAL_MS = 1000;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -99,13 +101,42 @@ async function wakeServerProviderMachineThroughEdge(
   app: string,
 ): Promise<void> {
   try {
-    await globalThis.fetch(`https://${serverProviderHostname(app)}/healthz`, {
+    await globalThis.fetch(new URL("/healthz", serverProviderHostname(app)), {
       redirect: "manual",
       signal: AbortSignal.timeout(EDGE_WAKE_TIMEOUT_MS),
     });
   } catch (err) {
     logger.warn({ err, app }, "terminal: edge wake did not answer");
   }
+}
+
+export async function waitForServerProviderMachineHealth(
+  app: string,
+  timeoutMs = MACHINE_HEALTH_TIMEOUT_MS,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  let lastStatus: number | undefined;
+  while (Date.now() < deadline) {
+    try {
+      const response = await globalThis.fetch(
+        new URL("/healthz", serverProviderHostname(app)),
+        {
+          redirect: "manual",
+          signal: AbortSignal.timeout(
+            Math.min(EDGE_WAKE_TIMEOUT_MS, Math.max(1000, deadline - Date.now())),
+          ),
+        },
+      );
+      lastStatus = response.status;
+      if (response.ok) return;
+    } catch {
+      // The machine can accept connections before the service is ready.
+    }
+    await sleep(MACHINE_HEALTH_POLL_INTERVAL_MS);
+  }
+  throw targetError("machine_not_running", {
+    healthStatus: lastStatus,
+  });
 }
 
 function isFlyBridgeAuthError(err: unknown): boolean {
@@ -315,6 +346,7 @@ export async function connectTerminalMachine(input: {
   if (!isTerminalMachineLive(requested.state)) {
     throw targetError("machine_not_running");
   }
+  await waitForServerProviderMachineHealth(requested.app);
   const bridge = await findServerProviderTerminalBridgeForTarget(selectedCfg);
   if (!bridge) {
     throw new TerminalSessionError(

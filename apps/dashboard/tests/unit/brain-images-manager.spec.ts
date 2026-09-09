@@ -54,7 +54,7 @@ describe("BrainImagesManager", () => {
     expect(SOURCE).toContain('aria-label="Delete image"');
     expect(SOURCE).toContain("Permanently delete this Brain image?");
     expect(SOURCE).toContain("This permanently removes the GHCR package image");
-    expect(SOURCE).toContain("disabled={busy || running}");
+    expect(SOURCE).toContain("disabled={busy || running || applyBusy}");
     expect(SOURCE).not.toContain("Forget image");
     expect(SOURCE).not.toContain("forgotten");
   });
@@ -82,6 +82,13 @@ describe("BrainImagesManager", () => {
     expect(SOURCE).toContain(
       'window.dispatchEvent(new Event("kody:fly-machines-refresh"));',
     );
+    expect(SOURCE).toContain('"kody:brain-runtime-change"');
+    expect(SOURCE).toContain('detail: { phase: "start", imageRef }');
+    expect(SOURCE).toContain(
+      'detail: { phase: "complete", imageRef: operation.imageRef }',
+    );
+    expect(SOURCE).toContain("Restoring Brain image");
+    expect(SOURCE).toMatch(/The terminal will\s+reconnect/);
   });
 
   it("runs the clicked image as the only image activation action", () => {
@@ -98,7 +105,7 @@ describe("BrainImagesManager", () => {
     expect(SOURCE).toContain("<RotateCcw");
     expect(SOURCE).not.toContain("<Square");
     expect(SOURCE).toContain('size="icon"');
-    expect(SOURCE).toContain("disabled={busy}");
+    expect(SOURCE).toContain("disabled={busy || applyBusy}");
     expect(SOURCE).not.toContain("disabled={running || busy}");
     expect(SOURCE).not.toContain(
       '{running ? "Running Brain image" : "Run this image"}',

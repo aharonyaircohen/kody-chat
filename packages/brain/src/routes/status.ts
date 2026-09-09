@@ -31,6 +31,7 @@ import { logger } from "@kody-ade/base/logger";
 import { resolvePersonalBrainContext } from "../personal-context";
 
 export const runtime = "nodejs";
+const STATUS_READ_TIMEOUT_MS = 15_000;
 
 export async function GET(req: NextRequest) {
   const ctx = await resolvePersonalBrainContext();
@@ -48,13 +49,21 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const overview = await readBrainOverview({
-      flyToken: ctx.context.flyToken,
-      account: ctx.context.account,
-      githubToken: ctx.context.githubToken,
-      orgSlug: ctx.context.flyOrgSlug,
-      defaultRegion: ctx.context.flyDefaultRegion,
-    });
+    const overview = await Promise.race([
+      readBrainOverview({
+        flyToken: ctx.context.flyToken,
+        account: ctx.context.account,
+        githubToken: ctx.context.githubToken,
+        orgSlug: ctx.context.flyOrgSlug,
+        defaultRegion: ctx.context.flyDefaultRegion,
+      }),
+      new Promise<never>((_, reject) =>
+        setTimeout(
+          () => reject(new BrainStatusTimeoutError()),
+          STATUS_READ_TIMEOUT_MS,
+        ),
+      ),
+    ]);
     if (!overview.service) {
       return NextResponse.json({
         state: "off",
@@ -80,6 +89,19 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     logger.error({ err, userId: ctx.context.userId }, "brain status failed");
+    if (err instanceof BrainStatusTimeoutError) {
+      return NextResponse.json(
+        { error: "brain_status_timeout", retryable: true },
+        { status: 503, headers: { "Retry-After": "5" } },
+      );
+    }
     return NextResponse.json({ error: message }, { status: 502 });
+  }
+}
+
+class BrainStatusTimeoutError extends Error {
+  constructor() {
+    super("Brain status read timed out");
+    this.name = "BrainStatusTimeoutError";
   }
 }

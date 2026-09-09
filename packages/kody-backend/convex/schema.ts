@@ -900,6 +900,28 @@ export default defineSchema({
     updatedAt: v.string(),
   }).index("by_user", ["namespace", "userKey"]),
 
+  brainRestoreJobs: defineTable({
+    userId: v.string(),
+    operationId: v.string(),
+    imageRef: v.string(),
+    reset: v.boolean(),
+    dashboardUrl: v.string(),
+    status: v.union(
+      v.literal("queued"),
+      v.literal("running"),
+      v.literal("completed"),
+      v.literal("failed"),
+    ),
+    attempts: v.number(),
+    leaseId: v.optional(v.string()),
+    leaseUntilMs: v.optional(v.number()),
+    createdAt: v.string(),
+    updatedAt: v.string(),
+    error: v.optional(v.string()),
+  })
+    .index("by_operation", ["operationId"])
+    .index("by_status", ["status"]),
+
   repositoryPreferences: defineTable({
     tenantId: v.string(),
     namespace: v.string(),

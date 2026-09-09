@@ -31,8 +31,46 @@ describe("tool action approval", () => {
       action: "render_view",
       rendererSlug: "approval-card",
     });
+    expect((result as { data?: { body?: string } }).data?.body).toBe(
+      "Approve to run this exact saved action, or cancel to leave everything unchanged.",
+    );
     expect(execute).not.toHaveBeenCalled();
     expect(tools.list_workflows).toBeDefined();
+  });
+
+  it("passes verified decision context through the staged approval boundary", async () => {
+    const tools = stageToolsForApproval(
+      { configure_kody: { execute: vi.fn() } },
+      {
+        secret: "github-token",
+        context,
+        decisionContext: {
+          currentState:
+            "PR #24 is failing because the branch cannot be written to.",
+          whyNow:
+            "The correction flow is paused until the branch access is fixed.",
+          recommendedAction:
+            "Rerunning updates the same PR branch and creates no new pull request.",
+          cancelChoice: "Cancelling leaves PR #24 unchanged.",
+          recommendation: "Rerun on the same branch.",
+          tradeoff: "The existing review history is preserved.",
+        },
+      },
+    ) as Record<string, { execute(input: unknown): Promise<unknown> }>;
+
+    const result = await tools.configure_kody.execute({ slug: "ci-watch" });
+    const body = String(
+      (result as { data?: { body?: string } }).data?.body ?? "",
+    );
+
+    expect(body).toContain("**Current:** PR #24 is failing");
+    expect(body).toContain(
+      "**Approving will:** Rerunning updates the same PR branch and creates no new pull request.",
+    );
+    expect(body).toContain(
+      "**Cancelling will:** Cancelling leaves PR #24 unchanged.",
+    );
+    expect(body).not.toMatch(/kody_run_issue|configure_kody/);
   });
 
   it.each([
@@ -223,5 +261,57 @@ describe("tool action approval", () => {
     expect(JSON.stringify(result)).toContain(
       "Replace prepare-facebook-post from acme/source to acme/target?",
     );
+  });
+
+  it("renders complete decision context without exposing internal tool names", () => {
+    const directive = createToolActionApproval({
+      secret: "github-token",
+      context,
+      toolName: "configure_kody",
+      input: { slug: "ci-watch" },
+      title: "Rerun the existing issue to fix the branch access failure?",
+      decisionContext: {
+        currentState:
+          "PR #24 is failing because the branch cannot be written to with the current token.",
+        whyNow:
+          "The correction flow is paused and the pull request will stay red until the write access is fixed.",
+        recommendedAction:
+          "Rerunning updates the same PR branch and creates no new pull request.",
+        cancelChoice:
+          "Stopping leaves PR #24 unchanged so you can fix access before trying again.",
+        recommendation: "Rerun on the same branch.",
+        tradeoff:
+          "Keeping the branch preserves its existing review history; starting over would lose that context.",
+      },
+      now: 1_000,
+    });
+
+    const body = String((directive.data as { body?: string }).body ?? "");
+    expect(body).toContain("**Current:** PR #24 is failing");
+    expect(body).toContain("**Why:** The correction flow is paused");
+    expect(body).toContain(
+      "**Approving will:** Rerunning updates the same PR branch and creates no new pull request.",
+    );
+    expect(body).toContain(
+      "**Cancelling will:** Stopping leaves PR #24 unchanged",
+    );
+    expect(body).toContain("**Recommendation:** Rerun on the same branch.");
+    expect(body).toContain("**Tradeoff:** Keeping the branch preserves");
+    expect(directive.data.title).not.toMatch(/kody_run_issue|configure_kody/);
+  });
+
+  it("keeps concise confirmations short when no decision context is supplied", () => {
+    const directive = createToolActionApproval({
+      secret: "github-token",
+      context,
+      toolName: "create_chore",
+      input: { title: "Refresh dependencies" },
+      title: "Create task Refresh dependencies?",
+      now: 1_000,
+    });
+
+    const body = String((directive.data as { body?: string }).body ?? "");
+    expect(body.length).toBeLessThan(200);
+    expect(body).toContain("Approve");
   });
 });

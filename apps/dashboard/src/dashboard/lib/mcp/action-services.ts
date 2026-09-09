@@ -48,6 +48,13 @@ import {
   trustSubjectKey,
 } from "@dashboard/lib/cto/trust-state";
 import { createWorkflowApprovalChallenge } from "@kody-ade/agency/workflow-run-approval";
+import {
+  MemoryAccessDeniedError,
+  MemoryConflictError,
+  MemoryNotFoundError,
+  type EvidenceRef,
+} from "@kody-ade/memory";
+import { createMemoryRuntime } from "@kody-ade/workspace/memory/runtime";
 import { getWorkflowApprovalSigningKey } from "@dashboard/features/workflows/server/workflow-approval-signing-key";
 import {
   listRepositoryLoops,
@@ -108,6 +115,106 @@ function workError(error: unknown): never {
     );
   }
   throw error;
+}
+
+function memoryError(error: unknown): never {
+  if (error instanceof MemoryAccessDeniedError)
+    throw new KodyActionError(
+      "insufficient_scope",
+      "The access token cannot access this memory scope.",
+    );
+  if (error instanceof MemoryNotFoundError)
+    throw new KodyActionError("memory_not_found", "Memory was not found.");
+  if (error instanceof MemoryConflictError)
+    throw new KodyActionError(
+      "revision_conflict",
+      "Memory changed since the supplied revision; read it again before retrying.",
+    );
+  if (
+    error instanceof Error &&
+    /memory changed since it was read|memory revision already exists/i.test(
+      error.message,
+    )
+  )
+    throw new KodyActionError(
+      "revision_conflict",
+      "Memory changed since the supplied revision; read it again before retrying.",
+    );
+  if (error instanceof Error && /memory not found/i.test(error.message))
+    throw new KodyActionError("memory_not_found", "Memory was not found.");
+  throw error;
+}
+
+function memoryRuntimeFor(principal: McpPrincipal) {
+  return createMemoryRuntime({
+    actor: { kind: "user", id: `github:${principal.actorGithubId}` },
+    tenantId: principal.tenantId,
+  });
+}
+
+function memoryScopes(
+  runtime: ReturnType<typeof memoryRuntimeFor>,
+  scope: unknown,
+) {
+  if (scope === "personal")
+    return runtime.scopes.filter((item) => item.kind === "user");
+  if (scope === "user")
+    return runtime.scopes.filter((item) => item.kind === "user");
+  if (scope === "repository")
+    return runtime.scopes.filter((item) => item.kind === "repository");
+  return runtime.scopes;
+}
+
+function requireMemoryGrant(
+  principal: McpPrincipal,
+  scope: "user" | "repository",
+  operation: "read" | "write" | "delete",
+) {
+  const grantScope = scope === "user" ? "personal" : scope;
+  const grant = `memory:${grantScope}:${operation}`;
+  if (!principal.scopes.includes(grant)) {
+    throw new KodyActionError(
+      "insufficient_scope",
+      `The access token cannot ${operation} ${scope} memory.`,
+    );
+  }
+}
+
+function memoryEvidence(id: string, supplied: unknown) {
+  return [
+    { source: "conversation" as const, id },
+    ...((Array.isArray(supplied) ? supplied : []) as EvidenceRef[]),
+  ];
+}
+
+async function findMemoryRequest(
+  runtime: ReturnType<typeof memoryRuntimeFor>,
+  scopes: ReturnType<typeof memoryScopes>,
+  key: string,
+  hash: string,
+) {
+  const marker = `mcp:${key}:`;
+  for (const memory of await runtime.application.list({
+    principal: runtime.principal,
+    scopes,
+  })) {
+    const revisions = await runtime.application.history({
+      principal: runtime.principal,
+      memoryId: memory.id,
+    });
+    const match = revisions
+      .flatMap((revision) => revision.evidence)
+      .find((evidence) => evidence.id.startsWith(marker));
+    if (match) {
+      if (match.id !== `${marker}${hash}`)
+        throw new KodyActionError(
+          "idempotency_conflict",
+          "The idempotency key was already used with different memory content.",
+        );
+      return memory;
+    }
+  }
+  return null;
 }
 
 function writeWorkTodo(
@@ -258,6 +365,240 @@ export function createKodyMcpActionServices({
   origin: string;
 }): KodyMcpActionServices {
   return {
+    async listMemories(input, principal) {
+      const runtime = memoryRuntimeFor(principal);
+      const scopes = memoryScopes(runtime, input.scope);
+      for (const scope of scopes)
+        requireMemoryGrant(principal, scope.kind, "read");
+      try {
+        const now = Date.now();
+        const memories = (
+          await runtime.application.list({
+            principal: runtime.principal,
+            scopes,
+          })
+        )
+          .filter(
+            (memory) =>
+              memory.status === "active" &&
+              (!memory.expiresAt || Date.parse(memory.expiresAt) > now),
+          )
+          .slice(0, Number(input.limit ?? 20));
+        return { memories };
+      } catch (error) {
+        memoryError(error);
+      }
+    },
+    async getMemory(memoryId, principal) {
+      const runtime = memoryRuntimeFor(principal);
+      try {
+        const memory = await runtime.application.get({
+          principal: runtime.principal,
+          memoryId,
+        });
+        requireMemoryGrant(principal, memory.scope.kind, "read");
+        return { memory };
+      } catch (error) {
+        memoryError(error);
+      }
+    },
+    async searchMemories(input, principal) {
+      const runtime = memoryRuntimeFor(principal);
+      const scopes = memoryScopes(runtime, input.scope);
+      for (const scope of scopes)
+        requireMemoryGrant(principal, scope.kind, "read");
+      try {
+        const rows = await runtime.application.search({
+          principal: runtime.principal,
+          scopes,
+          query: String(input.query),
+          limit: Number(input.limit ?? 10),
+        });
+        const now = Date.now();
+        return {
+          items: rows
+            .filter(
+              (memory) =>
+                memory.status === "active" &&
+                (!memory.expiresAt || Date.parse(memory.expiresAt) > now),
+            )
+            .map((memory) => ({
+              memoryId: memory.id,
+              kind: memory.kind,
+              scope: memory.scope,
+              title: memory.content.title,
+              summary: memory.content.summary,
+              body: memory.content.body,
+              revisionId: memory.currentRevisionId,
+              updatedAt: memory.updatedAt,
+              provenance: {
+                source: "kody-memory",
+                revisionId: memory.currentRevisionId,
+              },
+            })),
+        };
+      } catch (error) {
+        memoryError(error);
+      }
+    },
+    async getMemoryHistory(memoryId, principal) {
+      const runtime = memoryRuntimeFor(principal);
+      try {
+        const memory = await runtime.application.get({
+          principal: runtime.principal,
+          memoryId,
+        });
+        requireMemoryGrant(principal, memory.scope.kind, "read");
+        const revisions = await runtime.application.history({
+          principal: runtime.principal,
+          memoryId,
+        });
+        return { memoryId, revisions };
+      } catch (error) {
+        memoryError(error);
+      }
+    },
+    async createMemory(input, principal) {
+      const runtime = memoryRuntimeFor(principal);
+      const scopeKind =
+        String(input.scope) === "personal" ? "user" : "repository";
+      requireMemoryGrant(principal, scopeKind, "write");
+      const scope =
+        scopeKind === "user"
+          ? { kind: "user" as const, userId: runtime.principal.actor.id }
+          : { kind: "repository" as const, tenantId: principal.tenantId };
+      const requestHash = hashRequest({
+        actionId: input.actionId,
+        scope: input.scope,
+        kind: input.kind,
+        title: input.title,
+        summary: input.summary,
+        body: input.body,
+        reason: input.reason,
+        expiresAt: input.expiresAt,
+      });
+      const marker = `mcp:${String(input.idempotencyKey)}:${requestHash}`;
+      try {
+        const replay = await findMemoryRequest(
+          runtime,
+          [scope],
+          String(input.idempotencyKey),
+          requestHash,
+        );
+        if (replay) return { memory: replay };
+        const memory = await runtime.application.remember({
+          principal: runtime.principal,
+          scope,
+          kind: input.kind as never,
+          content: {
+            title: String(input.title),
+            summary: String(input.summary),
+            body: String(input.body),
+          },
+          ...(input.expiresAt === undefined
+            ? {}
+            : { expiresAt: String(input.expiresAt) }),
+          evidence: memoryEvidence(marker, input.evidence),
+          reason: String(
+            input.reason ?? "Saved by a coding agent through Kody MCP.",
+          ),
+        });
+        return { memory };
+      } catch (error) {
+        memoryError(error);
+      }
+    },
+    async reviseMemory(input, principal) {
+      const runtime = memoryRuntimeFor(principal);
+      try {
+        const current = await runtime.application.get({
+          principal: runtime.principal,
+          memoryId: String(input.memoryId),
+        });
+        requireMemoryGrant(principal, current.scope.kind, "write");
+        const requestHash = hashRequest({ actionId: input.actionId, input });
+        const marker = `mcp:${String(input.idempotencyKey)}:${requestHash}`;
+        const revisions = await runtime.application.history({
+          principal: runtime.principal,
+          memoryId: current.id,
+        });
+        if (
+          revisions.some((revision) =>
+            revision.evidence.some((evidence) => evidence.id === marker),
+          )
+        )
+          return { memory: current };
+        const memory = await runtime.application.correct({
+          principal: runtime.principal,
+          memoryId: current.id,
+          expectedRevisionId: String(input.expectedRevisionId),
+          kind: input.kind as never,
+          content: {
+            title: String(input.title),
+            summary: String(input.summary),
+            body: String(input.body),
+          },
+          ...(input.expiresAt === undefined
+            ? {}
+            : { expiresAt: String(input.expiresAt) }),
+          evidence: memoryEvidence(marker, input.evidence),
+          reason: String(
+            input.reason ?? "Corrected by a coding agent through Kody MCP.",
+          ),
+        });
+        return { memory };
+      } catch (error) {
+        memoryError(error);
+      }
+    },
+    async retireMemory(input, principal) {
+      const runtime = memoryRuntimeFor(principal);
+      try {
+        const current = await runtime.application.get({
+          principal: runtime.principal,
+          memoryId: String(input.memoryId),
+        });
+        requireMemoryGrant(principal, current.scope.kind, "write");
+        const requestHash = hashRequest({ actionId: input.actionId, input });
+        const marker = `mcp:${String(input.idempotencyKey)}:${requestHash}`;
+        const revisions = await runtime.application.history({
+          principal: runtime.principal,
+          memoryId: current.id,
+        });
+        if (
+          revisions.some((revision) =>
+            revision.evidence.some((evidence) => evidence.id === marker),
+          )
+        )
+          return { memory: current };
+        const memory = await runtime.application.retire({
+          principal: runtime.principal,
+          memoryId: current.id,
+          expectedRevisionId: String(input.expectedRevisionId),
+          evidence: memoryEvidence(marker, input.evidence),
+          reason: String(input.reason),
+        });
+        return { memory };
+      } catch (error) {
+        memoryError(error);
+      }
+    },
+    async deleteMemory(input, principal) {
+      const runtime = memoryRuntimeFor(principal);
+      try {
+        const current = await runtime.application.get({
+          principal: runtime.principal,
+          memoryId: String(input.memoryId),
+        });
+        requireMemoryGrant(principal, current.scope.kind, "delete");
+        return await runtime.application.forget({
+          principal: runtime.principal,
+          memoryId: current.id,
+        });
+      } catch (error) {
+        memoryError(error);
+      }
+    },
     async listWork(input, principal) {
       return await withRepository(principal, async () => {
         const rows = await listTodoFiles();

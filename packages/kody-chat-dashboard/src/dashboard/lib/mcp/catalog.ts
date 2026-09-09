@@ -120,6 +120,32 @@ export interface KodyMcpActionServices {
     input: Record<string, unknown>,
     principal: McpPrincipal,
   ): Promise<unknown>;
+  listMemories(
+    input: Record<string, unknown>,
+    principal: McpPrincipal,
+  ): Promise<unknown>;
+  getMemory(memoryId: string, principal: McpPrincipal): Promise<unknown>;
+  createMemory(
+    input: Record<string, unknown>,
+    principal: McpPrincipal,
+  ): Promise<unknown>;
+  searchMemories(
+    input: Record<string, unknown>,
+    principal: McpPrincipal,
+  ): Promise<unknown>;
+  getMemoryHistory(memoryId: string, principal: McpPrincipal): Promise<unknown>;
+  reviseMemory(
+    input: Record<string, unknown>,
+    principal: McpPrincipal,
+  ): Promise<unknown>;
+  retireMemory(
+    input: Record<string, unknown>,
+    principal: McpPrincipal,
+  ): Promise<unknown>;
+  deleteMemory(
+    input: Record<string, unknown>,
+    principal: McpPrincipal,
+  ): Promise<unknown>;
 }
 
 export type ActionExecutionContext = {
@@ -283,6 +309,163 @@ const contextSearchInput = z
       .max(20)
       .default(10)
       .describe("Maximum matching memories to return."),
+  })
+  .strict();
+const memoryScope = z
+  .enum(["personal", "repository", "all"])
+  .default("all")
+  .describe("Memory scope to read or write.");
+const memoryDefinitionId = z
+  .string()
+  .trim()
+  .min(1)
+  .max(160)
+  .regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/)
+  .describe("Stable memory ID returned by Kody.");
+const memoryKind = z
+  .enum(["preference", "fact", "decision", "reference"])
+  .describe("The kind of durable memory.");
+const memoryEvidence = z
+  .array(
+    z
+      .object({
+        source: z
+          .enum([
+            "user-input",
+            "conversation",
+            "message",
+            "pull-request",
+            "document",
+            "engine-run",
+          ])
+          .describe("Evidence source type."),
+        id: z.string().trim().min(1).max(200).describe("Evidence identifier."),
+        conversationId: z.string().trim().min(1).max(200).optional(),
+        uri: z.string().trim().min(1).max(2_000).optional(),
+      })
+      .strict(),
+  )
+  .min(1)
+  .max(20)
+  .optional()
+  .describe("References supporting this memory.");
+const memoryIdInput = z.object({ memoryId: memoryDefinitionId }).strict();
+const memoryListInput = z
+  .object({
+    scope: memoryScope,
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .max(100)
+      .default(20)
+      .describe("Maximum memories to return."),
+  })
+  .strict();
+const memorySearchInput = z
+  .object({
+    query: z
+      .string()
+      .trim()
+      .min(1)
+      .max(500)
+      .describe("Words or topic to find in durable memory."),
+    scope: memoryScope,
+    limit: z
+      .number()
+      .int()
+      .min(1)
+      .max(20)
+      .default(10)
+      .describe("Maximum matching memories to return."),
+  })
+  .strict();
+const memoryCreateInput = z
+  .object({
+    scope: z
+      .enum(["personal", "repository"])
+      .describe("Where the memory belongs."),
+    kind: memoryKind,
+    title: z.string().trim().min(1).max(120).describe("Short memory title."),
+    summary: z
+      .string()
+      .trim()
+      .min(1)
+      .max(500)
+      .describe("One sentence summary."),
+    body: z
+      .string()
+      .trim()
+      .min(1)
+      .max(20_000)
+      .describe("Full memory contents."),
+    evidence: memoryEvidence,
+    reason: z
+      .string()
+      .trim()
+      .min(1)
+      .max(500)
+      .optional()
+      .describe("Why this memory was saved."),
+    expiresAt: z
+      .string()
+      .datetime()
+      .optional()
+      .describe("Optional ISO expiry timestamp."),
+  })
+  .strict();
+const memoryReviseInput = z
+  .object({
+    memoryId: memoryDefinitionId,
+    expectedRevisionId: z
+      .string()
+      .trim()
+      .min(1)
+      .describe("Revision currently held by the agent."),
+    kind: memoryKind,
+    title: z.string().trim().min(1).max(120).describe("Short memory title."),
+    summary: z
+      .string()
+      .trim()
+      .min(1)
+      .max(500)
+      .describe("One sentence summary."),
+    body: z
+      .string()
+      .trim()
+      .min(1)
+      .max(20_000)
+      .describe("Full memory contents."),
+    evidence: memoryEvidence,
+    expiresAt: z
+      .string()
+      .datetime()
+      .optional()
+      .describe("Optional replacement ISO expiry timestamp."),
+    reason: z
+      .string()
+      .trim()
+      .min(1)
+      .max(500)
+      .optional()
+      .describe("Why this memory changed."),
+  })
+  .strict();
+const memoryRetireInput = z
+  .object({
+    memoryId: memoryDefinitionId,
+    expectedRevisionId: z
+      .string()
+      .trim()
+      .min(1)
+      .describe("Revision currently held by the agent."),
+    evidence: memoryEvidence,
+    reason: z
+      .string()
+      .trim()
+      .min(1)
+      .max(500)
+      .describe("Why this memory is no longer current."),
   })
   .strict();
 const definitionId = z
@@ -491,6 +674,69 @@ function delegatedReadAction(input: {
     examples: [],
     execute: async (parsed, principal, context) =>
       await input.execute(parsed, requireServices(context), principal),
+  };
+}
+
+function memoryReadAction(input: {
+  id: string;
+  title: string;
+  summary: string;
+  schema?: z.ZodType;
+  execute: (
+    parsed: Record<string, unknown>,
+    services: KodyMcpActionServices,
+    principal: McpPrincipal,
+  ) => Promise<unknown>;
+}): InternalAction {
+  const schema = input.schema ?? emptyInput;
+  return {
+    id: input.id,
+    title: input.title,
+    summary: input.summary,
+    category: "memory",
+    permission: "read",
+    sideEffects: false,
+    approval: "none",
+    input: schema,
+    inputSchema: toJsonSchema(schema),
+    outputSchema: { type: "object" },
+    examples: [],
+    execute: async (parsed, principal, context) =>
+      await input.execute(parsed, requireServices(context), principal),
+  };
+}
+
+function memoryWriteAction(input: {
+  id: string;
+  title: string;
+  summary: string;
+  schema: z.ZodType;
+  execute: (
+    parsed: Record<string, unknown>,
+    services: KodyMcpActionServices,
+    principal: McpPrincipal,
+    idempotencyKey: string,
+  ) => Promise<unknown>;
+}): InternalAction {
+  return {
+    id: input.id,
+    title: input.title,
+    summary: input.summary,
+    category: "memory",
+    permission: "write",
+    sideEffects: true,
+    approval: "none",
+    input: input.schema,
+    inputSchema: toJsonSchema(input.schema),
+    outputSchema: { type: "object" },
+    examples: [],
+    execute: async (parsed, principal, context) =>
+      await input.execute(
+        parsed,
+        requireServices(context),
+        principal,
+        requireIdempotency(context),
+      ),
   };
 }
 
@@ -790,24 +1036,108 @@ const INTERNAL_ACTIONS: readonly InternalAction[] = [
           limit: Number(input.limit),
         },
       );
+      const now = Date.now();
       return {
-        items: (rows as Array<Record<string, any>>).map((memory) => ({
-          memoryId: memory.id,
-          kind: memory.kind,
-          title: memory.content.title,
-          summary: memory.content.summary,
-          body: memory.content.body,
-          revisionId: memory.currentRevisionId,
-          updatedAt: memory.updatedAt,
-          provenance: {
-            repository: principal.tenantId,
-            source: "kody-memory",
+        items: (rows as Array<Record<string, any>>)
+          .filter(
+            (memory) =>
+              memory.status === undefined ||
+              (memory.status === "active" &&
+                (!memory.expiresAt || Date.parse(memory.expiresAt) > now)),
+          )
+          .map((memory) => ({
+            memoryId: memory.id,
+            kind: memory.kind,
+            title: memory.content.title,
+            summary: memory.content.summary,
+            body: memory.content.body,
             revisionId: memory.currentRevisionId,
-          },
-        })),
+            updatedAt: memory.updatedAt,
+            provenance: {
+              repository: principal.tenantId,
+              source: "kody-memory",
+              revisionId: memory.currentRevisionId,
+            },
+          })),
       };
     },
   },
+  memoryReadAction({
+    id: "memory.list",
+    title: "List memory",
+    summary: "List active durable personal and repository memories.",
+    schema: memoryListInput,
+    execute: (input, services, principal) =>
+      services.listMemories(input, principal),
+  }),
+  memoryReadAction({
+    id: "memory.get",
+    title: "Get memory",
+    summary: "Read one durable memory and its current revision metadata.",
+    schema: memoryIdInput,
+    execute: (input, services, principal) =>
+      services.getMemory(String(input.memoryId), principal),
+  }),
+  memoryReadAction({
+    id: "memory.search",
+    title: "Search memory",
+    summary: "Search active durable memories across the selected scope.",
+    schema: memorySearchInput,
+    execute: (input, services, principal) =>
+      services.searchMemories(input, principal),
+  }),
+  memoryReadAction({
+    id: "memory.history",
+    title: "Read memory history",
+    summary: "Read every revision and its evidence for one memory.",
+    schema: memoryIdInput,
+    execute: (input, services, principal) =>
+      services.getMemoryHistory(String(input.memoryId), principal),
+  }),
+  memoryWriteAction({
+    id: "memory.create",
+    title: "Create memory",
+    summary: "Save an attributed durable memory for future agents and chats.",
+    schema: memoryCreateInput,
+    execute: (input, services, principal, idempotencyKey) =>
+      services.createMemory(
+        { ...input, idempotencyKey, actionId: "memory.create" },
+        principal,
+      ),
+  }),
+  memoryWriteAction({
+    id: "memory.revise",
+    title: "Revise memory",
+    summary: "Correct a memory with an expected revision and an audit reason.",
+    schema: memoryReviseInput,
+    execute: (input, services, principal, idempotencyKey) =>
+      services.reviseMemory(
+        { ...input, idempotencyKey, actionId: "memory.revise" },
+        principal,
+      ),
+  }),
+  memoryWriteAction({
+    id: "memory.retire",
+    title: "Retire memory",
+    summary: "Mark a memory superseded while retaining its audit history.",
+    schema: memoryRetireInput,
+    execute: (input, services, principal, idempotencyKey) =>
+      services.retireMemory(
+        { ...input, idempotencyKey, actionId: "memory.retire" },
+        principal,
+      ),
+  }),
+  memoryWriteAction({
+    id: "memory.delete",
+    title: "Delete memory",
+    summary: "Permanently delete one memory and its revisions.",
+    schema: memoryIdInput,
+    execute: (input, services, principal, idempotencyKey) =>
+      services.deleteMemory(
+        { ...input, idempotencyKey, actionId: "memory.delete" },
+        principal,
+      ),
+  }),
   delegatedReadAction({
     id: "policy.list",
     title: "List policies",
@@ -1086,6 +1416,31 @@ const ACTION_EXAMPLE_INPUTS: Readonly<Record<string, Record<string, unknown>>> =
       reference: "abc123",
       summary: "Implementation commit.",
     },
+    "memory.list": { scope: "all", limit: 20 },
+    "memory.get": { memoryId: "memory-123" },
+    "memory.search": { query: "architecture", scope: "all", limit: 10 },
+    "memory.history": { memoryId: "memory-123" },
+    "memory.create": {
+      scope: "repository",
+      kind: "decision",
+      title: "Package manager",
+      summary: "Use pnpm.",
+      body: "This repository uses pnpm for installs and scripts.",
+    },
+    "memory.revise": {
+      memoryId: "memory-123",
+      expectedRevisionId: "revision-1",
+      kind: "decision",
+      title: "Package manager",
+      summary: "Use pnpm.",
+      body: "This repository uses pnpm for installs and scripts.",
+    },
+    "memory.retire": {
+      memoryId: "memory-123",
+      expectedRevisionId: "revision-1",
+      reason: "The decision is no longer current.",
+    },
+    "memory.delete": { memoryId: "memory-123" },
     "policy.list": {},
     "policy.get": { id: "safe-changes" },
     "instruction.get": {},

@@ -120,7 +120,7 @@ async function waitForBrainTerminalReady(page: Page) {
       timeout: 120_000,
       intervals: [1000, 2500],
     })
-    .toMatch(/\/workspace[#$]/);
+    .toMatch(/\/workspace(?:\/[^#$\s]+)?[#$]/);
 }
 
 async function typeCommand(page: Page, command: string) {
@@ -347,7 +347,7 @@ test.describe("Brain terminal live UI", () => {
       .getByRole("button", { name: /Terminal/ })
       .first()
       .click();
-    const target = page.getByLabel("Terminal target");
+    const target = page.locator('select[aria-label="Terminal target"]:visible').last();
     await expect(target).toBeVisible({ timeout: 20_000 });
     await expect
       .poll(
@@ -378,7 +378,9 @@ test.describe("Brain terminal live UI", () => {
       .getByRole("button", { name: /Terminal/ })
       .first()
       .click();
-    const restoredTarget = page.getByLabel("Terminal target");
+    const restoredTarget = page
+      .locator('select[aria-label="Terminal target"]:visible')
+      .last();
     await expect(restoredTarget).toBeVisible({ timeout: 20_000 });
     await restoredTarget.selectOption("brain");
     await waitForBrainTerminalReady(page);

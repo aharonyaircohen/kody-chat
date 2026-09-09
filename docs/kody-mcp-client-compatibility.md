@@ -51,6 +51,12 @@ and also runs protocol-level conformance checks.
    `kody_execute_tool` for changes. Pass `{actionId, input}`; include a stable
    `idempotencyKey` for write or approval actions so retries cannot duplicate work.
 
+For durable continuity, use `memory.search` or `memory.list` before relying on
+unstated project context. Save only decisions, facts, preferences, or references
+that another chat or coding agent will need. Use `memory.revise` with the latest
+`expectedRevisionId`, and use `memory.history` when the source or change trail
+matters. Retire stale knowledge instead of silently overwriting it.
+
 Search ranks words from action IDs, titles, categories, and summaries. It finds
 operations, not the contents of installed resources. Use a discovered list/get
 action to inspect actual resources. An empty query lists the catalog; search
@@ -65,7 +71,9 @@ and audit logging still apply. Client policy remains authoritative.
 
 Read-only tokens can use read actions. Change-request tokens can also update
 shared Todo work and create approval requests; they cannot approve their own
-requests.
+requests. Both token types receive matching memory read grants; change-request
+tokens also receive memory write/delete grants for the connected personal scope
+and repository.
 
 ## Compatibility and migration policy
 

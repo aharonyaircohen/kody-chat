@@ -25,4 +25,20 @@ describe("brainImageBuildCommand", () => {
       command.indexOf("crane auth login"),
     );
   });
+
+  it("excludes Brain SSH material from the exported rootfs", () => {
+    const command = brainImageBuildCommand({
+      app: "brain-app",
+      machineId: "machine-123",
+      orgSlug: "kody",
+      tag: "20260713t151212z",
+      baseImageRef: "ghcr.io/kody/base:latest",
+      imageRef: "ghcr.io/kody/kody-brain-aguy:20260713t151212z",
+      ghcrUser: "aguy",
+    });
+
+    expect(command).toContain("--exclude=etc/kody-ssh");
+    expect(command).toContain("--exclude=root/.kody-ssh");
+    expect(command).toContain("home/*/.kody-ssh");
+  });
 });

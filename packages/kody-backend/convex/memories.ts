@@ -330,7 +330,7 @@ export const revise = mutation({
       revision.id !== memory.currentRevisionId ||
       !sameScope(memory.scope, current.scope) ||
       memory.createdAt !== current.createdAt ||
-      memory.status !== "active" ||
+      (memory.status !== "active" && memory.status !== "superseded") ||
       memory.updatedAt !== revision.createdAt ||
       memory.kind !== revision.kind ||
       !sameContent(memory.content, revision.content)

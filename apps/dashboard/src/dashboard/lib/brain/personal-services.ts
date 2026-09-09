@@ -1,5 +1,7 @@
 import "server-only";
 
+import { AsyncLocalStorage } from "node:async_hooks";
+
 import { decrypt } from "@kody-ade/base/vault/crypto";
 import { setPersonalBrainServices } from "@kody-ade/brain/personal-services";
 import { getCurrentKodySessionUser } from "@dashboard/lib/auth/kody-auth-server";
@@ -16,8 +18,17 @@ import {
 
 const namespaceFor = (name: string) => `brain:${name}`;
 
+const userOverride = new AsyncLocalStorage<string>();
+
+/** Run a Brain operation for a verified server-side user without a browser session. */
+export function withPersonalBrainUser<T>(userId: string, fn: () => Promise<T>): Promise<T> {
+  return userOverride.run(userId, fn);
+}
+
 setPersonalBrainServices({
   async resolveUser() {
+    const override = userOverride.getStore();
+    if (override) return { id: override, label: "Kody user" };
     const identity = await getCurrentKodySessionUser();
     if (!identity) return null;
     return {
@@ -90,5 +101,9 @@ setPersonalBrainServices({
       updatedAt: new Date().toISOString(),
       ...(expectedDataUpdatedAt !== undefined ? { expectedDataUpdatedAt } : {}),
     });
+  },
+
+  async enqueueRestore(input) {
+    await getConvexClient().mutation(backendApi.brainRestoreJobs.enqueue, input);
   },
 });

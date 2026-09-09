@@ -86,7 +86,11 @@ test("creates, verifies, and revokes a real repository-scoped MCP connection", a
       tokens: Array<{ tokenId: string; name: string; scopes: string[] }>;
     };
     const created = body.tokens.find((token) => token.name === name);
-    expect(created?.scopes).toEqual(["mcp:read"]);
+    expect(created?.scopes).toEqual([
+      "mcp:read",
+      "memory:personal:read",
+      "memory:repository:read",
+    ]);
     tokenId = created?.tokenId ?? "";
 
     expect({ status: verified.status(), body: verificationBody }).toMatchObject(

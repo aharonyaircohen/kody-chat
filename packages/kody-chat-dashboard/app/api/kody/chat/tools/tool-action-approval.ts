@@ -14,6 +14,21 @@ export interface ToolActionApprovalContext {
   actorId: string;
 }
 
+export interface ToolActionDecisionContext {
+  /** Plain sentence describing what is currently true before the action runs. */
+  currentState: string;
+  /** Plain sentence explaining why a decision is needed now. */
+  whyNow: string;
+  /** Plain sentence describing what will happen if approved. */
+  recommendedAction: string;
+  /** Plain sentence describing what will happen if cancelled. */
+  cancelChoice: string;
+  /** Kody's recommendation, when one is useful for this decision. */
+  recommendation?: string;
+  /** The tradeoff of Kody's recommendation, when one is useful. */
+  tradeoff?: string;
+}
+
 interface ToolActionPayload extends ToolActionApprovalContext {
   toolName: string;
   input: unknown;
@@ -106,6 +121,32 @@ function decodePayload(
   }
 }
 
+/** Format the user-facing context for a decision shared by approval cards. */
+export function buildDecisionBody(input: {
+  currentState?: string;
+  whyNow?: string;
+  recommendedAction?: string;
+  cancelChoice?: string;
+  recommendation?: string;
+  tradeoff?: string;
+  legacyBody: string;
+}): string {
+  const parts: string[] = [];
+  if (input.currentState) parts.push(`**Current:** ${input.currentState}`);
+  if (input.whyNow) parts.push(`**Why:** ${input.whyNow}`);
+  if (input.recommendedAction) {
+    parts.push(`**Approving will:** ${input.recommendedAction}`);
+  }
+  if (input.cancelChoice) {
+    parts.push(`**Cancelling will:** ${input.cancelChoice}`);
+  }
+  if (input.recommendation) {
+    parts.push(`**Recommendation:** ${input.recommendation}`);
+  }
+  if (input.tradeoff) parts.push(`**Tradeoff:** ${input.tradeoff}`);
+  return parts.length > 0 ? parts.join("\n\n") : input.legacyBody;
+}
+
 export function createToolActionApproval(input: {
   secret: string;
   context: ToolActionApprovalContext;
@@ -113,6 +154,7 @@ export function createToolActionApproval(input: {
   input: unknown;
   title: string;
   body?: string;
+  decisionContext?: ToolActionDecisionContext;
   now?: number;
 }): RenderedViewDirective {
   const definition = getBuiltinViewRendererDefinition("approval-card");
@@ -130,7 +172,12 @@ export function createToolActionApproval(input: {
     definition,
     data: {
       title: input.title,
-      ...(input.body ? { body: input.body } : {}),
+      body: buildDecisionBody({
+        ...input.decisionContext,
+        legacyBody:
+          input.body ??
+          "Approve to run this exact saved action, or cancel to leave everything unchanged.",
+      }),
     },
   });
 }
@@ -294,8 +341,13 @@ export function stageToolsForApproval(
   input: {
     secret: string;
     context: ToolActionApprovalContext;
+    decisionContext?: ToolActionDecisionContext;
   },
 ): Record<string, unknown> {
+  // This boundary is shared by heterogeneous tools and runs before any tool
+  // executes. It has no verified current state, why-now, or recommendation to
+  // infer from arbitrary input, so callers must pass real context when they
+  // have it; otherwise the concise fallback avoids inventing facts.
   return Object.fromEntries(
     Object.entries(tools).map(([toolName, candidate]) => {
       if (

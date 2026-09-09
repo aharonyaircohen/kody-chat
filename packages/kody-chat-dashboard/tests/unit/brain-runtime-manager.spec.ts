@@ -106,6 +106,61 @@ describe("Brain runtime manager", () => {
     expect(written).not.toHaveProperty("operation");
   });
 
+  it("records a failed restore while keeping a recovered previous runtime", async () => {
+    runtimeStore.readBrainRuntimeState.mockResolvedValueOnce({
+      version: 1,
+      desiredImageRef: "ghcr.io/acme/kody-brain-octocat:new",
+      running: {
+        imageRef: "ghcr.io/acme/kody-brain-octocat:new",
+        app: "brain-2",
+        machineId: "machine-new",
+        orgSlug: "personal",
+        appliedAt: "2026-07-02T10:00:00.000Z",
+      },
+      operation: {
+        id: "op-1",
+        type: "apply-image",
+        status: "running",
+        imageRef: "ghcr.io/acme/kody-brain-octocat:new",
+        startedAt: "2026-07-02T09:00:00.000Z",
+        updatedAt: "2026-07-02T09:00:00.000Z",
+      },
+      updatedAt: "2026-07-02T09:00:00.000Z",
+    });
+    const { failBrainRuntimeApply } =
+      await import("@kody-ade/brain/runtime-manager");
+    const recovered = {
+      imageRef: "ghcr.io/acme/kody-brain-octocat:old",
+      app: "brain-3",
+      machineId: "machine-recovered",
+      orgSlug: "personal",
+      url: "https://brain-3.fly.dev",
+      appliedAt: "2026-07-02T10:01:00.000Z",
+    };
+
+    await failBrainRuntimeApply(
+      "octocat",
+      "token",
+      "ghcr.io/acme/kody-brain-octocat:new",
+      "new image failed health check",
+      "op-1",
+      recovered,
+    );
+
+    expect(runtimeStore.writeBrainRuntimeState).toHaveBeenCalledWith(
+      "octocat",
+      "token",
+      expect.objectContaining({
+        running: recovered,
+        operation: expect.objectContaining({
+          status: "failed",
+          recoveredImageRef: recovered.imageRef,
+        }),
+      }),
+      "2026-07-02T09:00:00.000Z",
+    );
+  });
+
   it("falls back to legacy image running metadata for migration only", async () => {
     imageStore.readBrainImage.mockResolvedValueOnce({
       version: 1,

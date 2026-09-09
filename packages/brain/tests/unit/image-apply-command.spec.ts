@@ -28,4 +28,22 @@ describe("personal image restore ownership", () => {
       }),
     );
   });
+
+  it("uses the verified GitHub account when no explicit owner is stored", async () => {
+    const context = {
+      account: "user-123",
+      githubAccount: "github-login",
+      flyToken: "test-fly",
+      githubToken: "test-pat",
+      allSecrets: {},
+    } as PersonalBrainContext;
+    await applyBrainImage({
+      context,
+      dashboardUrl: "https://dashboard.test",
+      imageRef: "ghcr.io/github-login/brain:saved",
+    });
+    expect(apply).toHaveBeenLastCalledWith(
+      expect.objectContaining({ owner: "github-login" }),
+    );
+  });
 });

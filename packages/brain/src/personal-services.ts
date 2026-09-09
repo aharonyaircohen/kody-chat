@@ -26,6 +26,13 @@ export interface PersonalBrainServices {
     data: unknown,
     expectedDataUpdatedAt?: string | null,
   ): Promise<void>;
+  enqueueRestore?(input: {
+    userId: string;
+    operationId: string;
+    imageRef: string;
+    reset: boolean;
+    dashboardUrl: string;
+  }): Promise<void>;
 }
 
 let personalBrainServices: PersonalBrainServices | null = null;

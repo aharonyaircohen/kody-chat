@@ -61,7 +61,7 @@ describe("Brain bounded context architecture", () => {
       "manageBrainServer(",
     );
     expect(source("../../packages/brain/src/routes/image-apply.ts")).toContain(
-      "applyBrainImage(",
+      "enqueueRestore",
     );
     expect(source("../../packages/fly/src/routes/terminal-session.ts")).toContain(
       "startTerminalSession(",

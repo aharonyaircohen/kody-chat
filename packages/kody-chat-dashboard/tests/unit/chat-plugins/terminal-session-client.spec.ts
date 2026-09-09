@@ -69,10 +69,8 @@ function setup(schedule?: (callback: () => void, delayMs: number) => number) {
     },
     schedule:
       schedule ??
-      ((callback) => {
-        callback();
-        return 1;
-      }),
+      ((callback, delayMs) =>
+        globalThis.setTimeout(callback, delayMs) as unknown as number),
     cancelSchedule: () => {},
     onEvent: (event) => events.push(event),
     onState: (state) => states.push(state),
@@ -149,6 +147,62 @@ describe("TerminalSessionClient", () => {
       connection: "error",
       issue: { action: "retry" },
     });
+  });
+
+  it("keeps the transport diagnosis when the final socket closes", async () => {
+    const pending: Array<() => void> = [];
+    const harness = setup((callback) => {
+      pending.push(callback);
+      return pending.length;
+    });
+    await harness.client.connect();
+    for (let attempt = 0; attempt < 5; attempt++) {
+      harness.sockets[attempt]!.message({
+        type: "input-rejected",
+        code: "terminal_transport_unavailable",
+        message: "tunnel unavailable: context deadline exceeded",
+      });
+      harness.sockets[attempt]!.drop();
+      if (attempt < 4) {
+        pending.shift()!();
+        await Promise.resolve();
+      }
+    }
+    expect(harness.client.getState().error).toContain("tunnel unavailable");
+  });
+
+  it("does not accept input on a replacement socket until ready", async () => {
+    const pending: Array<() => void> = [];
+    const harness = setup((callback) => {
+      pending.push(callback);
+      return pending.length;
+    });
+    await harness.client.connect();
+    harness.sockets[0]!.open();
+    harness.sockets[0]!.message({
+      type: "state", sessionId: "terminal-1", generation: 1, state: "ready",
+    });
+    pending.splice(0);
+    harness.sockets[0]!.drop();
+    pending.shift()!();
+    await Promise.resolve();
+    harness.sockets[1]!.open();
+    expect(harness.client.sendInput("input-before-ready", "pwd\r")).toBe(false);
+    harness.sockets[1]!.message({
+      type: "state", sessionId: "terminal-1", generation: 1, state: "ready",
+    });
+    expect(harness.client.sendInput("input-after-ready", "pwd\r")).toBe(true);
+  });
+
+  it("schedules a deadline for a socket that opens without readiness", async () => {
+    const timers: Array<() => void> = [];
+    const harness = setup((callback) => {
+      timers.push(callback);
+      return timers.length;
+    });
+    await harness.client.connect();
+    harness.sockets[0]!.open();
+    expect(timers.length).toBeGreaterThan(0);
   });
 
   it("clears the connected shell with a typed command, without injecting input or restarting", async () => {

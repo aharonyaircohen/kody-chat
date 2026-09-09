@@ -11,6 +11,140 @@ import {
 
 const BASE_URL = process.env.BASE_URL ?? "http://127.0.0.1:3333";
 
+test("local terminal failure waits for an explicit restart", async ({
+  page,
+}) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  await page.route("**/api/kody/**", (route) => route.fulfill({ json: {} }));
+  await mockDashboardShellRequests(page);
+  await seedAuth(page);
+  let historyReads = 0;
+  await page.route("**/api/kody/chat/terminal/checkpoint?**", (route) => {
+    historyReads += 1;
+    return route.fulfill({
+      json: { checkpoint: { output: "OLD_CONNECTION_NOISE" } },
+    });
+  });
+  await page.route("**/api/kody/brain/status", (route) =>
+    route.fulfill({
+      json: {
+        machines: [
+          {
+            feature: "brain",
+            app: "terminal-e2e",
+            machineId: "brain-1",
+            state: "started",
+            region: "fra",
+            label: "Brain",
+          },
+        ],
+      },
+    }),
+  );
+  let starts = 0;
+  const message =
+    "Local terminal is unavailable in this runtime because native PTY support could not load.";
+  await page.route("**/api/kody/chat/terminal/start", (route) => {
+    starts += 1;
+    if (starts > 1)
+      return route.fulfill({
+        json: {
+          session: {
+            sessionId: "local-1",
+            cursor: 0,
+            alive: true,
+            cwd: "/workspace",
+            shell: "zsh",
+          },
+        },
+      });
+    return route.fulfill({
+      status: 503,
+      json: { error: "terminal_start_failed", message },
+    });
+  });
+  const delivered: string[] = [];
+  await page.route("**/api/kody/chat/terminal/input", async (route) => {
+    const { input } = route.request().postDataJSON();
+    if (input === "p") await new Promise((resolve) => setTimeout(resolve, 250));
+    delivered.push(input);
+    if (input === "x")
+      return route.fulfill({ status: 503, json: { error: "input_failed" } });
+    await route.fulfill({ json: { ok: true } });
+  });
+  await page.route("**/api/kody/chat/terminal/output?**", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const initial =
+      new URL(route.request().url()).searchParams.get("cursor") === "0";
+    await route.fulfill({
+      json: {
+        events: initial
+          ? [
+              {
+                id: 1,
+                type: "output",
+                data: "$ ",
+                at: new Date().toISOString(),
+              },
+            ]
+          : [],
+        cursor: 1,
+        alive: true,
+      },
+    });
+  });
+  await page.goto(`${BASE_URL}/repo/test-owner/test-repo`, {
+    waitUntil: "domcontentloaded",
+  });
+  await page.locator('summary[aria-label="More compose options"]').click();
+  await page.getByRole("button", { name: /^Terminal / }).click();
+  await expect(
+    page.getByLabel("Terminal target").filter({ visible: true }),
+  ).toHaveValue("brain");
+  await page
+    .getByLabel("Terminal target")
+    .filter({ visible: true })
+    .selectOption({ label: "Local terminal" });
+  await expect(
+    page.getByLabel("Terminal target").filter({ visible: true }),
+  ).toHaveValue("local");
+  await expect(page.getByTestId("terminal-startup-issue")).toContainText(
+    "Local terminal is unavailable",
+  );
+  await expect(page.locator(".xterm-rows:visible")).not.toContainText(
+    "Local terminal is unavailable",
+  );
+  // Observe several render cycles: a state-dependent start callback used to
+  // issue another failed request on every completion.
+  await page.waitForTimeout(1000);
+  expect(starts).toBe(1);
+  expect(historyReads).toBe(0);
+  await expect(
+    page.getByRole("region", { name: "Historical terminal checkpoint" }),
+  ).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "Retry terminal", exact: true })
+    .click();
+  await expect.poll(() => starts).toBe(2);
+  await page.waitForTimeout(500);
+  expect(starts).toBe(2);
+  await expect(page.getByTestId("terminal-startup-issue")).not.toBeVisible();
+  const input = page
+    .getByRole("textbox", { name: "Terminal input", exact: true })
+    .filter({ visible: true });
+  await input.pressSequentially("pwd");
+  await input.press("Enter");
+  await expect.poll(() => delivered.join("")).toBe("pwd\r");
+  await input.pressSequentially("xy");
+  await expect(page.getByTestId("terminal-startup-issue")).toContainText(
+    "Terminal input could not be delivered",
+  );
+  await page.waitForTimeout(500);
+  expect(delivered.join("")).toBe("pwd\rx");
+  expect(pageErrors).toEqual([]);
+});
+
 async function seedAuth(page: Page): Promise<void> {
   await page.addInitScript(() => {
     localStorage.setItem(
@@ -101,7 +235,9 @@ for (const scenario of ["ready", "setup", "timeout", "transport"] as const) {
       });
     });
     await page.routeWebSocket("ws://terminal.test/session", (socket) => {
-      const ready = setupDone && !((transientTimeout || transientTransport) && sessionRequests === 1);
+      const ready =
+        setupDone &&
+        !((transientTimeout || transientTransport) && sessionRequests === 1);
       const sessionId = ready && needsSetup ? "terminal-2" : "terminal-1";
       let revision = 0;
       let cleared = false;
@@ -137,10 +273,16 @@ for (const scenario of ["ready", "setup", "timeout", "transport"] as const) {
                 }
               : {
                   type: "input-rejected",
-                  code: needsSetup ? "terminal_agent_missing" : transientTransport ? "terminal_transport_unavailable" : undefined,
-                  message: transientTransport ? "Provider temporarily unavailable" : transientTimeout
-                    ? 'Error: tunnel unavailable: Error contacting Fly.io API when probing "personal": timed out (context deadline exceeded)'
-                    : "Terminal agent is unavailable",
+                  code: needsSetup
+                    ? "terminal_agent_missing"
+                    : transientTransport
+                      ? "terminal_transport_unavailable"
+                      : undefined,
+                  message: transientTransport
+                    ? "Provider temporarily unavailable"
+                    : transientTimeout
+                      ? 'Error: tunnel unavailable: Error contacting Fly.io API when probing "personal": timed out (context deadline exceeded)'
+                      : "Terminal agent is unavailable",
                 },
           ),
         );

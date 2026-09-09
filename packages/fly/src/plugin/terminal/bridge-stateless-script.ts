@@ -495,10 +495,21 @@ async function queryAgentStatus(claims) {
   return new Promise((resolve, reject) => {
     const child = spawnBrainAgent(claims);
     let lines = "";
+    let diagnostics = "";
+    let settled = false;
     const timer = setTimeout(() => {
       try { child.kill("SIGTERM"); } catch {}
-      reject(new Error("terminal status timed out"));
+      if (!settled) {
+        settled = true;
+        reject(new Error("terminal status timed out"));
+      }
     }, AGENT_STATUS_TIMEOUT_MS);
+    const fail = (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      reject(error);
+    };
     child.stdout.on("data", (chunk) => {
       lines += chunk.toString("utf8");
       while (lines.includes("\n")) {
@@ -506,18 +517,28 @@ async function queryAgentStatus(claims) {
         const event = parseAgentEvent(lines.slice(0, index).trim(), claims);
         lines = lines.slice(index + 1);
         if (!event) continue;
+        if (settled) return;
+        settled = true;
         clearTimeout(timer);
         child.stdin.end();
         resolve(event);
         return;
       }
     });
-    child.on("error", (error) => {
-      clearTimeout(timer);
-      reject(error);
+    child.stderr.on("data", (chunk) => {
+      diagnostics = (diagnostics + chunk.toString("utf8")).slice(-2000);
+    });
+    child.on("error", (error) => fail(error));
+    child.on("close", (code) => {
+      if (settled) return;
+      fail(new Error(diagnostics.trim() || "terminal agent exited with code " + (code ?? 1)));
     });
     child.stdin.end(JSON.stringify({ type: "status", sessionId: claims.chatSessionId }) + "\n");
   });
+}
+
+function safeDiagnostic(message) {
+  return String(message).replace(/FlyV1[^\s"']+/g, "[redacted-token]").slice(0, 500);
 }
 
 setInterval(() => {
@@ -571,7 +592,17 @@ const server = http.createServer(async (req, res) => {
     }
     return jsonResponse(res, 404, { ok: false, error: "not found" });
   } catch (error) {
-    return jsonResponse(res, 401, { ok: false, error: error instanceof Error ? error.message : "unauthorized" });
+    const message = error instanceof Error ? error.message : "unauthorized";
+    const authenticationFailure = /token|unauthorized|forbidden|local exec/i.test(message);
+    return jsonResponse(
+      res,
+      authenticationFailure ? 401 : 503,
+      {
+        ok: false,
+        error: authenticationFailure ? "unauthorized" : "terminal_transport_unavailable",
+        message: safeDiagnostic(message),
+      },
+    );
   }
 });
 

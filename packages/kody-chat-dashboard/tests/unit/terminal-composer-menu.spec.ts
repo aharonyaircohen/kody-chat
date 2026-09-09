@@ -128,4 +128,11 @@ describe("terminal controls in the composer menu", () => {
     expect(markup).toContain('aria-label="Restart terminal"');
     expect(markup).toMatch(/<button[^>]*disabled=""[^>]*aria-label="Restart terminal"/);
   });
+
+  it("invalidates the Brain terminal when an image restore changes the runtime", () => {
+    expect(HOST_SOURCE).toContain('"kody:brain-runtime-change"');
+    expect(HOST_SOURCE).toContain("terminal.prepareForRuntimeChange()");
+    expect(HOST_SOURCE).toContain("void terminal.reconnectFresh()");
+    expect(HOST_SOURCE).toContain('phase === "complete"');
+  });
 });

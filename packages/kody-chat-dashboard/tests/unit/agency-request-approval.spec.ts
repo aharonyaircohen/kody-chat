@@ -55,7 +55,9 @@ describe("Agency request approval view", () => {
 
     expect(runAgencyRequest).toHaveBeenCalledOnce();
     expect(runAgencyRequest).toHaveBeenCalledWith("keep-ci-passing");
-    expect(body).toContain("Agency request is monitoring workflow run run-123.");
+    expect(body).toContain(
+      "Agency request is monitoring workflow run run-123.",
+    );
   });
 
   it("streams the manager-owned approval without asking a model", async () => {
@@ -66,5 +68,23 @@ describe("Agency request approval view", () => {
     const body = await response.text();
     expect(body).toContain("agency-request-keep-ci-passing");
     expect(body).toContain("approval-card");
+  });
+
+  it("renders the current state and outcome before asking for approval", () => {
+    const directive = createAgencyRequestApproval({
+      todoSlug: "fix-auth-bug",
+      decisionContext: {
+        currentState: "The release is waiting on the auth fix.",
+        whyNow: "The release cannot proceed safely while the bug remains.",
+        recommendedAction: "Run the saved repair plan and monitor its result.",
+        cancelChoice: "Leave the request waiting so the plan can be revised.",
+      },
+    });
+
+    const body = String((directive.data as { body?: string }).body ?? "");
+    expect(body).toContain("**Current:** The release is waiting");
+    expect(body).toContain("**Why:** The release cannot proceed");
+    expect(body).toContain("**Approving will:** Run the saved repair plan");
+    expect(body).toContain("**Cancelling will:** Leave the request waiting");
   });
 });

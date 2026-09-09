@@ -77,6 +77,10 @@ export function useChatTerminalRegistry({
   const [initialRegistryState] = useState(() =>
     loadPersistedTerminalRegistry(storageKey),
   );
+  const hydratedStorageKeyRef = useRef(storageKey);
+  const [pendingActiveSessionId, setPendingActiveSessionId] = useState<
+    string | null
+  >(null);
   const skipNextPersistRef = useRef(true);
   const [modeBySessionId, setModeBySessionId] = useState<
     Record<string, ChatTerminalMode>
@@ -94,8 +98,17 @@ export function useChatTerminalRegistry({
   const [flyInventoryError, setServerProviderInventoryError] = useState<
     string | null
   >(null);
+  const effectiveActiveSessionId = activeSessionId ?? pendingActiveSessionId;
 
   useEffect(() => {
+    if (activeSessionId && pendingActiveSessionId) {
+      setPendingActiveSessionId(null);
+    }
+  }, [activeSessionId, pendingActiveSessionId]);
+
+  useEffect(() => {
+    if (hydratedStorageKeyRef.current === storageKey) return;
+    hydratedStorageKeyRef.current = storageKey;
     const persisted = loadPersistedTerminalRegistry(storageKey);
     skipNextPersistRef.current = true;
     setModeBySessionId(persisted.modeBySessionId);
@@ -116,15 +129,15 @@ export function useChatTerminalRegistry({
     });
   }, [modeBySessionId, mountedTerminals, storageKey, transportBySessionId]);
 
-  const mode = activeSessionId
-    ? (modeBySessionId[activeSessionId] ?? "ai")
+  const mode = effectiveActiveSessionId
+    ? (modeBySessionId[effectiveActiveSessionId] ?? "ai")
     : "ai";
   const terminalMachines = useMemo(
     () => (flyInventory?.machines ?? []).filter(canUseChatTerminalFlyMachine),
     [flyInventory],
   );
-  const activeTransportBase = activeSessionId
-    ? (transportBySessionId[activeSessionId] ??
+  const activeTransportBase = effectiveActiveSessionId
+    ? (transportBySessionId[effectiveActiveSessionId] ??
       defaultTerminalTransport(terminalMachines))
     : LOCAL_TERMINAL_TRANSPORT;
   const activeTransport = normalizeTerminalTransport(
@@ -132,8 +145,8 @@ export function useChatTerminalRegistry({
     terminalMachines,
     { inventoryLoaded: flyInventory !== null },
   );
-  const activeInstanceId = activeSessionId
-    ? chatTerminalInstanceId(activeSessionId, activeTransport)
+  const activeInstanceId = effectiveActiveSessionId
+    ? chatTerminalInstanceId(effectiveActiveSessionId, activeTransport)
     : null;
   const activeTargetValue = terminalTargetValue(activeTransport);
 
@@ -161,16 +174,17 @@ export function useChatTerminalRegistry({
 
   const setActiveMode = useCallback(
     (nextMode: ChatTerminalMode) => {
-      if (!activeSessionId) return;
-      setSessionMode(activeSessionId, nextMode);
+      if (!effectiveActiveSessionId) return;
+      setSessionMode(effectiveActiveSessionId, nextMode);
     },
-    [activeSessionId, setSessionMode],
+    [effectiveActiveSessionId, setSessionMode],
   );
 
   useEffect(() => {
     if (!sessionsHydrated) return;
 
     const knownSessionIds = new Set(sessions.map((session) => session.id));
+    if (pendingActiveSessionId) knownSessionIds.add(pendingActiveSessionId);
 
     setMountedTerminals((prev) =>
       pruneMountedChatTerminals(prev, knownSessionIds),
@@ -181,20 +195,20 @@ export function useChatTerminalRegistry({
     setTransportBySessionId((prev) =>
       pruneSessionKeyedRecord(prev, knownSessionIds),
     );
-  }, [sessions, sessionsHydrated]);
+  }, [pendingActiveSessionId, sessions, sessionsHydrated]);
 
   useEffect(() => {
-    if (mode !== "terminal" || !activeSessionId) return;
+    if (mode !== "terminal" || !effectiveActiveSessionId) return;
     if (
       flyInventory === null &&
-      transportBySessionId[activeSessionId] === undefined
+      transportBySessionId[effectiveActiveSessionId] === undefined
     ) {
       return;
     }
-    mountTerminal(activeSessionId, activeTransport);
+    mountTerminal(effectiveActiveSessionId, activeTransport);
   }, [
-    activeSessionId,
     activeTransport,
+    effectiveActiveSessionId,
     flyInventory,
     mode,
     mountTerminal,
@@ -203,7 +217,8 @@ export function useChatTerminalRegistry({
 
   const openTerminalMode = useCallback(
     (transport?: ChatTerminalTransport) => {
-      const sessionId = activeSessionId ?? createSession();
+      const sessionId = effectiveActiveSessionId ?? createSession();
+      if (!activeSessionId) setPendingActiveSessionId(sessionId);
       const explicitTransport = transport ?? transportBySessionId[sessionId];
       const terminalTransport = normalizeTerminalTransport(
         explicitTransport ?? defaultTerminalTransport(terminalMachines),
@@ -215,9 +230,9 @@ export function useChatTerminalRegistry({
       }
       if (transport) {
         setTransportBySessionId((prev) =>
-          chatTerminalTransportKey(
-            prev[sessionId] ?? LOCAL_TERMINAL_TRANSPORT,
-          ) === chatTerminalTransportKey(terminalTransport)
+          prev[sessionId] &&
+          chatTerminalTransportKey(prev[sessionId]) ===
+            chatTerminalTransportKey(terminalTransport)
             ? prev
             : { ...prev, [sessionId]: terminalTransport },
         );
@@ -226,8 +241,8 @@ export function useChatTerminalRegistry({
       return sessionId;
     },
     [
-      activeSessionId,
       createSession,
+      effectiveActiveSessionId,
       flyInventory,
       mountTerminal,
       setSessionMode,
@@ -275,7 +290,7 @@ export function useChatTerminalRegistry({
   useEffect(() => {
     if (mode !== "terminal") return;
     void refreshFlyMachines();
-  }, [activeSessionId, mode, refreshFlyMachines]);
+  }, [effectiveActiveSessionId, mode, refreshFlyMachines]);
 
   useEffect(() => {
     if (flyInventory === null) return;
@@ -307,22 +322,22 @@ export function useChatTerminalRegistry({
 
   const setActiveTransport = useCallback(
     (transport: ChatTerminalTransport) => {
-      if (!activeSessionId) return;
+      if (!effectiveActiveSessionId) return;
       const nextTransport = normalizeTerminalTransport(
         transport,
         terminalMachines,
         { inventoryLoaded: flyInventory !== null },
       );
-      mountTerminal(activeSessionId, nextTransport);
+      mountTerminal(effectiveActiveSessionId, nextTransport);
       setTransportBySessionId((prev) =>
-        chatTerminalTransportKey(
-          prev[activeSessionId] ?? LOCAL_TERMINAL_TRANSPORT,
-        ) === chatTerminalTransportKey(nextTransport)
+        prev[effectiveActiveSessionId] &&
+        chatTerminalTransportKey(prev[effectiveActiveSessionId]) ===
+          chatTerminalTransportKey(nextTransport)
           ? prev
-          : { ...prev, [activeSessionId]: nextTransport },
+          : { ...prev, [effectiveActiveSessionId]: nextTransport },
       );
     },
-    [activeSessionId, flyInventory, mountTerminal, terminalMachines],
+    [effectiveActiveSessionId, flyInventory, mountTerminal, terminalMachines],
   );
 
   const selectTarget = useCallback(

@@ -253,4 +253,38 @@ lines.on("line", (line) => {
       stderr: "job-warning",
     });
   });
+
+  it("reports Brain tunnel failures as transport errors, not authentication failures", async () => {
+    const root = mkdtempSync(join(tmpdir(), "kody-gateway-status-"));
+    roots.push(root);
+    const gatewayPath = join(root, "bridge.mjs");
+    const flyctlPath = join(root, "flyctl");
+    writeFileSync(gatewayPath, TERMINAL_BRIDGE_SCRIPT);
+    writeFileSync(
+      flyctlPath,
+      "#!/bin/sh\necho 'tunnel unavailable: context deadline exceeded' >&2\nexit 1\n",
+    );
+    chmodSync(flyctlPath, 0o755);
+    const port = await unusedPort();
+    const child = spawn(process.execPath, [gatewayPath], {
+      env: {
+        ...process.env,
+        PATH: `${root}:${process.env.PATH ?? ""}`,
+        PORT: String(port),
+        BRIDGE_AUTH_SECRET: SECRET,
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    children.push(child);
+    await waitForHealth(port);
+    const response = await fetch(`http://127.0.0.1:${port}/status`, {
+      headers: { authorization: `Bearer ${token()}` },
+    });
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      error: "terminal_transport_unavailable",
+      message: expect.stringContaining("tunnel unavailable"),
+    });
+  });
 });

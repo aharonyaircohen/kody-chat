@@ -65,11 +65,6 @@ type LocalTerminalEvent =
   | { id: number; type: "output"; data: string; at: string }
   | { id: number; type: "exit"; code?: number; signal?: number; at: string };
 
-interface HistoricalSnapshot {
-  name: string;
-  output: string;
-}
-
 interface ChatTerminalSurfaceProps {
   active: boolean;
   chatSessionId: string;
@@ -88,9 +83,10 @@ export interface ChatTerminalSurfaceHandle {
   clear: () => void;
   restart: () => void;
   stop: () => Promise<void>;
+  prepareForRuntimeChange: () => void;
+  reconnectFresh: () => Promise<void>;
   focus: () => void;
   getSnapshot: () => ChatTerminalSnapshot;
-  restoreSnapshot: (snapshot: { name: string; output?: string }) => void;
 }
 
 const LOCAL_TRANSPORT: ChatTerminalTransport = { type: "local" };
@@ -122,6 +118,9 @@ export const ChatTerminalSurface = forwardRef<
   const transportRef = useRef(transport);
   const outputCaptureRef = useRef("");
   const pollBusyRef = useRef(false);
+  const startingLocalRef = useRef(false);
+  const localInputQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const localInputBlockedRef = useRef(false);
   const sessionEndNotifiedRef = useRef(false);
   const nextInputIdRef = useRef(1);
   const inputSignalTimerRef = useRef<number | null>(null);
@@ -131,8 +130,6 @@ export const ChatTerminalSurface = forwardRef<
     null,
   );
   const [localError, setLocalError] = useState<string | null>(null);
-  const [historicalSnapshot, setHistoricalSnapshot] =
-    useState<HistoricalSnapshot | null>(null);
   const [setupBusy, setSetupBusy] = useState(false);
   const [setupIssue, setSetupIssue] = useState<TerminalStartupIssue | null>(
     null,
@@ -257,7 +254,10 @@ export const ChatTerminalSurface = forwardRef<
     }
     setSetupIssue(null);
     if (visibleStartupIssue.action === "retry") {
-      await retryRemote();
+      // A restore can replace the Fly machine behind the same logical Brain
+      // target. Start a fresh server session so Retry never reuses a stale
+      // socket/session from the old machine.
+      await retryRemote({ resetSession: true });
       return;
     }
     setSetupBusy(true);
@@ -336,7 +336,7 @@ export const ChatTerminalSurface = forwardRef<
         return;
       }
       const current = localSessionRef.current;
-      if (!current?.alive) {
+      if (!current?.alive || localInputBlockedRef.current) {
         setInputSignalBriefly(
           { tone: "blocked", label: "Input blocked" },
           { tone: "blocked", label: "Input blocked" },
@@ -347,26 +347,49 @@ export const ChatTerminalSurface = forwardRef<
         { tone: "sent", label: "Input sent" },
         { tone: "ready", label: "Ready for input" },
       );
-      void fetchWithTimeout(
-        "/api/kody/chat/terminal/input",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...authHeaders() },
-          body: JSON.stringify({
-            sessionId: current.sessionId,
-            input,
-            raw: true,
-          }),
-        },
-        TERMINAL_INPUT_TIMEOUT_MS,
-      ).catch(() => {});
+      localInputQueueRef.current = localInputQueueRef.current.then(async () => {
+        if (
+          localSessionRef.current?.sessionId !== current.sessionId ||
+          !localSessionRef.current.alive ||
+          localInputBlockedRef.current
+        )
+          return;
+        try {
+          const response = await fetchWithTimeout(
+            "/api/kody/chat/terminal/input",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json", ...authHeaders() },
+              body: JSON.stringify({
+                sessionId: current.sessionId,
+                input,
+                raw: true,
+              }),
+            },
+            TERMINAL_INPUT_TIMEOUT_MS,
+          );
+          if (!response.ok)
+            throw new Error(
+              "Terminal input could not be delivered. Retry the terminal before typing again.",
+            );
+        } catch (error) {
+          if (localSessionRef.current?.sessionId !== current.sessionId) return;
+          localInputBlockedRef.current = true;
+          setLocalError(
+            error instanceof Error ? error.message : "Terminal input failed",
+          );
+          setInputSignal({ tone: "blocked", label: "Input blocked" });
+        }
+      });
     },
     [sendRemoteInput, setInputSignalBriefly],
   );
 
   const startLocal = useCallback(async () => {
     const view = viewRef.current;
-    if (!view || connectingLocal || localSessionRef.current?.alive) return;
+    if (!view || startingLocalRef.current || localSessionRef.current?.alive)
+      return;
+    startingLocalRef.current = true;
     setConnectingLocal(true);
     setLocalError(null);
     setInputSignal({ tone: "blocked", label: "Waiting for terminal" });
@@ -398,6 +421,7 @@ export const ChatTerminalSurface = forwardRef<
       }
       sessionEndNotifiedRef.current = false;
       localSessionRef.current = body.session;
+      localInputBlockedRef.current = false;
       setLocalSession(body.session);
       setInputSignal({ tone: "ready", label: "Ready for input" });
     } catch (error) {
@@ -405,11 +429,11 @@ export const ChatTerminalSurface = forwardRef<
         error instanceof Error ? error.message : "Failed to start terminal";
       setLocalError(message);
       setInputSignal({ tone: "blocked", label: "Input blocked" });
-      view.writeln(`\x1b[31m${message}\x1b[0m`);
     } finally {
+      startingLocalRef.current = false;
       setConnectingLocal(false);
     }
-  }, [chatSessionId, connectingLocal]);
+  }, [chatSessionId]);
 
   const pollLocalOutput = useCallback(async () => {
     const current = localSessionRef.current;
@@ -513,7 +537,9 @@ export const ChatTerminalSurface = forwardRef<
     () =>
       isRemoteTransport(transportRef.current)
         ? remoteConnection === "connected" && remoteSession?.state === "ready"
-        : Boolean(localSessionRef.current?.alive),
+        : Boolean(
+            localSessionRef.current?.alive && !localInputBlockedRef.current,
+          ),
     [remoteConnection, remoteSession?.state],
   );
 
@@ -537,25 +563,7 @@ export const ChatTerminalSurface = forwardRef<
       const executable = normalized.endsWith("\n")
         ? normalized
         : `${normalized}\n`;
-      if (isRemoteTransport(transportRef.current)) {
-        sendRawInput(executable.replace(/\n/g, "\r"));
-      } else {
-        const current = localSessionRef.current;
-        if (!current) return false;
-        void fetchWithTimeout(
-          "/api/kody/chat/terminal/input",
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json", ...authHeaders() },
-            body: JSON.stringify({
-              sessionId: current.sessionId,
-              input: executable,
-              raw: false,
-            }),
-          },
-          TERMINAL_INPUT_TIMEOUT_MS,
-        ).catch(() => {});
-      }
+      sendRawInput(executable.replace(/\n/g, "\r"));
       return true;
     },
     [canSendInput, sendRawInput],
@@ -582,6 +590,22 @@ export const ChatTerminalSurface = forwardRef<
     void stop().then(startLocal);
   }, [restartRemote, startLocal, stop]);
 
+  const prepareForRuntimeChange = useCallback(() => {
+    outputCaptureRef.current = "";
+    viewRef.current?.clear();
+    viewRef.current?.resetModes();
+    if (isRemoteTransport(transportRef.current)) {
+      disconnectRemote();
+      setInputSignal({ tone: "blocked", label: "Brain is restarting" });
+    }
+  }, [disconnectRemote]);
+
+  const reconnectFresh = useCallback(async () => {
+    if (!isRemoteTransport(transportRef.current)) return;
+    setInputSignal({ tone: "blocked", label: "Waiting for Brain" });
+    await retryRemote({ resetSession: true });
+  }, [retryRemote]);
+
   const addToChat = useCallback(() => {
     const text = usefulCapturedOutput(outputCaptureRef.current);
     if (!text.trim()) {
@@ -601,16 +625,22 @@ export const ChatTerminalSurface = forwardRef<
       clear,
       restart,
       stop,
+      prepareForRuntimeChange,
+      reconnectFresh,
       focus: () => viewRef.current?.focus(),
       getSnapshot,
-      restoreSnapshot: (snapshot) => {
-        setHistoricalSnapshot({
-          name: snapshot.name,
-          output: usefulCapturedOutput(snapshot.output ?? ""),
-        });
-      },
     }),
-    [addToChat, clear, executeText, getSnapshot, restart, sendText, stop],
+    [
+      addToChat,
+      clear,
+      executeText,
+      getSnapshot,
+      prepareForRuntimeChange,
+      reconnectFresh,
+      restart,
+      sendText,
+      stop,
+    ],
   );
 
   const connection: ChatTerminalConnectionState = isRemoteTransport(transport)
@@ -658,11 +688,26 @@ export const ChatTerminalSurface = forwardRef<
       ref={viewRef}
       active={active}
       topToolbar={topToolbar}
-      history={historicalSnapshot}
-      startupIssue={visibleStartupIssue}
-      startupActionBusy={setupBusy}
-      onCloseHistory={() => setHistoricalSnapshot(null)}
-      onStartupAction={() => void handleStartupAction()}
+      startupIssue={
+        isRemoteTransport(transport)
+          ? visibleStartupIssue
+          : localError && (!localSession?.alive || localInputBlockedRef.current)
+            ? {
+                title: "Local terminal could not start",
+                message: localError,
+                action: "retry",
+                actionLabel: "Retry terminal",
+              }
+            : null
+      }
+      startupActionBusy={
+        isRemoteTransport(transport) ? setupBusy : connectingLocal
+      }
+      onStartupAction={() =>
+        void (isRemoteTransport(transport)
+          ? handleStartupAction()
+          : stop().then(startLocal))
+      }
       onData={sendRawInput}
       onResize={sendResize}
       onReady={handleViewReady}

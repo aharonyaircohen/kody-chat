@@ -7,12 +7,14 @@
  * user's Fly Brain. Selection remains metadata-only; this route owns runtime
  * mutation.
  */
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 
 import { applyBrainImage } from "../image-apply-command";
 import { logger } from "@kody-ade/base/logger";
 import { resolvePersonalBrainContext } from "../personal-context";
 import { requestOrigin } from "@kody-ade/base/request-origin";
+import { getPersonalBrainServices } from "../personal-services";
+import { beginBrainRuntimeApply, failBrainRuntimeApply } from "../runtime-manager";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,6 +23,15 @@ export const maxDuration = 300;
 interface ApplyBody {
   imageRef?: string;
   reset?: boolean;
+}
+
+function isLocalOrigin(origin: string): boolean {
+  try {
+    const hostname = new URL(origin).hostname;
+    return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
+  } catch {
+    return false;
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -40,31 +51,83 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = (await req.json().catch(() => ({}))) as ApplyBody;
-    const result = await applyBrainImage({
-      context: ctx.context,
-      dashboardUrl: requestOrigin(req),
-      imageRef: body.imageRef,
-      reset: body.reset === true,
-    });
-    return NextResponse.json({
-      ok: true,
-      imageRef:
-        result.runtime.desiredImageRef ??
-        result.runtime.running?.imageRef ??
-        null,
-      runningImageRef: result.runtime.running?.imageRef ?? null,
-      runningAt: result.runtime.running?.appliedAt ?? null,
-      runningApp: result.runtime.running?.app ?? null,
-      runningMachineId: result.runtime.running?.machineId ?? null,
-      runtime: result.runtime,
-      images: result.image.images,
-      brain: {
-        app: result.brain.app,
-        machineId: result.brain.machineId,
-        url: result.brain.url,
-        org: result.brain.org,
+    const imageRef = body.imageRef?.trim();
+    if (!imageRef) {
+      return NextResponse.json(
+        { error: "image_ref_required", message: "Image ref is required." },
+        { status: 400 },
+      );
+    }
+
+    const started = await beginBrainRuntimeApply(
+      ctx.context.account,
+      ctx.context.githubToken,
+      imageRef,
+    );
+    const operationId = started.operation?.id;
+    if (!operationId) throw new Error("Brain restore operation was not created");
+    const dashboardUrl = requestOrigin(req);
+    if (isLocalOrigin(dashboardUrl)) {
+      const work = () =>
+        applyBrainImage({
+          context: ctx.context,
+          dashboardUrl,
+          imageRef,
+          reset: body.reset === true,
+          operationId,
+        }).catch((err) => {
+          logger.error(
+            { err, userId: ctx.context.userId, imageRef },
+            "local Brain image restore failed in background",
+          );
+        });
+      try {
+        after(work);
+      } catch {
+        void work();
+      }
+    } else {
+      const enqueue = getPersonalBrainServices().enqueueRestore;
+      if (!enqueue) {
+        await failBrainRuntimeApply(
+          ctx.context.account,
+          ctx.context.githubToken,
+          imageRef,
+          "Brain restore worker is not configured",
+          operationId,
+        ).catch(() => undefined);
+        throw new Error("Brain restore worker is not configured");
+      }
+      try {
+        await enqueue({
+          userId: ctx.context.userId,
+          operationId,
+          imageRef,
+          reset: body.reset === true,
+          dashboardUrl,
+        });
+      } catch (err) {
+        await failBrainRuntimeApply(
+          ctx.context.account,
+          ctx.context.githubToken,
+          imageRef,
+          err instanceof Error ? err.message : String(err),
+          operationId,
+        ).catch(() => undefined);
+        throw err;
+      }
+    }
+
+    return NextResponse.json(
+      {
+        ok: true,
+        status: "running",
+        imageRef,
+        operationId,
+        message: "Brain image restore started.",
       },
-    });
+      { status: 202 },
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     logger.error(
@@ -72,7 +135,10 @@ export async function POST(req: NextRequest) {
       "brain image apply failed",
     );
     return NextResponse.json(
-      { error: (err as { code?: string }).code ?? "brain_image_apply_failed", message },
+      {
+        error: (err as { code?: string }).code ?? "brain_image_apply_failed",
+        message,
+      },
       { status: (err as { status?: number }).status ?? 502 },
     );
   }
