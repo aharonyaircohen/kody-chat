@@ -280,6 +280,7 @@ tar -C / \\
   --exclude=lost+found \\
   --exclude=var/tmp \\
   --exclude=etc/kody-ssh \\
+  --exclude=etc/kody-agent \\
   --exclude=root/.kody-ssh \\
   --exclude='home/*/.kody-ssh' \\
   -czf "$tmp" . || status=$?

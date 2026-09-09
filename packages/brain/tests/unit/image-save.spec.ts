@@ -26,7 +26,7 @@ describe("brainImageBuildCommand", () => {
     );
   });
 
-  it("excludes Brain SSH material from the exported rootfs", () => {
+  it("excludes Brain SSH and agent access material from the exported rootfs", () => {
     const command = brainImageBuildCommand({
       app: "brain-app",
       machineId: "machine-123",
@@ -38,6 +38,7 @@ describe("brainImageBuildCommand", () => {
     });
 
     expect(command).toContain("--exclude=etc/kody-ssh");
+    expect(command).toContain("--exclude=etc/kody-agent");
     expect(command).toContain("--exclude=root/.kody-ssh");
     expect(command).toContain("home/*/.kody-ssh");
   });
