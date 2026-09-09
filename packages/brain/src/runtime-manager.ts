@@ -346,22 +346,36 @@ export async function finishBrainImageSaveOperation(
     current.operation.status !== "running"
   )
     return;
-  const now = new Date(
-    Math.max(Date.now(), (Date.parse(current.updatedAt) || 0) + 1),
-  ).toISOString();
-  await writeBrainRuntimeState(
-    login,
-    token,
-    {
-      ...current,
+  const completedState = (state: BrainRuntimeStateFile) => {
+    const now = new Date(
+      Math.max(Date.now(), (Date.parse(state.updatedAt) || 0) + 1),
+    ).toISOString();
+    return {
+      ...state,
       updatedAt: now,
       operation: {
-        ...current.operation,
-        status: error ? "failed" : "completed",
+        ...state.operation!,
+        status: error ? ("failed" as const) : ("completed" as const),
         updatedAt: now,
         ...(error ? { error } : {}),
       },
-    },
-    current.updatedAt,
-  );
+    };
+  };
+  try {
+    await writeBrainRuntimeState(
+      login,
+      token,
+      completedState(current),
+      current.updatedAt,
+    );
+  } catch {
+    const latest = await readBrainRuntimeState(login, token, true);
+    if (
+      latest?.operation?.type !== "save-image" ||
+      latest.operation.id !== operationId ||
+      latest.operation.status !== "running"
+    )
+      return;
+    await writeBrainRuntimeState(login, token, completedState(latest));
+  }
 }

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   beginBrainRuntimeApply,
   completeBrainRuntimeApply,
+  finishBrainImageSaveOperation,
 } from "../../src/runtime-manager";
 import { _resetBrainRuntimeCache } from "../../src/runtime-store";
 import { setPersonalBrainServices } from "../../src/personal-services";
@@ -62,6 +63,19 @@ describe("runtime operation ownership", () => {
       orgSlug: "org",
     });
     expect(completed.operation?.status).toBe("completed");
+  });
+  it("retries image-save completion after a concurrent runtime revision", async () => {
+    const started = await beginBrainRuntimeApply(
+      "a",
+      "",
+      "ghcr.io/a/brain:save",
+      "save-image",
+    );
+    conflictNext = true;
+
+    await finishBrainImageSaveOperation("a", "", started.operation!.id);
+
+    expect(value.operation.status).toBe("completed");
   });
   it("rejects restore while an image save owns the Brain", async () => {
     await beginBrainRuntimeApply("a", "", "ghcr.io/a/brain:save", "save-image");
