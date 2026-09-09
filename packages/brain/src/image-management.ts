@@ -226,12 +226,12 @@ async function recordCompletedBrainImageSave(input: {
       now,
     ),
   );
-  await clearBrainImageSave(input.account, input.githubToken);
   await finishBrainImageSaveOperation(
     input.account,
     input.githubToken,
     input.save.jobId,
   );
+  await clearBrainImageSave(input.account, input.githubToken);
 
   return {
     ok: true,
@@ -259,7 +259,7 @@ export async function readBrainImageManagement(input: {
     githubToken: context.githubToken,
     save: await readBrainImageSave(context.account, context.githubToken),
   });
-  const authority = await readBrainRuntimeAuthority({
+  let authority = await readBrainRuntimeAuthority({
     flyToken: context.flyToken,
     account: context.account,
     githubToken: context.githubToken,
@@ -267,6 +267,28 @@ export async function readBrainImageManagement(input: {
     defaultRegion: context.flyDefaultRegion,
     allowServiceFailure: true,
   });
+  const operation = authority.runtime?.operation;
+  const catalogedImages = mergeBrainSavedImages(image, discoveredImages);
+  if (
+    !save &&
+    operation?.type === "save-image" &&
+    operation.status === "running" &&
+    catalogedImages.some((entry) => entry.imageRef === operation.imageRef)
+  ) {
+    await finishBrainImageSaveOperation(
+      context.account,
+      context.githubToken,
+      operation.id,
+    );
+    authority = await readBrainRuntimeAuthority({
+      flyToken: context.flyToken,
+      account: context.account,
+      githubToken: context.githubToken,
+      orgSlug: context.flyOrgSlug,
+      defaultRegion: context.flyDefaultRegion,
+      allowServiceFailure: true,
+    });
+  }
   return {
     ...imageManagementResponse(
       image,

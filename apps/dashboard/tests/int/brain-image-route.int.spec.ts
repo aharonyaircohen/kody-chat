@@ -10,6 +10,7 @@ import { setPersonalBrainServices } from "@kody-ade/brain/personal-services";
 
 const mocks = vi.hoisted(() => ({
   deleteImage: vi.fn(),
+  finishSave: vi.fn(),
   getJob: vi.fn(),
   readImage: vi.fn(),
   readRuntimeView: vi.fn(),
@@ -115,7 +116,7 @@ vi.mock("@kody-ade/brain/store", () => ({
 vi.mock("@kody-ade/brain/runtime-manager", () => ({
   readBrainRuntimeView: mocks.readRuntimeView,
   beginBrainRuntimeApply: vi.fn(async () => ({ operation: { id: "job-1" } })),
-  finishBrainImageSaveOperation: vi.fn(async () => undefined),
+  finishBrainImageSaveOperation: mocks.finishSave,
 }));
 
 vi.mock("@kody-ade/brain/image-runtime", () => ({
@@ -175,6 +176,7 @@ describe("GET /api/kody/brain/image", () => {
     };
     registerPersonalBrainServices();
     mocks.readSave.mockResolvedValue(null);
+    mocks.finishSave.mockResolvedValue(undefined);
     mocks.readRuntimeView.mockResolvedValue({
       desiredImageRef:
         "ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:brain-20260702-101010",
@@ -205,6 +207,30 @@ describe("GET /api/kody/brain/image", () => {
 
     expect(res.status).toBe(200);
     expect(mocks.readImage).toHaveBeenCalled();
+  });
+
+  it("finalizes a running save operation when its image was already cataloged", async () => {
+    mocks.readRuntimeView.mockResolvedValue({
+      desiredImageRef: "ghcr.io/aguy/brain:current",
+      operation: {
+        id: "completed-job",
+        type: "save-image",
+        status: "running",
+        imageRef:
+          "ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:brain-20260702-101010",
+        startedAt: "2026-07-02T12:00:00.000Z",
+        updatedAt: "2026-07-02T12:00:00.000Z",
+      },
+    });
+
+    const response = await GET(request("GET"));
+
+    expect(response.status).toBe(200);
+    expect(mocks.finishSave).toHaveBeenCalledWith(
+      "user-c6c289e49e9c05b2",
+      "gh-token",
+      "completed-job",
+    );
   });
 
   it("includes historical Brain image tags from the GHCR package", async () => {
@@ -489,6 +515,9 @@ describe("GET /api/kody/brain/image", () => {
     expect(mocks.clearSave).toHaveBeenCalledWith(
       "user-c6c289e49e9c05b2",
       "gh-token",
+    );
+    expect(mocks.finishSave.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.clearSave.mock.invocationCallOrder[0],
     );
   });
 
