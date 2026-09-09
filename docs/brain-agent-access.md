@@ -68,10 +68,26 @@ search journey also waits for initial desktop selection before exercising search
   dedicated-test GitHub identity and returned the authorized repository scope.
   Test credentials were removed and the temporary access/app records cleared.
 - Full Fly provision-to-SSH journey: not run against a deployed candidate.
-- Deployed live: not run; the new routes and bootstrap are not deployed.
+- Deployed live: passed on the candidate and promoted production site for command
+  credential delivery, internal credential exclusion, authorized Kody tool scope
+  and revocation. Temporary test records and credentials were cleared.
+- Existing public MCP: deployed Codex and Claude handshakes and repository scope
+  action passed.
+- Image export: added and passed regression coverage excluding `/etc/kody-agent`
+  so saved images do not contain the machine access token.
 - The real installed Codex CLI preserved authentication, model selection and
   another MCP server when adding `kody-vps` in an isolated temporary config.
 
-No commit, push, deployment or changes to the user's existing desktop/VPS
-configuration were performed. Deployment and validation on the VPS remain a
-separate decision.
+Commits `15bd174b6` and `2ec7bf47e` were pushed to main. Exact commit
+`2ec7bf47ea10f660a6bf1106909b12783bf261b7` was built in a clean detached checkout,
+verified at `https://kody-dashboard-9oszm9y31-aguy.vercel.app`, and promoted to
+`https://kody-dashboard-khaki.vercel.app`. Final dashboard typecheck passed.
+
+The existing personal VPS was not updated. Its owner/app record exists in the
+development backend but is absent from production. The Kody website used to manage
+that VPS must be confirmed before choosing its credential backend; no credentials
+or ownership records were migrated. The narrow startup image was built privately
+from its current image with OpenSSH and the existing managed startup hook:
+`registry.fly.io/kody-brain-user-416e31f3e4da1ccf:agent-access-2ec7bf47e`.
+It has not been applied or restart-tested. Desktop SSH configuration and the VPS
+Codex login remain unchanged.
