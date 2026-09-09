@@ -5,8 +5,13 @@ import {
   TerminalEventSchema,
   TerminalSessionInputSchema,
 } from "../src/terminal-session-model";
+import { isTerminalMachineTransitioning } from "../src/session";
 
 describe("terminal session model", () => {
+  it("treats machine shutdown phases as transitions that can still recover", () => {
+    expect(isTerminalMachineTransitioning("suspending")).toBe(true);
+    expect(isTerminalMachineTransitioning("stopping")).toBe(true);
+  });
   it("validates the transport-neutral session identity", () => {
     expect(
       TerminalSessionInputSchema.parse({

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   isFlyBridgeAuthError,
+  terminalMachineWakeAction,
   waitForServerProviderMachineHealth,
 } from "../../src/terminal/session-connect";
 
@@ -49,5 +50,14 @@ describe("terminal Fly access classification", () => {
     expect(
       isFlyBridgeAuthError(new Error("Fly Machines API 403 on /apps/brain")),
     ).toBe(true);
+  });
+});
+
+describe("terminal machine wake transitions", () => {
+  it("starts after a shutdown transition reaches a suspended state", () => {
+    expect(terminalMachineWakeAction("suspending", false)).toBe("wait");
+    expect(terminalMachineWakeAction("suspended", false)).toBe("start");
+    expect(terminalMachineWakeAction("suspended", true)).toBe("wait");
+    expect(terminalMachineWakeAction("started", true)).toBe("ready");
   });
 });

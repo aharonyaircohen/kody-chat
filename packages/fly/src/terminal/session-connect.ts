@@ -201,6 +201,17 @@ function targetError(code: string, details: Record<string, unknown> = {}) {
   );
 }
 
+export function terminalMachineWakeAction(
+  state: string,
+  wakeRequested: boolean,
+): "ready" | "start" | "wait" | "fail" {
+  if (isTerminalMachineLive(state)) return "ready";
+  if (isTerminalMachineStartable(state)) {
+    return wakeRequested ? "wait" : "start";
+  }
+  return isTerminalMachineTransitioning(state) ? "wait" : "fail";
+}
+
 export async function startTerminalSession(input: {
   req: NextRequest;
   context: ServerProviderContext;
@@ -303,32 +314,27 @@ export async function connectTerminalMachine(input: {
     throw targetError("machine_not_terminal_capable");
   }
   if (!isTerminalMachineLive(requested.state)) {
-    const startable = isTerminalMachineStartable(requested.state);
-    if (!startable && !isTerminalMachineTransitioning(requested.state)) {
-      throw targetError("machine_not_running");
-    }
-    if (startable) {
-      logger.info(
-        { app: requested.app, machineId: requested.machineId },
-        "terminal: waking machine",
-      );
-      await startServerProviderMachineForTarget(
-        requested.app,
-        requested.machineId,
-        selectedCfg,
-      );
-    } else {
-      logger.info(
-        {
-          app: requested.app,
-          machineId: requested.machineId,
-          state: requested.state,
-        },
-        "terminal: waiting for machine transition",
-      );
-    }
-    await wakeServerProviderMachineThroughEdge(requested.app);
+    let wakeRequested = false;
     for (let attempt = 0; attempt < WAKE_POLL_ATTEMPTS; attempt++) {
+      const wakeAction = terminalMachineWakeAction(
+        requested.state,
+        wakeRequested,
+      );
+      if (wakeAction === "start") {
+        logger.info(
+          { app: requested.app, machineId: requested.machineId },
+          "terminal: waking machine",
+        );
+        await startServerProviderMachineForTarget(
+          requested.app,
+          requested.machineId,
+          selectedCfg,
+        );
+        await wakeServerProviderMachineThroughEdge(requested.app);
+        wakeRequested = true;
+      } else if (wakeAction === "fail") {
+        throw targetError("machine_not_running");
+      }
       if (attempt > 0) await sleep(WAKE_POLL_INTERVAL_MS);
       const next = await refreshMachine();
       if (

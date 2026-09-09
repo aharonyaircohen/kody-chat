@@ -40,6 +40,8 @@ const TRANSITIONING_STATES = new Set([
   "starting",
   "replacing",
   "restarting",
+  "stopping",
+  "suspending",
 ]);
 
 export function isTerminalFeatureAllowed(

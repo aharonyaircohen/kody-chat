@@ -26,7 +26,7 @@ const INITIAL_STATE: TerminalSessionClientState = {
   recovery: null,
 };
 
-function sessionRequestError(input: {
+export function sessionRequestError(input: {
   code?: string;
   message: string;
   status: number;
@@ -56,7 +56,7 @@ function sessionRequestError(input: {
   return new TerminalSessionRequestError({
     code: input.code ?? "terminal_session_failed",
     message: input.message,
-    retryable: input.status >= 500,
+    retryable: input.status >= 500 || input.code === "machine_not_running",
     action: "retry",
   });
 }
