@@ -80,6 +80,8 @@ export type RunnerView = "config" | "previews" | "machines" | "history";
 
 interface RunnerManagerProps {
   view?: RunnerView;
+  selectedApp?: string;
+  selectedMachineId?: string;
 }
 
 const FLY_VIEW_COPY: Record<RunnerView, { title: string; subtitle: string }> = {
@@ -404,7 +406,11 @@ function FlyPreviewsView({
   );
 }
 
-export function RunnerManager({ view = "config" }: RunnerManagerProps) {
+export function RunnerManager({
+  view = "config",
+  selectedApp,
+  selectedMachineId,
+}: RunnerManagerProps) {
   const { auth } = useAuth();
   const headers = useMemo<Record<string, string>>(() => {
     return auth ? buildAuthHeaders(auth) : EMPTY_HEADERS;
@@ -412,6 +418,22 @@ export function RunnerManager({ view = "config" }: RunnerManagerProps) {
   const flyTokenStatus = useFlyTokenStatus(headers);
   const flyTokenConfigured = flyTokenStatus.configured;
   const copy = FLY_VIEW_COPY[view];
+
+  if (view === "machines") {
+    return (
+      <div className="h-full flex flex-col">
+        <VaultLockedBanner feature="Fly runners and previews stay off until the vault can be read." />
+        <div className="flex-1 min-h-0">
+          <FlyMachinesTable
+            headers={headers}
+            flyTokenConfigured={flyTokenConfigured}
+            selectedApp={selectedApp}
+            selectedMachineId={selectedMachineId}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <PageShell
@@ -429,13 +451,6 @@ export function RunnerManager({ view = "config" }: RunnerManagerProps) {
 
         {view === "previews" && (
           <FlyPreviewsView
-            headers={headers}
-            flyTokenConfigured={flyTokenConfigured}
-          />
-        )}
-
-        {view === "machines" && (
-          <FlyMachinesTable
             headers={headers}
             flyTokenConfigured={flyTokenConfigured}
           />

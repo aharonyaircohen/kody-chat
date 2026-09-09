@@ -13,16 +13,25 @@
  */
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
+  Activity,
+  AlertTriangle,
   Download,
+  ArrowLeft,
+  Box,
+  CalendarClock,
+  Cpu,
   Loader2,
+  MapPin,
   Pause,
   Play,
   Power,
   RefreshCw,
   Server,
+  TerminalSquare,
   Trash2,
 } from "lucide-react";
 
@@ -40,10 +49,18 @@ import {
   type ServerProviderMachineRow,
 } from "@kody-ade/base/infrastructure/server-machine-model";
 import { ConfirmDialog } from "@dashboard/lib/components/ConfirmDialog";
+import { EmptyState } from "@dashboard/lib/components/EmptyState";
+import { MasterDetailShell } from "@dashboard/lib/components/MasterDetailShell";
+import { selectionPath } from "@dashboard/lib/selection-routing";
+import { useRepoScopedHref } from "@dashboard/lib/hooks/useRepoScopedHref";
+import { useMediaQuery } from "@dashboard/lib/hooks/useMediaQuery";
+import { cn } from "@dashboard/lib/utils";
 
 interface FlyMachinesTableProps {
   headers: Record<string, string>;
   flyTokenConfigured: boolean;
+  selectedApp?: string;
+  selectedMachineId?: string;
 }
 
 // Display order + friendly group titles.
@@ -62,19 +79,6 @@ const FEATURE_ORDER: ServerProviderFeature[] = [
 // handled by its dedicated route. Other long-lived services keep the app.
 function destroysWholeApp(feature: ServerProviderFeature): boolean {
   return feature === "preview" || feature === "preview-base";
-}
-
-/** Absolute start time, e.g. "Jun 1, 14:30". Empty when unknown. */
-function formatStarted(iso?: string): string {
-  if (!iso) return "—";
-  const t = Date.parse(iso);
-  if (!Number.isFinite(t)) return "—";
-  return new Date(t).toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }
 
 /** Compact age since creation, e.g. "2d 4h", "3h 12m", "45m", "30s". */
@@ -103,15 +107,37 @@ function statePill(state: string): string {
   return "bg-white/5 text-white/40 border-white/10";
 }
 
+interface MachineSelection {
+  app: string;
+  machineId: string;
+}
+
+function selectionFromPathname(pathname: string): MachineSelection | null {
+  const parts = pathname.split("/").filter(Boolean);
+  const flyIndex = parts.findIndex(
+    (part, index) => part === "fly" && parts[index + 1] === "machines",
+  );
+  if (flyIndex < 0 || !parts[flyIndex + 2] || !parts[flyIndex + 3]) return null;
+  try {
+    return {
+      app: decodeURIComponent(parts[flyIndex + 2]!),
+      machineId: decodeURIComponent(parts[flyIndex + 3]!),
+    };
+  } catch {
+    return null;
+  }
+}
+
 export function FlyMachinesTable({
   headers,
   flyTokenConfigured,
+  selectedApp,
+  selectedMachineId,
 }: FlyMachinesTableProps) {
+  const scopedHref = useRepoScopedHref();
+  const autoSelectFirst = useMediaQuery("(min-width: 768px)");
   const hasAuth = Object.keys(headers).length > 0;
 
-  const [inv, setInv] = useState<ServerProviderInventory | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [inventoryError, setInventoryError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<ServerProviderMachineRow | null>(null);
   const [busyFeature, setBusyFeature] = useState<ServerProviderFeature | null>(
@@ -119,57 +145,79 @@ export function FlyMachinesTable({
   );
   const [confirmFeature, setConfirmFeature] =
     useState<ServerProviderFeature | null>(null);
+  const [search, setSearch] = useState("");
+  const [activeSelection, setActiveSelection] =
+    useState<MachineSelection | null>(
+      selectedApp && selectedMachineId
+        ? { app: selectedApp, machineId: selectedMachineId }
+        : null,
+    );
 
+  const inventoryQuery = useQuery({
+    queryKey: [
+      "fly-machines",
+      headers["x-kody-owner"] ?? "",
+      headers["x-kody-repo"] ?? "",
+      headers["x-kody-user-login"] ?? "",
+      flyTokenConfigured,
+    ],
+    enabled: hasAuth,
+    staleTime: 60_000,
+    refetchOnMount: false,
+    queryFn: async () => {
+      try {
+        const [repositoryResponse, brainResponse] = await Promise.all([
+          flyTokenConfigured
+            ? fetch("/api/kody/fly/machines", { headers }).catch(() => null)
+            : null,
+          fetch("/api/kody/brain/status", { headers }).catch(() => null),
+        ]);
+        const warning =
+          flyTokenConfigured && !repositoryResponse?.ok
+            ? "Repository machines could not be loaded."
+            : !brainResponse?.ok
+              ? "Personal Brain could not be loaded."
+              : null;
+        const repository = repositoryResponse?.ok
+          ? ((await repositoryResponse.json()) as ServerProviderInventory)
+          : null;
+        const brain = brainResponse?.ok
+          ? ((await brainResponse.json()) as {
+              machines?: ServerProviderMachineRow[];
+            })
+          : null;
+        const machines = [
+          ...(repository?.machines ?? []).filter(
+            (machine) => machine.feature !== "brain",
+          ),
+          ...(brain?.machines ?? []),
+        ];
+        return {
+          inventory: {
+            machines,
+            total: machines.length,
+            running: machines.filter((machine) =>
+              isServerProviderMachineRunning(machine.state),
+            ).length,
+          } satisfies ServerProviderInventory,
+          warning,
+        };
+      } catch {
+        return {
+          inventory: { machines: [], total: 0, running: 0 },
+          warning: "Machines could not be loaded.",
+        };
+      }
+    },
+  });
+  const inv = inventoryQuery.data?.inventory ?? null;
+  const inventoryError = inventoryQuery.data?.warning ?? null;
+  const loading = inventoryQuery.isLoading;
+  const refreshing = inventoryQuery.isFetching;
+  const refetchInventory = inventoryQuery.refetch;
   const refresh = useCallback(async () => {
-    if (!hasAuth) {
-      setInv(null);
-      return;
-    }
-    setLoading(true);
-    setInventoryError(null);
-    try {
-      const [repositoryResponse, brainResponse] = await Promise.all([
-        flyTokenConfigured
-          ? fetch("/api/kody/fly/machines", { headers }).catch(() => null)
-          : null,
-        fetch("/api/kody/brain/status", { headers }).catch(() => null),
-      ]);
-      if (flyTokenConfigured && !repositoryResponse?.ok)
-        setInventoryError("Repository machines could not be loaded.");
-      else if (!brainResponse?.ok)
-        setInventoryError("Personal Brain could not be loaded.");
-      const repository = repositoryResponse?.ok
-        ? ((await repositoryResponse.json()) as ServerProviderInventory)
-        : null;
-      const brain = brainResponse?.ok
-        ? ((await brainResponse.json()) as {
-            machines?: ServerProviderMachineRow[];
-          })
-        : null;
-      const machines = [
-        ...(repository?.machines ?? []).filter(
-          (machine) => machine.feature !== "brain",
-        ),
-        ...(brain?.machines ?? []),
-      ];
-      setInv({
-        machines,
-        total: machines.length,
-        running: machines.filter((machine) =>
-          isServerProviderMachineRunning(machine.state),
-        ).length,
-      });
-    } catch {
-      setInventoryError("Machines could not be loaded.");
-      setInv(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [headers, hasAuth, flyTokenConfigured]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    await refetchInventory();
+  }, [refetchInventory]);
 
   async function downloadSsh(row: ServerProviderMachineRow) {
     setBusyId(row.machineId);
@@ -217,20 +265,25 @@ export function FlyMachinesTable({
               body: JSON.stringify({ appName: row.app }),
             })
           : row.feature === "brain"
-            ? await fetch(action === "start" ? "/api/kody/brain/resume" : "/api/kody/brain/suspend", {
+            ? await fetch(
+                action === "start"
+                  ? "/api/kody/brain/resume"
+                  : "/api/kody/brain/suspend",
+                {
+                  method: "POST",
+                  headers: { ...headers, "Content-Type": "application/json" },
+                  body: JSON.stringify({ appName: row.app }),
+                },
+              )
+            : await fetch("/api/kody/fly/machines/action", {
                 method: "POST",
                 headers: { ...headers, "Content-Type": "application/json" },
-                body: JSON.stringify({ appName: row.app }),
-              })
-          : await fetch("/api/kody/fly/machines/action", {
-              method: "POST",
-              headers: { ...headers, "Content-Type": "application/json" },
-              body: JSON.stringify({
-                app: row.app,
-                machineId: row.machineId,
-                action,
-              }),
-            });
+                body: JSON.stringify({
+                  app: row.app,
+                  machineId: row.machineId,
+                  action,
+                }),
+              });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
         toast.error(body.error ?? `Action failed (HTTP ${res.status})`);
@@ -261,15 +314,20 @@ export function FlyMachinesTable({
       const { results, okCount, failCount } = await batchSuspendRunning(
         rows,
         async (row) => {
-          const res = await fetch(row.feature === "brain" ? "/api/kody/brain/suspend" : "/api/kody/fly/machines/action", {
-            method: "POST",
-            headers: { ...headers, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              app: row.app,
-              machineId: row.machineId,
-              action: "suspend",
-            }),
-          });
+          const res = await fetch(
+            row.feature === "brain"
+              ? "/api/kody/brain/suspend"
+              : "/api/kody/fly/machines/action",
+            {
+              method: "POST",
+              headers: { ...headers, "Content-Type": "application/json" },
+              body: JSON.stringify({
+                app: row.app,
+                machineId: row.machineId,
+                action: "suspend",
+              }),
+            },
+          );
           if (!res.ok) {
             const body = (await res.json().catch(() => ({}))) as {
               error?: string;
@@ -300,179 +358,513 @@ export function FlyMachinesTable({
     }
   }
 
-  const groups = FEATURE_ORDER.map((feature) => ({
-    feature,
-    rows: (inv?.machines ?? []).filter((m) => m.feature === feature),
-  })).filter((g) => g.rows.length > 0);
+  const groups = useMemo(
+    () =>
+      FEATURE_ORDER.map((feature) => ({
+        feature,
+        rows: (inv?.machines ?? [])
+          .filter((m) => m.feature === feature)
+          .filter((m) => {
+            const q = search.trim().toLowerCase();
+            if (!q) return true;
+            return [m.label, m.app, m.machineId, m.region, m.state, m.feature]
+              .join(" ")
+              .toLowerCase()
+              .includes(q);
+          }),
+      })).filter((group) => group.rows.length > 0),
+    [inv?.machines, search],
+  );
+
+  const selected = useMemo(
+    () =>
+      inv?.machines.find(
+        (row) =>
+          row.app === activeSelection?.app &&
+          row.machineId === activeSelection?.machineId,
+      ) ?? null,
+    [activeSelection, inv],
+  );
+  const selectMachine = (row: ServerProviderMachineRow | null) => {
+    const nextSelection = row
+      ? { app: row.app, machineId: row.machineId }
+      : null;
+    setActiveSelection(nextSelection);
+    window.history.pushState(
+      null,
+      "",
+      nextSelection
+        ? scopedHref(
+            selectionPath(
+              "/fly/machines",
+              nextSelection.app,
+              nextSelection.machineId,
+            ),
+          )
+        : scopedHref("/fly/machines"),
+    );
+  };
+
+  useEffect(() => {
+    const onPopState = () =>
+      setActiveSelection(selectionFromPathname(location.pathname));
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  const filteredRows = useMemo(
+    () => groups.flatMap((group) => group.rows),
+    [groups],
+  );
+
+  useEffect(() => {
+    if (
+      loading ||
+      !autoSelectFirst ||
+      activeSelection ||
+      filteredRows.length === 0
+    ) {
+      return;
+    }
+    const first = filteredRows[0]!;
+    setActiveSelection({ app: first.app, machineId: first.machineId });
+    window.history.replaceState(
+      null,
+      "",
+      scopedHref(selectionPath("/fly/machines", first.app, first.machineId)),
+    );
+  }, [activeSelection, autoSelectFirst, filteredRows, loading, scopedHref]);
+
+  const renderActions = (row: ServerProviderMachineRow) => {
+    const groupBusy = busyFeature === row.feature;
+    const busy = groupBusy || busyId === row.machineId;
+    const running = isServerProviderMachineRunning(row.state);
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        {running ? (
+          <Button
+            size="default"
+            variant="outline"
+            disabled={busy}
+            onClick={() => act(row, "suspend")}
+            className="justify-center border-amber-500/30 text-amber-200 hover:bg-amber-500/10 hover:text-amber-100"
+            title="Suspend (snapshot, ~$0)"
+          >
+            <Pause className="h-4 w-4" /> Suspend machine
+          </Button>
+        ) : (
+          <Button
+            size="default"
+            disabled={busy}
+            onClick={() => act(row, "start")}
+            title="Resume"
+          >
+            <Play className="h-4 w-4" /> Resume machine
+          </Button>
+        )}
+        <Button
+          size="default"
+          variant="outline"
+          disabled={busy || !row.sshConfigured}
+          onClick={() => downloadSsh(row)}
+          title={
+            row.sshConfigured
+              ? "Download SSH configuration"
+              : "SSH was not configured when this machine was created"
+          }
+        >
+          <Download className="h-4 w-4" /> Download SSH config
+        </Button>
+      </div>
+    );
+  };
 
   return (
-    <Card className="border-white/[0.08] bg-white/[0.03]">
-      <CardContent className="p-4 space-y-3">
-        <div className="flex items-center gap-2">
-          <Server className="w-4 h-4 text-sky-400" />
-          <h2 className="text-sm font-semibold">Machines</h2>
-          {inv && (
-            <span className="text-[11px] text-white/45">
-              {inv.running} running · {inv.total} total
-            </span>
-          )}
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={refresh}
-            disabled={loading || !hasAuth}
-            className="ml-auto h-7 px-2 text-white/50 hover:text-white/80"
-            title="Refresh"
-          >
-            {loading ? (
-              <Loader2 className="w-3 h-3 animate-spin" />
-            ) : (
-              <RefreshCw className="w-3 h-3" />
-            )}
-          </Button>
-        </div>
-
-        {inventoryError && (
-          <p role="alert" className="text-xs text-amber-300">
-            {inventoryError}
-          </p>
-        )}
-
-        {!flyTokenConfigured && (
-          <p className="text-[11px] text-amber-300/80 italic">
-            Add FLY_API_TOKEN to the repo Secrets vault to list repository
-            machines.
-          </p>
-        )}
-
-        {inv && groups.length === 0 && !loading && !inventoryError && (
-          <p className="text-xs text-white/40">No machines found.</p>
-        )}
-
-        {groups.map(({ feature, rows }) => {
-          const runningInGroup = countRunningInGroup(rows);
-          const groupBusy = busyFeature === feature;
-          return (
-            <div key={feature} className="space-y-1">
-              <div className="flex items-center gap-2 pt-1">
-                <h3 className="text-[11px] font-semibold uppercase tracking-wider text-white/40">
-                  {FLY_FEATURE_TITLE[feature]}
-                </h3>
-                <span className="text-[11px] text-white/25">{rows.length}</span>
-                {runningInGroup > 0 && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    disabled={groupBusy}
-                    onClick={() => setConfirmFeature(feature)}
-                    className="ml-auto h-6 px-1.5 text-amber-300 hover:text-amber-200"
-                    title="Suspend all running machines in this section"
-                  >
-                    {groupBusy ? (
-                      <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                    ) : (
-                      <Power className="w-3 h-3 mr-1" />
-                    )}
-                    Suspend all
-                  </Button>
-                )}
+    <>
+      <MasterDetailShell
+        title="Fly Machines"
+        icon={Server}
+        iconClassName="text-sky-400"
+        subtitle={`${inv?.total ?? 0} machines${inv ? ` · ${inv.running} running` : ""}`}
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search machines..."
+        searchAriaLabel="Search machines"
+        accent="sky"
+        hasSelection={selected !== null}
+        listWidth="md:w-72"
+        listAside={
+          inv ? (
+            <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+              <div className="rounded-md bg-muted/40 px-2 py-2">
+                <div className="text-base font-semibold text-foreground">
+                  {inv.total}
+                </div>
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                  Total
+                </div>
               </div>
-              <div className="divide-y divide-white/[0.06]">
-                {rows.map((row) => {
-                  const busy = groupBusy || busyId === row.machineId;
-                  const running = isServerProviderMachineRunning(row.state);
-                  return (
-                    <div
-                      key={row.machineId}
-                      className="flex flex-wrap sm:flex-nowrap items-center gap-2 py-1.5 text-xs"
-                    >
-                      <span className="font-medium text-white/80 w-28 shrink-0 truncate">
-                        {row.label}
-                      </span>
-                      <span
-                        className={`px-1.5 py-0.5 rounded-full border text-[10px] ${statePill(
-                          row.state,
-                        )}`}
-                      >
-                        {row.state}
-                      </span>
-                      <span className="text-white/40 font-mono">
-                        {row.sizeLabel}
-                      </span>
-                      <span
-                        className="text-white/30 hidden sm:inline"
-                        title="Start time"
-                      >
-                        {formatStarted(row.createdAt)}
-                      </span>
-                      <span
-                        className="text-white/45 tabular-nums"
-                        title="Age since created"
-                      >
-                        age {formatDuration(row.createdAt)}
-                      </span>
-                      <div className="ml-auto flex w-full sm:w-auto justify-end items-center gap-1">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          disabled={busy || !row.sshConfigured}
-                          onClick={() => downloadSsh(row)}
-                          className="h-6 px-1.5"
-                          title={
-                            row.sshConfigured
-                              ? "Download SSH config"
-                              : "SSH was not configured when this machine was created"
-                          }
-                        >
-                          <Download className="w-3 h-3 mr-1" />
-                          Download SSH config
-                        </Button>
-                        {running ? (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            disabled={busy}
-                            onClick={() => act(row, "suspend")}
-                            className="h-6 px-1.5 text-amber-300 hover:text-amber-200"
-                            title="Suspend (snapshot, ~$0)"
-                          >
-                            <Pause className="w-3 h-3" />
-                          </Button>
-                        ) : (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            disabled={busy}
-                            onClick={() => act(row, "start")}
-                            className="h-6 px-1.5 text-emerald-300 hover:text-emerald-200"
-                            title="Resume"
-                          >
-                            <Play className="w-3 h-3" />
-                          </Button>
-                        )}
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          disabled={busy}
-                          onClick={() => setConfirm(row)}
-                          className="h-6 px-1.5 text-rose-300 hover:text-rose-200"
-                          title="Destroy"
-                        >
-                          {busy ? (
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                          ) : (
-                            <Trash2 className="w-3 h-3" />
-                          )}
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className="rounded-md bg-emerald-500/10 px-2 py-2">
+                <div className="text-base font-semibold text-emerald-300">
+                  {inv.running}
+                </div>
+                <div className="text-[10px] uppercase tracking-wide text-emerald-300/70">
+                  Running
+                </div>
+              </div>
+              <div className="rounded-md bg-muted/40 px-2 py-2">
+                <div className="text-base font-semibold text-foreground">
+                  {inv.total - inv.running}
+                </div>
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                  Stopped
+                </div>
               </div>
             </div>
-          );
-        })}
-      </CardContent>
+          ) : null
+        }
+        actions={
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={refresh}
+            disabled={refreshing || !hasAuth}
+            aria-label="Refresh machines"
+          >
+            {refreshing ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <RefreshCw className="w-4 h-4" />
+            )}
+          </Button>
+        }
+        detail={
+          selected ? (
+            <div className="mx-auto flex w-full min-w-0 max-w-5xl flex-col gap-5 p-4 md:p-5">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-fit gap-1 md:hidden"
+                onClick={() => selectMachine(null)}
+              >
+                <ArrowLeft className="h-4 w-4" /> Back to machines
+              </Button>
+
+              <div className="flex min-w-0 flex-wrap items-start justify-between gap-4 border-b border-border pb-5">
+                <div className="min-w-0">
+                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                    <span
+                      className={`rounded-full border px-2 py-0.5 text-xs ${statePill(selected.state)}`}
+                    >
+                      {selected.state}
+                    </span>
+                    <span className="rounded-full border border-border bg-muted/40 px-2 py-0.5 text-xs text-muted-foreground">
+                      {FLY_FEATURE_TITLE[selected.feature]}
+                    </span>
+                  </div>
+                  <h2 className="truncate text-2xl font-semibold text-foreground">
+                    {selected.label}
+                  </h2>
+                  <p className="mt-1 truncate font-mono text-sm text-muted-foreground">
+                    {selected.app}
+                  </p>
+                </div>
+                {renderActions(selected)}
+              </div>
+
+              <section
+                aria-labelledby="machine-overview-heading"
+                className="space-y-3"
+              >
+                <div>
+                  <h3
+                    id="machine-overview-heading"
+                    className="text-sm font-semibold text-foreground"
+                  >
+                    Machine overview
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    The current Fly allocation and lifecycle state.
+                  </p>
+                </div>
+                <div className="grid grid-cols-[repeat(auto-fit,minmax(10rem,1fr))] gap-3">
+                  {[
+                    { label: "Status", value: selected.state, icon: Activity },
+                    {
+                      label: "Region",
+                      value: selected.region || "Unknown",
+                      icon: MapPin,
+                    },
+                    {
+                      label: "Machine size",
+                      value: selected.sizeLabel || "Unknown",
+                      icon: Cpu,
+                    },
+                    {
+                      label: "Age",
+                      value: formatDuration(selected.createdAt),
+                      icon: CalendarClock,
+                    },
+                  ].map(({ label, value, icon: Icon }) => (
+                    <Card
+                      key={label}
+                      className="border-border bg-card/40 shadow-none"
+                    >
+                      <CardContent className="flex items-start gap-3 p-4">
+                        <Icon className="mt-0.5 h-4 w-4 shrink-0 text-sky-400" />
+                        <div className="min-w-0">
+                          <div className="text-xs text-muted-foreground">
+                            {label}
+                          </div>
+                          <div className="mt-1 truncate text-sm font-medium text-foreground">
+                            {value}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </section>
+
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(15rem,1fr))] gap-4">
+                <Card className="border-border bg-card/40 shadow-none">
+                  <CardContent className="space-y-4 p-5">
+                    <div className="flex items-start gap-3">
+                      <Box className="mt-0.5 h-4 w-4 text-sky-400" />
+                      <div>
+                        <h3 className="text-sm font-semibold text-foreground">
+                          Identity
+                        </h3>
+                        <p className="text-sm text-muted-foreground">
+                          Use these values when matching logs or Fly activity.
+                        </p>
+                      </div>
+                    </div>
+                    <dl className="space-y-3 text-sm">
+                      <div>
+                        <dt className="text-xs text-muted-foreground">
+                          Machine ID
+                        </dt>
+                        <dd className="mt-1 break-all font-mono text-foreground">
+                          {selected.machineId}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs text-muted-foreground">App</dt>
+                        <dd className="mt-1 break-all font-mono text-foreground">
+                          {selected.app}
+                        </dd>
+                      </div>
+                    </dl>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-border bg-card/40 shadow-none">
+                  <CardContent className="space-y-4 p-5">
+                    <div className="flex items-start gap-3">
+                      <TerminalSquare className="mt-0.5 h-4 w-4 text-sky-400" />
+                      <div>
+                        <h3 className="text-sm font-semibold text-foreground">
+                          SSH access
+                        </h3>
+                        <p className="text-sm text-muted-foreground">
+                          {selected.sshConfigured
+                            ? "This machine has a downloadable SSH profile."
+                            : "SSH was not prepared when this machine was created."}
+                        </p>
+                      </div>
+                    </div>
+                    <div
+                      className={cn(
+                        "rounded-md border px-3 py-2 text-sm",
+                        selected.sshConfigured
+                          ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-200"
+                          : "border-amber-500/20 bg-amber-500/10 text-amber-200",
+                      )}
+                    >
+                      {selected.sshConfigured
+                        ? "Ready to download"
+                        : "Unavailable for this machine"}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <section
+                aria-labelledby="machine-danger-heading"
+                className="rounded-lg border border-rose-500/20 bg-rose-500/[0.04] p-5"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-rose-300" />
+                    <div>
+                      <h3
+                        id="machine-danger-heading"
+                        className="text-sm font-semibold text-foreground"
+                      >
+                        {selected.feature === "brain"
+                          ? "Turn off Brain"
+                          : "Destroy machine"}
+                      </h3>
+                      <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+                        {selected.feature === "brain"
+                          ? "Removes the Brain app, its machines, and its Fly URL."
+                          : destroysWholeApp(selected.feature)
+                            ? "Removes the whole preview app. It can be rebuilt from the pull request."
+                            : "Removes this machine. Long-lived services can provision another machine when needed."}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    disabled={busyId === selected.machineId}
+                    onClick={() => setConfirm(selected)}
+                    className="shrink-0 border-rose-500/30 text-rose-200 hover:bg-rose-500/10 hover:text-rose-100"
+                  >
+                    {busyId === selected.machineId ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4" />
+                    )}
+                    {selected.feature === "brain"
+                      ? "Turn off Brain"
+                      : "Destroy machine"}
+                  </Button>
+                </div>
+              </section>
+            </div>
+          ) : (
+            <EmptyState
+              icon={<Server />}
+              title="Select a machine"
+              hint="Pick one from the list to inspect its status and actions."
+            />
+          )
+        }
+      >
+        <div>
+          {inventoryError && (
+            <div
+              role="alert"
+              className="m-3 rounded-md border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-sm text-amber-200"
+            >
+              {inventoryError}
+            </div>
+          )}
+
+          {!flyTokenConfigured && (
+            <div className="m-3 rounded-md border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
+              Add <span className="font-mono">FLY_API_TOKEN</span> in Secrets to
+              show repository machines. Personal Brain machines remain
+              available.
+            </div>
+          )}
+
+          {loading && !inv ? (
+            <EmptyState
+              icon={<Loader2 className="animate-spin" />}
+              title="Loading machines..."
+            />
+          ) : inv && groups.length === 0 && !inventoryError ? (
+            <EmptyState
+              icon={<Server />}
+              title={search ? "No matching machines" : "No machines found"}
+              hint={
+                search
+                  ? `Nothing matched “${search}”.`
+                  : "Kody has no Fly machines to manage here."
+              }
+            />
+          ) : null}
+
+          {groups.map(({ feature, rows }) => {
+            const runningInGroup = countRunningInGroup(rows);
+            const groupBusy = busyFeature === feature;
+            return (
+              <section key={feature} aria-label={FLY_FEATURE_TITLE[feature]}>
+                <div className="flex min-h-10 items-center gap-2 border-y border-border bg-muted/20 px-4 py-2 first:border-t-0">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {FLY_FEATURE_TITLE[feature]}
+                  </h3>
+                  <span className="text-xs text-muted-foreground">
+                    {rows.length}
+                  </span>
+                  {runningInGroup > 0 && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={groupBusy}
+                      onClick={() => setConfirmFeature(feature)}
+                      className="ml-auto h-7 px-2 text-xs text-amber-300 hover:bg-amber-500/10 hover:text-amber-200"
+                      title="Suspend all running machines in this section"
+                    >
+                      {groupBusy ? (
+                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                      ) : (
+                        <Power className="w-3 h-3 mr-1" />
+                      )}
+                      Suspend all
+                    </Button>
+                  )}
+                </div>
+                <div className="divide-y divide-border">
+                  {rows.map((row) => {
+                    const active =
+                      selected?.app === row.app &&
+                      selected.machineId === row.machineId;
+                    const running = isServerProviderMachineRunning(row.state);
+                    return (
+                      // eslint-disable-next-line react/forbid-elements -- full-width selectable list row; shared Button centers content and cannot express this list-item layout
+                      <button
+                        type="button"
+                        key={row.machineId}
+                        className={cn(
+                          "block w-full px-4 py-3 text-left transition-colors hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-500/50",
+                          active && "bg-sky-500/10",
+                        )}
+                        onClick={() => selectMachine(row)}
+                        aria-label={`Select ${row.label}`}
+                      >
+                        <div className="flex min-w-0 items-start gap-3">
+                          <span
+                            className={cn(
+                              "mt-1.5 h-2 w-2 shrink-0 rounded-full",
+                              running
+                                ? "bg-emerald-400"
+                                : row.state === "suspended"
+                                  ? "bg-amber-400"
+                                  : "bg-muted-foreground/50",
+                            )}
+                            aria-hidden="true"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex min-w-0 items-center gap-2">
+                              <span className="truncate text-sm font-medium text-foreground">
+                                {row.label}
+                              </span>
+                              <span className="ml-auto shrink-0 text-xs capitalize text-muted-foreground">
+                                {row.state}
+                              </span>
+                            </div>
+                            <div className="mt-1 truncate font-mono text-[11px] text-muted-foreground">
+                              {row.app}
+                            </div>
+                            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                              <span>{row.region || "Unknown region"}</span>
+                              <span>{row.sizeLabel || "Unknown size"}</span>
+                              <span>{formatDuration(row.createdAt)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      </MasterDetailShell>
 
       <ConfirmDialog
         open={confirm !== null}
@@ -526,6 +918,6 @@ export function FlyMachinesTable({
         onConfirm={() => confirmFeature && suspendGroup(confirmFeature)}
         onClose={() => setConfirmFeature(null)}
       />
-    </Card>
+    </>
   );
 }

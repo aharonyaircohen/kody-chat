@@ -73,8 +73,10 @@ test("downloads the selected machine profile and disables unprepared machines", 
     sizeLabel: "256 MB",
     sshConfigured: true,
   };
-  await page.route("**/api/kody/fly/machines", (route) =>
-    route.fulfill({
+  let machineInventoryRequests = 0;
+  await page.route("**/api/kody/fly/machines", (route) => {
+    machineInventoryRequests += 1;
+    return route.fulfill({
       json: {
         machines: [
           row,
@@ -88,8 +90,8 @@ test("downloads the selected machine profile and disables unprepared machines", 
         running: 2,
         total: 2,
       },
-    }),
-  );
+    });
+  });
   let body: unknown;
   await page.route("**/api/kody/fly/machines/ssh", (route) => {
     body = route.request().postDataJSON();
@@ -104,14 +106,27 @@ test("downloads the selected machine profile and disables unprepared machines", 
     name: "Download SSH config",
     exact: true,
   });
-  await expect(buttons).toHaveCount(2);
-  await expect(buttons.nth(0)).toBeEnabled();
-  await expect(page.getByText("Ready machine", { exact: true })).toBeVisible();
-  const labelBox = await page
-    .getByText("Ready machine", { exact: true })
-    .boundingBox();
-  expect(labelBox!.width).toBeGreaterThan(60);
-  await expect(buttons.nth(1)).toBeDisabled();
+  const search = page.getByRole("searchbox", { name: "Search machines" });
+  await expect(search).toBeVisible();
+  await search.fill("test-app");
+  await page.getByRole("button", { name: "Select Ready machine" }).click();
+  await expect(page).toHaveURL(/\/fly\/machines\/test-app\/abc123$/);
+  await expect(buttons).toHaveCount(1);
+  await expect(buttons).toBeEnabled();
+  await expect(
+    page.getByRole("heading", { name: "Ready machine", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Machine overview" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Suspend machine" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Select Old machine" }).click();
+  await expect(buttons).toBeDisabled();
+  await page.getByRole("button", { name: "Select Ready machine" }).click();
+  await expect.poll(() => machineInventoryRequests).toBe(1);
+  await expect(search).toHaveValue("test-app");
   const downloaded = page.waitForEvent("download");
   await buttons.nth(0).click();
   expect((await downloaded).suggestedFilename()).toBe(
@@ -170,7 +185,7 @@ test("downloads a personal Brain without repository Fly credentials", async ({
     });
   });
   await page.goto(`/repo/${OWNER}/${REPO}/fly/machines`);
-  await expect(page.getByText("My Brain", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Select My Brain" }).click();
   const download = page.waitForEvent("download");
   await page
     .getByRole("button", { name: "Download SSH config", exact: true })
@@ -179,7 +194,89 @@ test("downloads a personal Brain without repository Fly credentials", async ({
     "kody-kody-brain-own-brain123.zip",
   );
   let personalSuspend = false;
-  await page.route("**/api/kody/brain/suspend", route => { personalSuspend = true; return route.fulfill({ json: { ok: true } }); });
+  await page.route("**/api/kody/brain/suspend", (route) => {
+    personalSuspend = true;
+    return route.fulfill({ json: { ok: true } });
+  });
   await page.getByTitle("Suspend (snapshot, ~$0)", { exact: true }).click();
   await expect.poll(() => personalSuspend).toBe(true);
 });
+
+for (const mobile of [false, true]) {
+  test(`machine search and route selection (${mobile ? "mobile" : "desktop"})`, async ({
+    page,
+  }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    page.on("console", (message) => {
+      if (message.type() === "error") errors.push(message.text());
+    });
+    page.on("requestfailed", (request) => {
+      if (request.failure()?.errorText !== "net::ERR_ABORTED")
+        errors.push(request.url());
+    });
+    if (mobile) await page.setViewportSize({ width: 390, height: 844 });
+    await seedRepoAuth(page);
+    await page.route("**/api/kody/models?catalog=opencode-free", (route) =>
+      route.fulfill({ json: { models: [] } }),
+    );
+    await page.route("**/api/kody/fly/config-status", (route) =>
+      route.fulfill({ json: { configured: true, source: "repo-vault" } }),
+    );
+    await page.route("**/api/kody/fly/machines", (route) =>
+      route.fulfill({
+        json: {
+          machines: [
+            {
+              app: "test-app",
+              machineId: "abc123",
+              feature: "app",
+              state: "started",
+              region: "ams",
+              label: "A machine with a very long readable name",
+              sizeLabel: "256 MB",
+              sshConfigured: false,
+            },
+          ],
+          total: 1,
+          running: 1,
+        },
+      }),
+    );
+    await page.goto(`/repo/${OWNER}/${REPO}/fly/machines`);
+    const search = page.getByRole("searchbox", { name: "Search machines" });
+    await search.fill("missing");
+    await expect(
+      page.getByText("No matching machines", { exact: true }),
+    ).toBeVisible();
+    await search.fill("ams");
+    await page
+      .getByRole("button", {
+        name: "Select A machine with a very long readable name",
+      })
+      .click();
+    await expect(page).toHaveURL(/\/fly\/machines\/test-app\/abc123$/);
+    await expect(
+      page.getByRole("heading", {
+        name: "A machine with a very long readable name",
+      }),
+    ).toBeVisible();
+    await page.reload();
+    await expect(
+      page.getByRole("heading", {
+        name: "A machine with a very long readable name",
+      }),
+    ).toBeVisible();
+    if (mobile) {
+      await expect(search).toBeHidden();
+      await page.getByRole("button", { name: "Back to machines" }).click();
+      await expect(search).toBeVisible();
+    }
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+    expect(errors).toEqual([]);
+  });
+}
