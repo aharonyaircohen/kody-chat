@@ -29,11 +29,16 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const body = (await req.json().catch(() => ({}))) as { reason?: string };
+    const replaceExistingMachine =
+      body.reason === "terminal_agent_missing" ||
+      body.reason === "terminal_agent_unavailable";
     return NextResponse.json(
       await manageBrainServer({
         command: "setup-terminal",
         context: resolved.context,
         dashboardUrl: requestOrigin(req),
+        replaceExistingMachine,
       }),
     );
   } catch (error) {

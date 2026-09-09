@@ -60,6 +60,7 @@ describe("POST /api/kody/terminal/setup", () => {
     const response = await POST(
       new NextRequest("https://dash.test/api/kody/terminal/setup", {
         method: "POST",
+        body: JSON.stringify({ reason: "terminal_gateway_not_ready" }),
       }),
     );
 
@@ -83,8 +84,22 @@ describe("POST /api/kody/terminal/setup", () => {
     expect(commands.manageBrainServer).toHaveBeenCalledWith(
       expect.objectContaining({
         command: "setup-terminal",
+        replaceExistingMachine: false,
         context: expect.objectContaining({ userId: "user-1" }),
       }),
+    );
+  });
+
+  it("requests Brain replacement only for a missing terminal agent", async () => {
+    await POST(
+      new NextRequest("https://dash.test/api/kody/terminal/setup", {
+        method: "POST",
+        body: JSON.stringify({ reason: "terminal_agent_missing" }),
+      }),
+    );
+
+    expect(commands.manageBrainServer).toHaveBeenCalledWith(
+      expect.objectContaining({ replaceExistingMachine: true }),
     );
   });
 });

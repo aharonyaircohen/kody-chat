@@ -137,7 +137,7 @@ describe("manageBrainServer", () => {
     expect(store.clearBrainApp).toHaveBeenCalled();
   });
 
-  it("upgrades an existing Brain explicitly before installing its terminal gateway", async () => {
+  it("upgrades only the terminal gateway when the Brain agent is already available", async () => {
     await expect(
       manageBrainServer({ command: "setup-terminal", context }),
     ).resolves.toMatchObject({
@@ -147,13 +147,7 @@ describe("manageBrainServer", () => {
       bridgeApp: "kody-terminal",
     });
 
-    expect(brainFly.provisionBrain).toHaveBeenCalledWith(
-      expect.objectContaining({
-        providerToken: "fly-token",
-        appNameOverride: "kody-brain-octocat",
-        replaceExistingMachine: true,
-      }),
-    );
+    expect(brainFly.provisionBrain).not.toHaveBeenCalled();
     expect(
       terminalBridge.ensureServerProviderTerminalBridge,
     ).toHaveBeenCalledWith({
@@ -161,9 +155,17 @@ describe("manageBrainServer", () => {
       orgSlug: "personal",
       defaultRegion: "fra",
     });
-    expect(brainFly.provisionBrain.mock.invocationCallOrder[0]).toBeLessThan(
-      terminalBridge.ensureServerProviderTerminalBridge.mock
-        .invocationCallOrder[0],
+  });
+
+  it("replaces the Brain only when the terminal agent is missing", async () => {
+    await manageBrainServer({
+      command: "setup-terminal",
+      context,
+      replaceExistingMachine: true,
+    });
+
+    expect(brainFly.provisionBrain).toHaveBeenCalledWith(
+      expect.objectContaining({ replaceExistingMachine: true }),
     );
   });
 

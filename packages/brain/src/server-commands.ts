@@ -43,6 +43,7 @@ export interface ManageBrainServerInput {
   appNameOverride?: string;
   perfTier?: ServerBrainPerfTier;
   suspendOnIdle?: boolean;
+  replaceExistingMachine?: boolean;
 }
 
 export class BrainCommandError extends Error {
@@ -170,6 +171,27 @@ export async function manageBrainServer(input: ManageBrainServerInput) {
   }
 
   if (input.command === "setup-terminal") {
+    if (!input.replaceExistingMachine) {
+      const brain = await resolveCurrentBrain(context, input.appNameOverride);
+      if (!brain.machineId) {
+        throw new BrainCommandError(
+          "Brain machine not found.",
+          404,
+          "machine_not_found",
+        );
+      }
+      const bridge = await ensureServerProviderTerminalBridge({
+        token: brain.flyToken,
+        orgSlug: brain.orgSlug,
+        defaultRegion: context.flyDefaultRegion,
+      });
+      return {
+        ok: true,
+        app: brain.app,
+        machineId: brain.machineId,
+        bridgeApp: bridge.app,
+      };
+    }
     const result = await provisionManagedBrain(input, {
       replaceExistingMachine: true,
     });

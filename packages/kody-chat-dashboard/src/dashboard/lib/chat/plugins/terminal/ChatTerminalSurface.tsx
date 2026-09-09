@@ -248,6 +248,7 @@ export const ChatTerminalSurface = forwardRef<
     isRemoteTransport(transport)
       ? terminalStartupIssue(setupIssue ?? remoteIssue)
       : null;
+  const startupIssueCode = (setupIssue ?? remoteIssue)?.code;
 
   const handleStartupAction = useCallback(async () => {
     if (!visibleStartupIssue || visibleStartupIssue.action === "settings") {
@@ -265,7 +266,8 @@ export const ChatTerminalSurface = forwardRef<
     try {
       const response = await fetch("/api/kody/terminal/setup", {
         method: "POST",
-        headers: authHeaders(),
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ reason: startupIssueCode }),
       });
       const body = (await response.json().catch(() => ({}))) as {
         error?: string;
@@ -296,7 +298,7 @@ export const ChatTerminalSurface = forwardRef<
     } finally {
       setSetupBusy(false);
     }
-  }, [retryRemote, visibleStartupIssue]);
+  }, [retryRemote, startupIssueCode, visibleStartupIssue]);
 
   const sendResize = useCallback(
     (cols: number, rows: number) => {
