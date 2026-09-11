@@ -85,7 +85,4 @@ test("shows SSH availability from the real machine inventory", async ({
   expect((await download).suggestedFilename()).toBe(
     `kody-${ready!.app}-${ready!.machineId}.zip`,
   );
-  await expect(
-    page.getByRole("dialog", { name: "Finish setup on this Mac" }),
-  ).toBeVisible();
 });

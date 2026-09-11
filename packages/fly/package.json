@@ -26,7 +26,6 @@
     "./plugin/runners/*": "./src/plugin/runners/*.ts",
     "./plugin/terminal/*": "./src/plugin/terminal/*.ts",
     "./terminal/*": "./src/terminal/*.ts",
-    "./ssh/*": "./src/ssh/*.ts",
     "./routes/*": "./src/routes/*.ts"
   },
   "scripts": {

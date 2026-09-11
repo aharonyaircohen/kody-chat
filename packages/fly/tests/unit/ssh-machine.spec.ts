@@ -13,7 +13,6 @@ import {
   applyMachineSshAccess,
   readMachineSshAccess,
 } from "../../src/ssh/machine-config";
-import { machineSshMacSetup } from "../../src/ssh/mac-setup";
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -125,13 +124,14 @@ it("downloads only client files with private Unix permissions", async () => {
   });
   const files = unzipSync(result.bytes);
   expect(Object.keys(files).sort()).toEqual([
+    "kody-test-app-abc123/Install on Mac.command",
     "kody-test-app-abc123/README.txt",
     "kody-test-app-abc123/config",
     "kody-test-app-abc123/identity",
     "kody-test-app-abc123/known_hosts",
   ]);
   expect(strFromU8(files["kody-test-app-abc123/README.txt"]!)).toContain(
-    "Open Terminal",
+    "Double-click Install on Mac.command",
   );
   expect(strFromU8(files["kody-test-app-abc123/README.txt"]!)).toContain(
     "Settings > Connections > SSH > Add",
@@ -139,24 +139,14 @@ it("downloads only client files with private Unix permissions", async () => {
   expect(strFromU8(files["kody-test-app-abc123/config"]!)).toContain(
     "HostKeyAlias kody-test-app-abc123",
   );
+  const installer = strFromU8(
+    files["kody-test-app-abc123/Install on Mac.command"]!,
+  );
+  expect(installer).toContain("#!/bin/zsh");
+  expect(installer).toContain('source_dir="${0:A:h}"');
+  expect(installer).toContain("Include ~/.ssh/kody/*/config");
+  expect(installer).toContain("Settings > Connections > SSH > Add");
   expect(Object.values(files).map(strFromU8).join("\n")).not.toContain(
     access.hostPrivateKey,
   );
-});
-
-it("builds a Mac setup command for only the selected machine", () => {
-  const setup = machineSshMacSetup({
-    app: "test-app",
-    machineId: "abc123",
-  });
-  expect(setup.archiveName).toBe("kody-test-app-abc123.zip");
-  expect(setup.command).toContain("$HOME/Downloads/kody-test-app-abc123.zip");
-  expect(setup.command).toContain("$HOME/.ssh/kody/kody-test-app-abc123");
-  expect(setup.command).toContain("Include ~/.ssh/kody/*/config");
-  expect(() =>
-    machineSshMacSetup({
-      app: "test-app",
-      machineId: "abc123; bad",
-    }),
-  ).toThrow();
 });

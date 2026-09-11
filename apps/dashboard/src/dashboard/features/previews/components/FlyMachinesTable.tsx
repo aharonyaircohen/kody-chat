@@ -23,7 +23,6 @@ import {
   ArrowLeft,
   Box,
   CalendarClock,
-  ClipboardCopy,
   Cpu,
   Loader2,
   MapPin,
@@ -38,14 +37,6 @@ import {
 
 import { Button } from "@kody-ade/base/ui/button";
 import { Card, CardContent } from "@kody-ade/base/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@kody-ade/base/ui/dialog";
-import { machineSshMacSetup } from "@kody-ade/fly/ssh/mac-setup";
 import {
   batchSuspendRunning,
   countRunningInGroup,
@@ -148,10 +139,6 @@ export function FlyMachinesTable({
   const hasAuth = Object.keys(headers).length > 0;
 
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [sshSetup, setSshSetup] = useState<ReturnType<
-    typeof machineSshMacSetup
-  > | null>(null);
-  const [setupCommandCopied, setSetupCommandCopied] = useState(false);
   const [confirm, setConfirm] = useState<ServerProviderMachineRow | null>(null);
   const [busyFeature, setBusyFeature] = useState<ServerProviderFeature | null>(
     null,
@@ -252,8 +239,6 @@ export function FlyMachinesTable({
       link.click();
       link.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-      setSetupCommandCopied(false);
-      setSshSetup(machineSshMacSetup(row));
       toast.success("SSH settings downloaded");
     } catch (error) {
       toast.error(
@@ -880,57 +865,6 @@ export function FlyMachinesTable({
           })}
         </div>
       </MasterDetailShell>
-
-      <Dialog
-        open={sshSetup !== null}
-        onOpenChange={(open) => !open && setSshSetup(null)}
-      >
-        <DialogContent className="sm:max-w-xl">
-          <DialogHeader>
-            <DialogTitle>Finish setup on this Mac</DialogTitle>
-            <DialogDescription>
-              The SSH profile is in Downloads. Add it to this Mac so ChatGPT
-              Desktop can find it.
-            </DialogDescription>
-          </DialogHeader>
-          {sshSetup ? (
-            <div className="space-y-4">
-              <ol className="list-decimal space-y-2 pl-5 text-sm text-foreground">
-                <li>Open the Terminal app.</li>
-                <li>Copy the command below, paste it, and press Return.</li>
-                <li>
-                  In ChatGPT Desktop, open Settings → Connections → SSH → Add,
-                  then select{" "}
-                  <span className="font-mono">{sshSetup.alias}</span>.
-                </li>
-              </ol>
-              <pre className="max-h-32 overflow-auto whitespace-pre-wrap break-all rounded-md border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
-                {sshSetup.command}
-              </pre>
-            </div>
-          ) : null}
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button
-              variant="outline"
-              aria-label="Close setup"
-              onClick={() => setSshSetup(null)}
-            >
-              Close
-            </Button>
-            <Button
-              onClick={async () => {
-                if (!sshSetup) return;
-                await navigator.clipboard.writeText(sshSetup.command);
-                setSetupCommandCopied(true);
-                toast.success("Terminal command copied");
-              }}
-            >
-              <ClipboardCopy className="h-4 w-4" />
-              {setupCommandCopied ? "Copied" : "Copy Terminal command"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       <ConfirmDialog
         open={confirm !== null}
