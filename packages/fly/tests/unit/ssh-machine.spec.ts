@@ -13,6 +13,7 @@ import {
   applyMachineSshAccess,
   readMachineSshAccess,
 } from "../../src/ssh/machine-config";
+import { machineSshMacSetup } from "../../src/ssh/mac-setup";
 
 afterEach(() => vi.unstubAllEnvs());
 
@@ -130,7 +131,10 @@ it("downloads only client files with private Unix permissions", async () => {
     "kody-test-app-abc123/known_hosts",
   ]);
   expect(strFromU8(files["kody-test-app-abc123/README.txt"]!)).toContain(
-    "Include ~/.ssh/kody/*/config",
+    "Open Terminal",
+  );
+  expect(strFromU8(files["kody-test-app-abc123/README.txt"]!)).toContain(
+    "Settings > Connections > SSH > Add",
   );
   expect(strFromU8(files["kody-test-app-abc123/config"]!)).toContain(
     "HostKeyAlias kody-test-app-abc123",
@@ -138,4 +142,21 @@ it("downloads only client files with private Unix permissions", async () => {
   expect(Object.values(files).map(strFromU8).join("\n")).not.toContain(
     access.hostPrivateKey,
   );
+});
+
+it("builds a Mac setup command for only the selected machine", () => {
+  const setup = machineSshMacSetup({
+    app: "test-app",
+    machineId: "abc123",
+  });
+  expect(setup.archiveName).toBe("kody-test-app-abc123.zip");
+  expect(setup.command).toContain("$HOME/Downloads/kody-test-app-abc123.zip");
+  expect(setup.command).toContain("$HOME/.ssh/kody/kody-test-app-abc123");
+  expect(setup.command).toContain("Include ~/.ssh/kody/*/config");
+  expect(() =>
+    machineSshMacSetup({
+      app: "test-app",
+      machineId: "abc123; bad",
+    }),
+  ).toThrow();
 });

@@ -1,22 +1,25 @@
 import { strToU8, zipSync, type Zippable } from "fflate";
 import { machineSshDownload } from "./machine-access";
+import { machineSshMacSetup } from "./mac-setup";
 
 /** A portable OpenSSH profile, with no Fly token or server private key. */
 export function machineSshArchive(
   input: Parameters<typeof machineSshDownload>[0],
 ) {
   const download = machineSshDownload(input);
+  const macSetup = machineSshMacSetup(input);
   const readme = [
     `SSH settings for ${input.app} / ${input.machineId}`,
     "",
-    `Move the ${download.alias} folder into ~/.ssh/kody/ on your Mac.`,
-    "Add this line to ~/.ssh/config once:",
-    "Include ~/.ssh/kody/*/config",
+    "Mac setup:",
+    "1. Open Terminal.",
+    "2. Paste this command and press Return:",
     "",
-    "If your unzip tool changes file permissions, run:",
-    `chmod 600 ~/.ssh/kody/${download.alias}/identity`,
+    macSetup.command,
     "",
-    `Select ${download.alias} in your app's SSH connections.`,
+    "3. In ChatGPT Desktop, open Settings > Connections > SSH > Add.",
+    `4. Select ${download.alias}.`,
+    "",
     `Or run: ssh ${download.alias}`,
     "Requires OpenSSH and openssl on your computer.",
     "Keep the identity file private: it grants access to this machine.",

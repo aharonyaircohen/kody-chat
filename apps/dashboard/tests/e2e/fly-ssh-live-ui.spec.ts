@@ -54,25 +54,38 @@ test("shows SSH availability from the real machine inventory", async ({
     machines: { app: string; machineId: string; sshConfigured?: boolean }[];
   };
   expect(inventory.machines.length).toBeGreaterThan(0);
-  await page.goto(`${base}/repo/${owner}/${repo}/fly/machines`);
-  const buttons = page.getByRole("button", {
-    name: "Download SSH config",
-    exact: true,
-  });
-  await expect(buttons).toHaveCount(inventory.machines.length, {
-    timeout: 30000,
-  });
-  const configured = inventory.machines.filter(
-    (machine) => machine.sshConfigured,
-  ).length;
-  await expect(buttons.locator("visible=true")).toHaveCount(
-    inventory.machines.length,
+  const brainResponse = await page.request.get(
+    `${base}/api/kody/brain/status`,
+    { headers },
   );
   expect(
-    await buttons.evaluateAll(
-      (elements) =>
-        elements.filter((element) => !(element as HTMLButtonElement).disabled)
-          .length,
-    ),
-  ).toBe(configured);
+    brainResponse.status(),
+    "Personal Brain status must be available",
+  ).toBe(200);
+  const brain = (await brainResponse.json()) as {
+    machines?: { app: string; machineId: string; sshConfigured?: boolean }[];
+  };
+  const ready = [...inventory.machines, ...(brain.machines ?? [])].find(
+    (machine) => machine.sshConfigured,
+  );
+  expect(
+    ready,
+    "At least one real machine must have SSH prepared",
+  ).toBeTruthy();
+  await page.goto(
+    `${base}/repo/${owner}/${repo}/fly/machines/${ready!.app}/${ready!.machineId}`,
+  );
+  await expect(
+    page.getByRole("button", { name: "Download SSH config", exact: true }),
+  ).toBeEnabled({ timeout: 30000 });
+  const download = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "Download SSH config", exact: true })
+    .click();
+  expect((await download).suggestedFilename()).toBe(
+    `kody-${ready!.app}-${ready!.machineId}.zip`,
+  );
+  await expect(
+    page.getByRole("dialog", { name: "Finish setup on this Mac" }),
+  ).toBeVisible();
 });

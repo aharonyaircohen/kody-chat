@@ -136,6 +136,28 @@ test("downloads the selected machine profile and disables unprepared machines", 
   await expect(
     page.getByText("SSH settings downloaded", { exact: true }),
   ).toBeVisible();
+  const setupDialog = page.getByRole("dialog", {
+    name: "Finish setup on this Mac",
+  });
+  await expect(setupDialog).toBeVisible();
+  const copyCommand = setupDialog.getByRole("button", {
+    name: "Copy Terminal command",
+  });
+  await expect(copyCommand).toBeVisible();
+  await expect(
+    setupDialog.getByText("Settings → Connections → SSH → Add", {
+      exact: false,
+    }),
+  ).toBeVisible();
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  await copyCommand.click();
+  await expect(
+    setupDialog.getByRole("button", { name: "Copied" }),
+  ).toBeVisible();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toContain(
+    "$HOME/Downloads/kody-test-app-abc123.zip",
+  );
+  await setupDialog.getByRole("button", { name: "Close setup" }).click();
   await page.route("**/api/kody/fly/machines/ssh", (route) =>
     route.fulfill({
       status: 403,
@@ -193,6 +215,10 @@ test("downloads a personal Brain without repository Fly credentials", async ({
   expect((await download).suggestedFilename()).toBe(
     "kody-kody-brain-own-brain123.zip",
   );
+  await page
+    .getByRole("dialog", { name: "Finish setup on this Mac" })
+    .getByRole("button", { name: "Close setup" })
+    .click();
   let personalSuspend = false;
   await page.route("**/api/kody/brain/suspend", (route) => {
     personalSuspend = true;
