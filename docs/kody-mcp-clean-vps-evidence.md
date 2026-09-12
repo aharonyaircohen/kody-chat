@@ -1,7 +1,8 @@
 # Clean VPS continuity evidence
 
-Date: 2026-09-12. Repository coding continuity has live evidence; the full plan
-remains in progress, including durable release and remaining failure cases.
+Date: 2026-09-12. Repository coding continuity passed the clean VPS coding,
+native writeback, independent readback, and deployed service journeys below.
+Current desktop-session reload and personal portability remain unqualified.
 
 ## Clean VPS coding and writeback
 
@@ -45,6 +46,12 @@ Production Convex `aware-raccoon-432` received the compatible backend changes.
 Dashboard candidate `dpl_4tti3isgE4opT85VHUPEmtRDNADL`,
 `https://kody-dashboard-b5o7zsi6y-aguy.vercel.app`, was deployed with
 `--skip-domain`. It read the existing production plan memory successfully.
+It was subsequently promoted. Promotion did not move the existing MCP alias;
+explicit alias assignment corrected that boundary. Final Vercel inspection of
+`https://kody-dashboard-aguy.vercel.app` resolved to this candidate. The real
+create/verify/revoke browser journey then passed against that stable address.
+Earlier stable-address failures were against the older deployment, not this
+qualified candidate. Evidence: `/tmp/kody-stable-mcp-browser-alias-final.log`.
 
 The real deployed browser create/verify/revoke journey passed. The public MCP
 memory harness passed lifecycle/history/retry, concurrent create deduplication,
@@ -73,36 +80,37 @@ Its six-hour lifetime bounds compute spending; no continuous server was ordered.
 
 Before installation, `/root/.codex` and `/root/.agents` were absent. Fresh
 Codex CLI 0.153.4 and repository-pinned pnpm 9.0.0 were installed. Codex reported
-`Not logged in`; a separate device login is awaiting the user. No previous
-Codex state or credentials were copied. Provisioning was saved and read back
-from Kody work revision 13. Provisioning is not coding-resumption proof.
+`Not logged in` before the user completed separate device authentication.
+Fresh login status then confirmed ChatGPT authentication. No previous Codex
+state or credentials were copied. Provisioning was saved and read back from
+Kody work revision 13; subsequent coding evidence is recorded above.
 
 ## Verified observations
 
-| Boundary | Evidence | Result |
-| --- | --- | --- |
-| Local native client | Codex CLI 0.153.2, native `kody_status`, action discovery and repository memory reads; temporary directory and no shell/file calls in the probe | Correct repository and continuity preference, memory `ebf94202-d1cf-4b30-9575-a93923822c3a` |
-| Remote native client | Codex CLI 0.153.4 on existing Fly host; fresh ephemeral session with user config ignored, native Kody tools only | Found adoption work, latest checkpoint and plan; identified missing formal blockers |
-| Cross-client knowledge | Remote probe retrieved adoption revision 9 and plan `2987ac29-a22c-486f-ae0a-aa7f2bf5765c` without supplied record IDs | Passed read-only rehearsal; no code continuation yet |
-| Attribution | Dedicated Codex repository-only connection installed locally; remote probe used a temporary read-only connection | Remote token revoked after test; no personal grant |
-| Live baseline failure | Disposable Kody-Engine-Tester memories through public MCP | Retirement returned `internal_error`; simultaneous identical creates produced two IDs; fixtures deleted and test token revoked |
-| Retirement diagnostic | Production backend `aware-raccoon-432`; log request `d8cdfa80af742830` | `Revised memory does not match current memory` in backend revision validation |
-| Release drift | Stable alias resolved to `dpl_5XfHJEL5YKUB9naDsXU5qnPjmiFW` | New permission fields rejected; prior `dpl_6TqJzMoFqSFXx5wKnk86H5nLq9vf` accepted them |
-| Focused local fixes | Backend integration/store/registry tests, memory package tests, cursor integrity test | Passed; covers replay, deletion scrubbing, retirement history, 200 active records and expired search matches |
-| Staging backend | Isolated candidate deployed to `animated-sardine-218` | Deployment succeeded; production backend unchanged |
-| Live local persistence | Production-mode local app on port 3345, staging Convex, disposable Kody-Engine-Tester connection | Lifecycle/history/retry, concurrent create deduplication, 200-record pagination and retired exclusion, deletion retry passed; fixture cleanup complete and token revoked |
-| Live negative cases | Same mounted MCP route and disposable staging fixtures | Changed-payload retry rejected, stale revision rejected, deleted create not resurrected, revoked token rejected with 401 |
-| Native outage | Fresh ephemeral Codex CLI, unavailable MCP endpoint, native tools only | Reported unavailable context and no saved changes; did not invent a next step |
-| Token creation diagnostic | Mounted local browser before final fix | POST sent no repository credentials before auth hydration; GET later sent them |
-| Token creation correction | Mounted local browser after disabling creation until repository credentials exist | Real create/verify/revoke passed; mocked browser now asserts repository credentials on POST |
-| Final isolated root checks | `pnpm verify`, final source plus local-only dashboard environment file | Passed; typecheck, lint, unit/integration and production build |
-| Canonical browser gate | Final production build, isolated server on port 3344; no overlapping build | 153 passed; MCP mocked and live local journeys separately passed |
+| Boundary                   | Evidence                                                                                                                                        | Result                                                                                                                                                                   |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Local native client        | Codex CLI 0.153.2, native `kody_status`, action discovery and repository memory reads; temporary directory and no shell/file calls in the probe | Correct repository and continuity preference, memory `ebf94202-d1cf-4b30-9575-a93923822c3a`                                                                              |
+| Remote native client       | Codex CLI 0.153.4 on existing Fly host; fresh ephemeral session with user config ignored, native Kody tools only                                | Found adoption work, latest checkpoint and plan; identified missing formal blockers                                                                                      |
+| Cross-client knowledge     | Remote probe retrieved adoption revision 9 and plan `2987ac29-a22c-486f-ae0a-aa7f2bf5765c` without supplied record IDs                          | Passed read-only rehearsal; no code continuation yet                                                                                                                     |
+| Attribution                | Dedicated Codex repository-only connection installed locally; remote probe used a temporary read-only connection                                | Remote token revoked after test; no personal grant                                                                                                                       |
+| Live baseline failure      | Disposable Kody-Engine-Tester memories through public MCP                                                                                       | Retirement returned `internal_error`; simultaneous identical creates produced two IDs; fixtures deleted and test token revoked                                           |
+| Retirement diagnostic      | Production backend `aware-raccoon-432`; log request `d8cdfa80af742830`                                                                          | `Revised memory does not match current memory` in backend revision validation                                                                                            |
+| Release drift              | Stable alias resolved to `dpl_5XfHJEL5YKUB9naDsXU5qnPjmiFW`                                                                                     | New permission fields rejected; prior `dpl_6TqJzMoFqSFXx5wKnk86H5nLq9vf` accepted them                                                                                   |
+| Focused local fixes        | Backend integration/store/registry tests, memory package tests, cursor integrity test                                                           | Passed; covers replay, deletion scrubbing, retirement history, 200 active records and expired search matches                                                             |
+| Staging backend            | Isolated candidate deployed to `animated-sardine-218`                                                                                           | Deployment succeeded; production backend unchanged                                                                                                                       |
+| Live local persistence     | Production-mode local app on port 3345, staging Convex, disposable Kody-Engine-Tester connection                                                | Lifecycle/history/retry, concurrent create deduplication, 200-record pagination and retired exclusion, deletion retry passed; fixture cleanup complete and token revoked |
+| Live negative cases        | Same mounted MCP route and disposable staging fixtures                                                                                          | Changed-payload retry rejected, stale revision rejected, deleted create not resurrected, revoked token rejected with 401                                                 |
+| Native outage              | Fresh ephemeral Codex CLI, unavailable MCP endpoint, native tools only                                                                          | Reported unavailable context and no saved changes; did not invent a next step                                                                                            |
+| Token creation diagnostic  | Mounted local browser before final fix                                                                                                          | POST sent no repository credentials before auth hydration; GET later sent them                                                                                           |
+| Token creation correction  | Mounted local browser after disabling creation until repository credentials exist                                                               | Real create/verify/revoke passed; mocked browser now asserts repository credentials on POST                                                                              |
+| Final isolated root checks | `pnpm verify`, final source plus local-only dashboard environment file                                                                          | Passed; typecheck, lint, unit/integration and production build                                                                                                           |
+| Canonical browser gate     | Final production build, isolated server on port 3344; no overlapping build                                                                      | 153 passed; MCP mocked and live local journeys separately passed                                                                                                         |
 
 The initial remote rehearsal used an existing machine and its existing Codex login. It
 is not a fresh VPS, fresh account authentication, or a completed coding journey.
 No old source-machine Codex database or conversation was transferred.
 
-## Validation in progress
+## Local validation history
 
 An isolated candidate was assembled from source revision
 `481b8e5a13d214bf97deab76a9cd3004cd1937f6` plus only this task's changes.
@@ -138,19 +146,50 @@ Fresh-checkout verification required building workspace packages that export
 generated declarations; see `kody-mcp-codex-bootstrap.md`. Existing local build
 output must not be treated as remotely available source.
 
-## Remaining completion gates
+## Source publication and failure recovery
+
+The 26 scoped implementation, test, documentation, and canonical skill files were
+committed and pushed to `origin/main` as
+`b0b64a408e5b097be31e52a56a45916f9d522cf0`. GitHub returned that exact revision.
+The native VPS regression patch was reviewed and included. Unrelated concurrent
+Brain changes were excluded. Future bootstrap can retrieve source and skill from
+this published revision instead of depending on the temporary overlay.
+
+A fourth fresh native session discovered `kody-continuity-artifact-recovery-check`
+without a supplied record ID. Its required overlay had deliberately been moved
+out of the recorded path. It observed `No such file or directory`, reported source
+recovery blocked, and refused to treat an existing checkout as recovery of the
+exact artifact. It made no source or record changes. The controlled fixture work
+was then marked completed. Evidence: `/tmp/kody-clean-vps-missing-artifact.jsonl`.
+
+A fifth fresh native session received only the topic and an explicitly older
+handoff value. It found the revised Kody fact, returned the current cobalt value
+instead of obsolete copper, and cited the correct current revision. It used
+native reads only and made no changes. The fixture was retired afterward and
+read back as `superseded`. Evidence: `/tmp/kody-clean-vps-stale-memory.jsonl`.
+
+## Cleanup
+
+All 201 deployed harness fixtures were deleted, and its token revocation was
+reconciled and confirmed. The three access-rotation test tokens were revoked and
+their fixture deleted. The missing-artifact Todo is completed; the stale-memory
+fixture is retired. The dedicated clean-VPS token was revoked and independently
+read back as revoked. The reusable local Codex connection remains installed.
+Fly confirmed deletion of the dedicated evaluation app and its Machine after
+the coding patch and sanitized evidence were secured; no evaluation volumes or
+services remain. Fresh model authentication stayed on that destroyed machine.
+
+## Scope limits
 
 - Native connection reload in the current desktop session is not proved by a CLI
   process; a new desktop task/session must discover the configured connection.
-- Complete any remaining applicable release gates and public-domain promotion;
-  targeted deployed MCP browser and persistence checks have passed.
-- Release remotely reachable source and canonical skill; preserve real unfinished
-  code with a verified revision or artifact.
-- Finish explicit inaccessible-artifact and stale-memory recovery journeys;
-  outage, interrupted/blocked save recovery, token expiry/revocation/rotation,
-  and stale-revision rejection have focused evidence, with different layers
-  identified above.
 - Personal UI/MCP identity interoperability and complete native desktop state
-  restoration are not qualified by this repository trial.
+  restoration are not qualified by this repository trial. Terminals, live
+  processes, credentials and native conversation databases are not portable
+  Kody memory.
+- Receipt replay has a 30-day logical lifetime and connection/key/payload scope;
+  physical cleanup is lazy. Writes predating receipts need reconciliation.
+- Scheduling remains deferred. The broader adoption Todo includes older product
+  backlog items outside this clean-VPS qualification.
 
 Shared progress is recorded in Kody Todo `kody-mcp-adoption-2026-09`.
