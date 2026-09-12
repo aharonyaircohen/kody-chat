@@ -37,9 +37,6 @@ async function seedRepoAuth(page: Page): Promise<void> {
     { owner: OWNER, repo: REPO },
   );
   await mockDashboardShellRequests(page);
-  await page.route("**/api/kody/brain/status", (route) =>
-    route.fulfill({ json: { machines: [] } }),
-  );
   await page.route("**/api/kody/auth/me", (route) =>
     route.fulfill({
       status: 200,
@@ -149,57 +146,122 @@ test("downloads the selected machine profile and disables unprepared machines", 
   await expect(buttons.nth(0)).toBeEnabled();
 });
 
-test("downloads a personal Brain without repository Fly credentials", async ({
+test("opens Fly machines already scoped to one app", async ({ page }) => {
+  await seedRepoAuth(page);
+  await page.route("**/api/kody/fly/config-status", (route) =>
+    route.fulfill({ json: { configured: true, source: "repo-vault" } }),
+  );
+  await page.route("**/api/kody/fly/machines", (route) =>
+    route.fulfill({
+      json: {
+        machines: [
+          {
+            app: "kody-app-storefront",
+            machineId: "storefront-1",
+            feature: "app",
+            state: "started",
+            region: "ams",
+            label: "Storefront machine",
+            sizeLabel: "256 MB",
+            sshConfigured: true,
+          },
+          {
+            app: "another-app",
+            machineId: "other-1",
+            feature: "app",
+            state: "started",
+            region: "ams",
+            label: "Other machine",
+            sizeLabel: "256 MB",
+            sshConfigured: true,
+          },
+        ],
+        running: 2,
+        total: 2,
+      },
+    }),
+  );
+
+  await page.goto(`/repo/${OWNER}/${REPO}/fly/machines/kody-app-storefront`);
+  await expect(
+    page.getByRole("searchbox", { name: "Search machines" }),
+  ).toHaveValue("kody-app-storefront");
+  await expect(
+    page.getByRole("heading", { name: "Storefront machine" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Select Other machine" }),
+  ).toHaveCount(0);
+});
+
+test("keeps personal Brain lifecycle out of Fly infrastructure", async ({
   page,
 }) => {
   await seedRepoAuth(page);
   await page.route("**/api/kody/fly/config-status", (route) =>
     route.fulfill({ json: { configured: false, source: null } }),
   );
-  await page.route("**/api/kody/brain/status", (route) =>
-    route.fulfill({
+  let brainRequests = 0;
+  await page.route(
+    "**/api/kody/brain/status",
+    (route) => (
+      (brainRequests += 1),
+      route.fulfill({ json: { state: "running" } })
+    ),
+  );
+  await page.goto(`/repo/${OWNER}/${REPO}/fly/machines`);
+  await expect(page.getByText("show repository infrastructure")).toBeVisible();
+  expect(brainRequests).toBe(0);
+});
+
+test("manages persistent volumes from Fly infrastructure", async ({ page }) => {
+  await seedRepoAuth(page);
+  await page.route("**/api/kody/fly/config-status", (route) =>
+    route.fulfill({ json: { configured: true, source: "repo-vault" } }),
+  );
+  let actionBody: unknown;
+  await page.route("**/api/kody/fly/volumes", (route) => {
+    if (route.request().method() === "POST") {
+      actionBody = route.request().postDataJSON();
+      return route.fulfill({ json: { ok: true } });
+    }
+    return route.fulfill({
       json: {
-        machines: [
+        volumes: [
           {
-            app: "kody-brain-own",
-            machineId: "brain123",
-            feature: "brain",
-            state: "started",
+            app: "kody-app-open-notebook-123",
+            id: "vol_data",
+            name: "data",
             region: "ams",
-            label: "My Brain",
-            sizeLabel: "1 GB",
-            sshConfigured: true,
+            state: "created",
+            sizeGb: 10,
+            encrypted: true,
+            attachedMachineId: "machine_1",
+            createdAt: "2026-09-11T10:00:00.000Z",
           },
         ],
+        unavailableApps: [],
       },
-    }),
-  );
-  await page.route("**/api/kody/fly/machines/ssh", (route) => {
-    expect(route.request().postDataJSON()).toEqual({
-      app: "kody-brain-own",
-      machineId: "brain123",
-    });
-    return route.fulfill({
-      contentType: "application/zip",
-      body: Buffer.from("archive"),
     });
   });
-  await page.goto(`/repo/${OWNER}/${REPO}/fly/machines`);
-  await page.getByRole("button", { name: "Select My Brain" }).click();
-  const download = page.waitForEvent("download");
-  await page
-    .getByRole("button", { name: "Download SSH config", exact: true })
-    .click();
-  expect((await download).suggestedFilename()).toBe(
-    "kody-kody-brain-own-brain123.zip",
-  );
-  let personalSuspend = false;
-  await page.route("**/api/kody/brain/suspend", (route) => {
-    personalSuspend = true;
-    return route.fulfill({ json: { ok: true } });
+
+  await page.goto(`/repo/${OWNER}/${REPO}/fly/volumes`);
+  await expect(
+    page.getByRole("heading", { name: "Fly Volumes", level: 1 }),
+  ).toBeVisible();
+  await expect(page.getByText("kody-app-open-notebook-123")).toBeVisible();
+  await expect(page.getByText("10 GB")).toBeVisible();
+  await expect(page.getByText("Attached")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Delete volume" }),
+  ).toBeDisabled();
+  await page.getByRole("button", { name: "Snapshot volume" }).click();
+  await expect(page.getByText("Snapshot created.")).toBeVisible();
+  expect(actionBody).toEqual({
+    app: "kody-app-open-notebook-123",
+    volumeId: "vol_data",
+    action: "snapshot",
   });
-  await page.getByTitle("Suspend (snapshot, ~$0)", { exact: true }).click();
-  await expect.poll(() => personalSuspend).toBe(true);
 });
 
 for (const mobile of [false, true]) {
@@ -248,13 +310,17 @@ for (const mobile of [false, true]) {
     // transition finish before this journey exercises searching the list.
     if (!mobile) {
       await expect(page).toHaveURL(/\/fly\/machines\/test-app\/abc123$/);
-      await expect(page.getByRole("heading", {
-        name: "A machine with a very long readable name",
-      })).toBeVisible();
+      await expect(
+        page.getByRole("heading", {
+          name: "A machine with a very long readable name",
+        }),
+      ).toBeVisible();
     } else {
-      await expect(page.getByRole("button", {
-        name: "Select A machine with a very long readable name",
-      })).toBeVisible();
+      await expect(
+        page.getByRole("button", {
+          name: "Select A machine with a very long readable name",
+        }),
+      ).toBeVisible();
     }
     const search = page.getByRole("searchbox", { name: "Search machines" });
     await search.fill("missing");

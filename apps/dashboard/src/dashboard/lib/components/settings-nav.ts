@@ -22,6 +22,7 @@ import {
   Database,
   FileText,
   FolderOpen,
+  HardDrive,
   History,
   Home,
   KeyRound,
@@ -347,6 +348,14 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         icon: Cpu,
         description: "Current Fly machines and actions.",
         tint: "text-emerald-300 bg-emerald-500/10",
+      },
+      {
+        href: "/fly/volumes",
+        label: "Volumes",
+        icon: HardDrive,
+        exact: true,
+        description: "Persistent disks used by Fly apps.",
+        tint: "text-sky-300 bg-sky-500/10",
       },
       {
         href: "/fly/history",

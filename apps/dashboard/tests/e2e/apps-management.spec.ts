@@ -26,14 +26,182 @@ async function seedRepository(page: Page) {
 }
 
 test.describe("Apps management", () => {
-  test("manages a selected App and hands new setup to Kody Chat", async ({
+  test("shows every app through the same management layout", async ({
     page,
   }) => {
-    let appStatus = "stopped";
     await mockKodyAccountSession(page, { id: "apps-e2e", name: "Apps E2E" });
     await seedRepository(page);
     await page.route("**/api/kody/apps", (route) =>
       route.fulfill({
+        json: {
+          apps: [
+            {
+              appId: "managed-browser",
+              kind: "browser",
+              scope: "repository",
+              name: "Browser",
+              slug: "browser",
+              observedStatus: "idle",
+              desiredStatus: "available",
+              manageHref: "/preview",
+              provider: {},
+              updatedAt: new Date().toISOString(),
+            },
+            {
+              appId: "managed-brain",
+              kind: "brain",
+              scope: "personal",
+              name: "Brain",
+              slug: "brain",
+              observedStatus: "suspended",
+              desiredStatus: "available",
+              manageHref: "/brain",
+              lifecycle: {
+                start: "/api/kody/brain/resume",
+                stop: "/api/kody/brain/suspend",
+              },
+              provider: {},
+              updatedAt: new Date().toISOString(),
+            },
+          ],
+        },
+      }),
+    );
+    let resumed = false;
+    await page.route("**/api/kody/brain/resume", (route) => {
+      resumed = true;
+      return route.fulfill({ json: { ok: true, status: "running" } });
+    });
+
+    await page.goto("/repo/test-owner/test-repo/apps/brain");
+    await expect(page.getByRole("heading", { name: "Brain" })).toBeVisible();
+    await expect(
+      page.getByRole("definition").filter({ hasText: "Personal" }),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Overview" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Activity" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Access" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Settings" })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "App actions" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Open app" }).click();
+    await expect.poll(() => resumed).toBe(true);
+    await expect(page).toHaveURL(/\/brain$/);
+
+    await page.goto("/repo/test-owner/test-repo/apps/browser");
+    await expect(
+      page.getByRole("definition").filter({ hasText: "Repository" }),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Overview" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Activity" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Access" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Settings" })).toBeVisible();
+    await page.getByRole("button", { name: "Open app" }).click();
+    await expect(page).toHaveURL(/\/repo\/test-owner\/test-repo\/preview$/);
+  });
+
+  test("switches apps in place without refetching or losing search", async ({
+    page,
+  }) => {
+    await mockKodyAccountSession(page, { id: "apps-e2e", name: "Apps E2E" });
+    await seedRepository(page);
+    let listRequests = 0;
+    await page.route("**/api/kody/apps", (route) => {
+      if (route.request().method() !== "GET") return route.continue();
+      listRequests += 1;
+      return route.fulfill({
+        json: {
+          apps: [
+            {
+              appId: "app-one",
+              kind: "repository",
+              scope: "repository",
+              name: "Alpha app",
+              slug: "alpha-app",
+              repository: "test-owner/test-repo",
+              branch: "main",
+              rootDirectory: ".",
+              observedStatus: "running",
+              desiredStatus: "running",
+              provider: { publicUrl: "https://alpha.example" },
+              updatedAt: new Date().toISOString(),
+            },
+            {
+              appId: "app-two",
+              kind: "repository",
+              scope: "repository",
+              name: "Beta app",
+              slug: "beta-app",
+              repository: "test-owner/test-repo",
+              branch: "main",
+              rootDirectory: ".",
+              observedStatus: "running",
+              desiredStatus: "running",
+              provider: { publicUrl: "https://beta.example" },
+              updatedAt: new Date().toISOString(),
+            },
+          ],
+        },
+      });
+    });
+
+    await page.goto("/repo/test-owner/test-repo/apps/alpha-app");
+    await expect.poll(() => listRequests).toBe(1);
+    await page
+      .getByRole("searchbox", { name: "Search apps" })
+      .pressSequentially("Beta");
+    await expect(page.getByRole("button", { name: /Alpha app/ })).toHaveCount(
+      0,
+    );
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          sessionStorage.getItem(
+            "kody:apps-search:/repo/test-owner/test-repo/apps",
+          ),
+        ),
+      )
+      .toBe("Beta");
+    const requestsBeforeSwitch = listRequests;
+    await page.getByRole("button", { name: /Beta app/ }).click();
+
+    await expect(page).toHaveURL(/\/apps\/beta-app$/);
+    await expect(page.getByRole("heading", { name: "Beta app" })).toBeVisible();
+    await expect(
+      page.getByRole("searchbox", { name: "Search apps" }),
+    ).toHaveValue("Beta");
+    expect(listRequests).toBe(requestsBeforeSwitch);
+
+    await page.goBack();
+    await expect(page).toHaveURL(/\/apps\/alpha-app$/);
+    await expect(
+      page.getByRole("heading", { name: "Alpha app" }),
+    ).toBeVisible();
+  });
+
+  test("manages a selected App and creates a repository app in place", async ({
+    page,
+  }) => {
+    let appStatus = "stopped";
+    let created = false;
+    let appListRequests = 0;
+    await mockKodyAccountSession(page, { id: "apps-e2e", name: "Apps E2E" });
+    await seedRepository(page);
+    await page.route("**/api/kody/apps", (route) => {
+      if (route.request().method() === "POST") {
+        created = true;
+        return route.fulfill({
+          status: 202,
+          json: {
+            appId: "new-app-id",
+            slug: "new-service",
+            status: "building",
+          },
+        });
+      }
+      appListRequests += 1;
+      return route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
@@ -48,7 +216,10 @@ test.describe("Apps management", () => {
               observedStatus: appStatus,
               desiredStatus: appStatus,
               exposure: "private",
-              provider: { publicUrl: "https://storefront.fly.dev" },
+              provider: {
+                appName: "kody-app-storefront",
+                publicUrl: "https://storefront.fly.dev",
+              },
               currentDeploymentId: "33333333-3333-4333-8333-333333333333",
               secretNames: ["DATABASE_URL"],
               accessTokens: [
@@ -59,11 +230,54 @@ test.describe("Apps management", () => {
                 },
               ],
               domains: [{ hostname: "shop.example.com", status: "ready" }],
-              storage: [],
+              storage: [
+                {
+                  volumeId: "vol-data",
+                  name: "data",
+                  mountPath: "/data",
+                  sizeGb: 10,
+                },
+              ],
               updatedAt: new Date().toISOString(),
             },
+            ...(created
+              ? [
+                  {
+                    appId: "new-app-id",
+                    kind: "repository",
+                    scope: "repository",
+                    name: "New service",
+                    slug: "new-service",
+                    repository: "test-owner/test-repo",
+                    branch: "main",
+                    rootDirectory: ".",
+                    observedStatus: "provisioning",
+                    desiredStatus: "running",
+                    exposure: "private",
+                    provider: {},
+                    secretNames: [],
+                    accessTokens: [],
+                    domains: [],
+                    storage: [],
+                    updatedAt: new Date().toISOString(),
+                  },
+                ]
+              : []),
           ],
         }),
+      });
+    });
+    await page.route("**/api/kody/apps/inspect", (route) =>
+      route.fulfill({
+        json: {
+          repository: "test-owner/test-repo",
+          ref: "main",
+          commitSha: "a".repeat(40),
+          name: "New service",
+          slug: "new-service",
+          plan: { kind: "node", rootDirectory: ".", port: 3000 },
+          requiredSecretNames: [],
+        },
       }),
     );
     await page.route("**/api/kody/chat/conversations**", (route) =>
@@ -124,11 +338,19 @@ test.describe("Apps management", () => {
       page.getByText("lfnovo/open-notebook@main:apps/web"),
     ).toBeVisible();
     await expect(page.getByText("Consumer token required")).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "View Fly volumes" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "View machines" }),
+    ).toHaveAttribute(
+      "href",
+      "/repo/test-owner/test-repo/fly/machines/kody-app-storefront",
+    );
     await expect(page.getByText("Stopped — not serving traffic")).toBeVisible();
+    await page.getByRole("button", { name: "App actions" }).click();
     await page
-      .getByRole("button", { name: "Start app" })
-      .filter({ visible: true })
-      .first()
+      .getByRole("menuitem", { name: "Start app", exact: true })
       .click();
     await expect(page.getByText("Starting app…").first()).toBeVisible();
     await expect(
@@ -143,15 +365,52 @@ test.describe("Apps management", () => {
       "data-opened-app-url",
       "https://storefront.fly.dev/?ka=short-lived-ticket",
     );
-    await page.getByRole("button", { name: "Environment" }).click();
+    await page.getByRole("button", { name: "Settings" }).click();
     await expect(page.getByText("Runtime secret names")).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Manage repository secrets" }),
+    ).toBeVisible();
+    await expect(page.getByText("Default consumer")).toHaveCount(0);
+    await expect(page.getByText("Domains", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("Storage", { exact: true })).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Delete App" }),
+    ).toBeDisabled();
+    await expect(
+      page.getByRole("link", { name: "View Fly volumes" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Access" }).click();
     await expect(page.getByText("Default consumer")).toBeVisible();
 
-    await page.getByRole("button", { name: "New app" }).click();
-    await expect(page).toHaveURL(/\/repo\/test-owner\/test-repo\/chat$/);
-    await expect(page.locator("textarea").first()).toHaveValue(
-      "Set up this repository as an app",
-    );
+    const requestsBeforeRefresh = appListRequests;
+    await page.getByRole("button", { name: "Refresh apps" }).click();
+    await expect
+      .poll(() => appListRequests)
+      .toBeGreaterThan(requestsBeforeRefresh);
+
+    await page.getByRole("button", { name: "Deploy app" }).click();
+    await expect(
+      page.getByRole("dialog", { name: "Deploy repository app" }),
+    ).toBeVisible();
+    await expect(page.getByText("Browser is already available")).toHaveCount(0);
+    await expect(page.getByText("Brain is already available")).toHaveCount(0);
+    const createDialog = page.getByRole("dialog", {
+      name: "Deploy repository app",
+    });
+    await expect(
+      createDialog.getByLabel("Folder containing the app (optional)"),
+    ).toHaveValue("");
+    await expect(
+      createDialog.getByText(
+        "Leave empty if the app uses the whole repository. Example: apps/web",
+      ),
+    ).toBeVisible();
+    await createDialog.getByLabel("App name").fill("New service");
+    await createDialog.getByRole("button", { name: "Deploy app" }).click();
+    await expect(page).toHaveURL(/\/apps\/new-service$/);
+    await expect(
+      page.getByRole("heading", { name: "New service" }),
+    ).toBeVisible();
   });
 
   test("repairs a missing Fly app when the user clicks Start", async ({
@@ -240,7 +499,10 @@ test.describe("Apps management", () => {
     await expect(
       page.getByText("Failed — open logs for details"),
     ).toBeVisible();
-    await page.getByRole("button", { name: "Start app", exact: true }).click();
+    await page.getByRole("button", { name: "App actions" }).click();
+    await page
+      .getByRole("menuitem", { name: "Start app", exact: true })
+      .click();
     await expect(page.getByText("Starting app…").first()).toBeVisible();
     await expect(
       page.getByText("Running — ready to open").first(),

@@ -71,12 +71,14 @@ describe("settings navigation", () => {
       "/fly/previews",
       "/fly/brain-images",
       "/fly/machines",
+      "/fly/volumes",
       "/fly/history",
     ]);
     expect(navLabelForPath("/fly/config")).toBe("Config");
     expect(navLabelForPath("/fly/previews")).toBe("Previews");
     expect(navLabelForPath("/fly/brain-images")).toBe("Brain Images");
     expect(navLabelForPath("/fly/machines")).toBe("Live machines");
+    expect(navLabelForPath("/fly/volumes")).toBe("Volumes");
     expect(navLabelForPath("/fly/history")).toBe("History");
     expect(navLabelForPath("/terminal")).toBeNull();
   });
@@ -234,6 +236,7 @@ describe("settings navigation", () => {
       "/fly/previews",
       "/fly/brain-images",
       "/fly/machines",
+      "/fly/volumes",
       "/fly/history",
     ]);
     expect(

@@ -4,12 +4,11 @@
  * @pattern fly-machines-table
  *
  * The operator's primary Fly view on /runner: every kody-managed machine the
- * repo's token can see, grouped by feature (preview / runner / brain
- * / builder), with inline Suspend / Resume / Destroy. Config lives in the
+ * repo's token can see, grouped by infrastructure feature, with inline
+ * Suspend / Resume / Destroy. Config lives in the
  * settings cards below — this table is "what's running right now, act on it".
  *
- * Reads GET /api/kody/fly/machines. Machine actions use the generic Fly route;
- * Brain deletion uses the Brain lifecycle route so its whole app is removed.
+ * Reads GET /api/kody/fly/machines. Actions use the generic Fly route.
  */
 "use client";
 
@@ -74,9 +73,8 @@ const FEATURE_ORDER: ServerProviderFeature[] = [
   "preview-base",
   "other",
 ];
-// Preview apps are throwaway per-PR envs — "Destroy" should remove the whole
-// app (URL + IPs), not just one machine. Brain is also a whole-app lifecycle,
-// handled by its dedicated route. Other long-lived services keep the app.
+// Preview apps are throwaway per-PR environments, so their infrastructure
+// action removes the whole Fly app. Other services keep the Fly app.
 function destroysWholeApp(feature: ServerProviderFeature): boolean {
   return feature === "preview" || feature === "preview-base";
 }
@@ -145,7 +143,7 @@ export function FlyMachinesTable({
   );
   const [confirmFeature, setConfirmFeature] =
     useState<ServerProviderFeature | null>(null);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(selectedApp ?? "");
   const [activeSelection, setActiveSelection] =
     useState<MachineSelection | null>(
       selectedApp && selectedMachineId
@@ -166,32 +164,17 @@ export function FlyMachinesTable({
     refetchOnMount: false,
     queryFn: async () => {
       try {
-        const [repositoryResponse, brainResponse] = await Promise.all([
-          flyTokenConfigured
-            ? fetch("/api/kody/fly/machines", { headers }).catch(() => null)
-            : null,
-          fetch("/api/kody/brain/status", { headers }).catch(() => null),
-        ]);
+        const repositoryResponse = flyTokenConfigured
+          ? await fetch("/api/kody/fly/machines", { headers }).catch(() => null)
+          : null;
         const warning =
           flyTokenConfigured && !repositoryResponse?.ok
             ? "Repository machines could not be loaded."
-            : !brainResponse?.ok
-              ? "Personal Brain could not be loaded."
-              : null;
+            : null;
         const repository = repositoryResponse?.ok
           ? ((await repositoryResponse.json()) as ServerProviderInventory)
           : null;
-        const brain = brainResponse?.ok
-          ? ((await brainResponse.json()) as {
-              machines?: ServerProviderMachineRow[];
-            })
-          : null;
-        const machines = [
-          ...(repository?.machines ?? []).filter(
-            (machine) => machine.feature !== "brain",
-          ),
-          ...(brain?.machines ?? []),
-        ];
+        const machines = repository?.machines ?? [];
         return {
           inventory: {
             machines,
@@ -257,33 +240,15 @@ export function FlyMachinesTable({
   ) {
     setBusyId(row.machineId);
     try {
-      const res =
-        row.feature === "brain" && action === "destroy"
-          ? await fetch("/api/kody/brain/destroy", {
-              method: "POST",
-              headers: { ...headers, "Content-Type": "application/json" },
-              body: JSON.stringify({ appName: row.app }),
-            })
-          : row.feature === "brain"
-            ? await fetch(
-                action === "start"
-                  ? "/api/kody/brain/resume"
-                  : "/api/kody/brain/suspend",
-                {
-                  method: "POST",
-                  headers: { ...headers, "Content-Type": "application/json" },
-                  body: JSON.stringify({ appName: row.app }),
-                },
-              )
-            : await fetch("/api/kody/fly/machines/action", {
-                method: "POST",
-                headers: { ...headers, "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  app: row.app,
-                  machineId: row.machineId,
-                  action,
-                }),
-              });
+      const res = await fetch("/api/kody/fly/machines/action", {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          app: row.app,
+          machineId: row.machineId,
+          action,
+        }),
+      });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
         toast.error(body.error ?? `Action failed (HTTP ${res.status})`);
@@ -294,9 +259,7 @@ export function FlyMachinesTable({
           ? "Suspended"
           : action === "start"
             ? "Resumed"
-            : row.feature === "brain"
-              ? "Brain turned off"
-              : "Destroyed",
+            : "Destroyed",
       );
       await refresh();
     } catch (err) {
@@ -314,20 +277,15 @@ export function FlyMachinesTable({
       const { results, okCount, failCount } = await batchSuspendRunning(
         rows,
         async (row) => {
-          const res = await fetch(
-            row.feature === "brain"
-              ? "/api/kody/brain/suspend"
-              : "/api/kody/fly/machines/action",
-            {
-              method: "POST",
-              headers: { ...headers, "Content-Type": "application/json" },
-              body: JSON.stringify({
-                app: row.app,
-                machineId: row.machineId,
-                action: "suspend",
-              }),
-            },
-          );
+          const res = await fetch("/api/kody/fly/machines/action", {
+            method: "POST",
+            headers: { ...headers, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              app: row.app,
+              machineId: row.machineId,
+              action: "suspend",
+            }),
+          });
           if (!res.ok) {
             const body = (await res.json().catch(() => ({}))) as {
               error?: string;
@@ -702,16 +660,12 @@ export function FlyMachinesTable({
                         id="machine-danger-heading"
                         className="text-sm font-semibold text-foreground"
                       >
-                        {selected.feature === "brain"
-                          ? "Turn off Brain"
-                          : "Destroy machine"}
+                        Destroy machine
                       </h3>
                       <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-                        {selected.feature === "brain"
-                          ? "Removes the Brain app, its machines, and its Fly URL."
-                          : destroysWholeApp(selected.feature)
-                            ? "Removes the whole preview app. It can be rebuilt from the pull request."
-                            : "Removes this machine. Long-lived services can provision another machine when needed."}
+                        {destroysWholeApp(selected.feature)
+                          ? "Removes the whole preview app. It can be rebuilt from the pull request."
+                          : "Removes this machine. Long-lived services can provision another machine when needed."}
                       </p>
                     </div>
                   </div>
@@ -726,9 +680,7 @@ export function FlyMachinesTable({
                     ) : (
                       <Trash2 className="h-4 w-4" />
                     )}
-                    {selected.feature === "brain"
-                      ? "Turn off Brain"
-                      : "Destroy machine"}
+                    Destroy machine
                   </Button>
                 </div>
               </section>
@@ -755,8 +707,7 @@ export function FlyMachinesTable({
           {!flyTokenConfigured && (
             <div className="m-3 rounded-md border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">
               Add <span className="font-mono">FLY_API_TOKEN</span> in Secrets to
-              show repository machines. Personal Brain machines remain
-              available.
+              show repository infrastructure.
             </div>
           )}
 
@@ -869,24 +820,20 @@ export function FlyMachinesTable({
       <ConfirmDialog
         open={confirm !== null}
         title={
-          confirm?.feature === "brain"
-            ? `Turn off Brain ${confirm.label}?`
-            : confirm?.feature === "browser"
-              ? `Destroy browser ${confirm.label}?`
-              : confirm && destroysWholeApp(confirm.feature)
-                ? `Destroy preview ${confirm.label}?`
-                : `Destroy ${confirm?.label ?? "machine"}?`
+          confirm?.feature === "browser"
+            ? `Destroy browser ${confirm.label}?`
+            : confirm && destroysWholeApp(confirm.feature)
+              ? `Destroy preview ${confirm.label}?`
+              : `Destroy ${confirm?.label ?? "machine"}?`
         }
         description={
-          confirm?.feature === "brain"
-            ? "Turns off this Brain app completely: all machines and its Fly URL are removed. Its stored Kody record is also cleared when this is the active Brain."
-            : confirm?.feature === "browser"
-              ? "Destroys this user's browser machine. The stable repository browser app remains available and creates a fresh machine on next use."
-              : confirm && destroysWholeApp(confirm.feature)
-                ? "Tears down the whole preview app (URL + IPs). It rebuilds on the next PR sync."
-                : "Destroys this machine. Long-lived apps re-provision on next use."
+          confirm?.feature === "browser"
+            ? "Destroys this user's browser machine. The stable repository browser app remains available and creates a fresh machine on next use."
+            : confirm && destroysWholeApp(confirm.feature)
+              ? "Tears down the whole preview app (URL + IPs). It rebuilds on the next PR sync."
+              : "Destroys this machine. Long-lived apps re-provision on next use."
         }
-        confirmLabel={confirm?.feature === "brain" ? "Turn off" : "Destroy"}
+        confirmLabel="Destroy"
         variant="destructive"
         onConfirm={() =>
           confirm &&

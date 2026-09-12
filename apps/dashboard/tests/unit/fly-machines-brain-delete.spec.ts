@@ -1,5 +1,5 @@
 /**
- * @fileoverview Guard the Brain-specific full cleanup action in Live Machines.
+ * @fileoverview Guard the boundary between Fly infrastructure and managed apps.
  * @testFramework vitest
  * @domain fly
  */
@@ -10,15 +10,17 @@ import { describe, expect, it } from "vitest";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SOURCE = readFileSync(
-  resolve(__dirname, "../../src/dashboard/features/previews/components/FlyMachinesTable.tsx"),
+  resolve(
+    __dirname,
+    "../../src/dashboard/features/previews/components/FlyMachinesTable.tsx",
+  ),
   "utf8",
 );
 
-describe("Live Machines Brain deletion", () => {
-  it("routes Brain deletion through full Brain cleanup", () => {
-    expect(SOURCE).toContain('row.feature === "brain"');
-    expect(SOURCE).toContain('fetch("/api/kody/brain/destroy"');
-    expect(SOURCE).toContain("body: JSON.stringify({ appName: row.app })");
-    expect(SOURCE).toContain("Turns off this Brain app");
+describe("Live Machines application boundary", () => {
+  it("uses only generic Fly inventory and lifecycle APIs", () => {
+    expect(SOURCE).toContain('fetch("/api/kody/fly/machines"');
+    expect(SOURCE).toContain('fetch("/api/kody/fly/machines/action"');
+    expect(SOURCE).not.toContain("/api/kody/brain/");
   });
 });
