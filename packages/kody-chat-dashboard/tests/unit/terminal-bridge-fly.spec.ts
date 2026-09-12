@@ -39,7 +39,9 @@ describe("stateless terminal gateway", () => {
       "kody-engine brain-terminal-agent --cwd /workspace/repo",
     );
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("afterRevision");
-    expect(TERMINAL_BRIDGE_SCRIPT).toContain(
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain('type: "transport-status"');
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain("scheduleReconnect(");
+    expect(TERMINAL_BRIDGE_SCRIPT).not.toContain(
       'closeSocket(socket, 1011, "Brain terminal transport unavailable")',
     );
     expect(TERMINAL_BRIDGE_SCRIPT).not.toContain("persistentSessions");

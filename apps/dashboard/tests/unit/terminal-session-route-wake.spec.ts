@@ -31,11 +31,14 @@ describe("terminal session wake wait", () => {
     expect(USE_CASE_SOURCE).toContain("globalThis.fetch");
     expect(USE_CASE_SOURCE).toContain("/healthz");
     expect(USE_CASE_SOURCE).toContain("EDGE_WAKE_TIMEOUT_MS");
+    const connectBoundary = USE_CASE_SOURCE.slice(
+      USE_CASE_SOURCE.indexOf("export async function connectTerminalMachine"),
+    );
     expect(
-      USE_CASE_SOURCE.indexOf(
+      connectBoundary.indexOf(
         "await wakeServerProviderMachineThroughEdge(requested.app)",
       ),
-    ).toBeLessThan(USE_CASE_SOURCE.indexOf("for (let attempt = 0;"));
+    ).toBeLessThan(connectBoundary.indexOf("const next = await refreshMachine()"));
   });
 
   it("does not report Brain Fly authorization failures as missing machines", () => {

@@ -125,6 +125,7 @@ export function useTerminalSession({
         const value = (await response.json().catch(() => ({}))) as {
           webSocketUrl?: string;
           session?: unknown;
+          expiresAt?: string;
           message?: string;
           error?: string;
         };
@@ -141,6 +142,7 @@ export function useTerminalSession({
         return {
           webSocketUrl: value.webSocketUrl,
           session: TerminalSessionInputSchema.parse(value.session),
+          expiresAt: value.expiresAt,
         };
       },
       createSocket: (url) =>

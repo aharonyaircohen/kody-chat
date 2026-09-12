@@ -219,6 +219,7 @@ for (const scenario of ["ready", "setup", "timeout", "transport"] as const) {
       return route.fulfill({
         json: {
           webSocketUrl: "ws://terminal.test/session",
+          expiresAt: new Date(Date.now() + 60_000).toISOString(),
           session: {
             id: setupDone && needsSetup ? "terminal-2" : "terminal-1",
             scope: {
@@ -234,10 +235,12 @@ for (const scenario of ["ready", "setup", "timeout", "transport"] as const) {
         },
       });
     });
+    let socketConnections = 0;
     await page.routeWebSocket("ws://terminal.test/session", (socket) => {
+      socketConnections += 1;
       let ready =
         setupDone &&
-        !((transientTimeout || transientTransport) && sessionRequests === 1);
+        !((transientTimeout || transientTransport) && socketConnections === 1);
       const sessionId = ready && needsSetup ? "terminal-2" : "terminal-1";
       let revision = 0;
       let cleared = false;
@@ -349,6 +352,7 @@ for (const scenario of ["ready", "setup", "timeout", "transport"] as const) {
       page.getByRole("button", { name: "Send command", exact: true }),
     ).toBeEnabled();
     expect(sessionRequests).toBeGreaterThan(0);
+    if (transientTimeout) expect(sessionRequests).toBe(1);
     const terminalInput = page.getByRole("textbox", {
       name: "Terminal input",
       exact: true,

@@ -27,6 +27,7 @@ export interface TerminalClientSocket {
 interface TerminalSessionResponse {
   webSocketUrl: string;
   session: TerminalSessionInput;
+  expiresAt?: string;
 }
 
 export type TerminalStartupAction = "setup" | "settings" | "retry";
@@ -171,6 +172,7 @@ export class TerminalSessionClient {
   private stopped = false;
   private startupBlocked = false;
   private subscriptionReady = false;
+  private startupLease: TerminalSessionResponse | null = null;
   private state: TerminalSessionClientState = {
     connection: "idle",
     session: null,
@@ -228,6 +230,14 @@ export class TerminalSessionClient {
           feature: transport.feature,
           ...base,
         };
+  }
+
+  private reusableStartupLease(): TerminalSessionResponse | null {
+    if (this.session || !this.startupLease?.expiresAt) return null;
+    const expiresAt = Date.parse(this.startupLease.expiresAt);
+    return Number.isFinite(expiresAt) && expiresAt > Date.now() + 5_000
+      ? this.startupLease
+      : null;
   }
 
   private clearRetry(): void {
@@ -324,8 +334,11 @@ export class TerminalSessionClient {
     const sequence = ++this.connectSequence;
     this.publish("connecting");
     try {
-      const response = await this.options.requestSession(this.requestBody());
+      const response =
+        this.reusableStartupLease() ??
+        (await this.options.requestSession(this.requestBody()));
       if (this.stopped || sequence !== this.connectSequence) return;
+      this.startupLease = response;
       if (this.identity && response.session.id !== this.identity.id) {
         throw new Error("Terminal service changed the session identity");
       }
@@ -448,6 +461,7 @@ export class TerminalSessionClient {
       this.disconnect();
       this.identity = null;
       this.session = null;
+      this.startupLease = null;
     }
     this.stopped = false;
     this.startupBlocked = false;
@@ -470,6 +484,7 @@ export class TerminalSessionClient {
     }
     this.socket?.close(1000, "terminal view detached");
     this.socket = null;
+    this.startupLease = null;
     this.publish("closed");
   }
 

@@ -51,6 +51,7 @@ function setup(schedule?: (callback: () => void, delayMs: number) => number) {
       requests.push(body);
       return {
         webSocketUrl: "wss://gateway.test/socket",
+        expiresAt: new Date(Date.now() + 60_000).toISOString(),
         session: {
           id: "terminal-1",
           scope: {
@@ -118,10 +119,10 @@ describe("TerminalSessionClient", () => {
       connection: "connected",
       issue: null,
     });
-    expect(harness.requests[1]).toMatchObject({
+    expect(harness.requests[0]).toMatchObject({
       chatSessionId: "conversation-1",
     });
-    expect(harness.requests[1]).not.toHaveProperty("resetSession");
+    expect(harness.requests).toHaveLength(1);
   });
 
   it("keeps retrying slowly after repeated subscription failures", async () => {
@@ -142,7 +143,7 @@ describe("TerminalSessionClient", () => {
       }
     }
     expect(pending).toHaveLength(1);
-    expect(harness.requests).toHaveLength(5);
+    expect(harness.requests).toHaveLength(1);
     expect(harness.client.getState()).toMatchObject({
       connection: "connecting",
       error: null,
