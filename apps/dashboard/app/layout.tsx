@@ -56,7 +56,19 @@ export default async function KodyLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const initialAuthToken = await getKodyAuthToken();
+  // Convex is optional. During `next build` the static prerender of every
+  // route runs the root layout, but no Convex deployment is reachable —
+  // awaiting the token would throw `TypeError: fetch failed` and break the
+  // build. Treat an unreachable auth backend as "no initial token" so the
+  // prerender can finish; runtime requests still hydrate the session
+  // through the client providers when Convex is configured.
+  let initialAuthToken: string | null = null;
+  try {
+    const token = await getKodyAuthToken();
+    if (typeof token === "string") initialAuthToken = token;
+  } catch {
+    initialAuthToken = null;
+  }
   return (
     <html
       className={cn(GeistSans.variable, GeistMono.variable, assistant.variable)}
