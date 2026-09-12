@@ -1,7 +1,8 @@
 # Resume Kody work in fresh Codex
 
-Status: setup procedure; clean VPS qualification is pending. Do not interpret
-this document as proof that all native Codex state can be restored.
+Status: repository coding continuity passed the clean VPS qualification described
+in `kody-mcp-clean-vps-evidence.md`. This does not establish restoration of all
+native Codex state or automatic use in every client.
 
 ## Prerequisites
 
@@ -38,10 +39,16 @@ this document as proof that all native Codex state can be restored.
    processes may not inherit terminal environment variables. Configure their
    secret source using the supported client mechanism before starting them.
 
-5. Start a new Codex session. Repository `AGENTS.md` must contain the standing
-   continuity instruction from the canonical skill. A skill installation alone
-   does not guarantee retrieval or checkpoints.
-6. Ask Codex to continue the selected project task. It should call native Kody
+5. Install the standing continuity instruction from the canonical skill in the
+   user's global `~/.codex/AGENTS.md`, preserving existing instructions. Apply it
+   automatically to substantial coding work only when the configured connection
+   matches the current repository. Keep normal successful reads and saves quiet;
+   report access failures, unsaved progress, or ambiguity that affects the task.
+   Repository rules may add project details. A skill or connection installation
+   alone does not guarantee retrieval or checkpoints. Start a new Codex session
+   after setup so it loads the instructions and native connection.
+6. Give an ordinary coding request without mentioning Kody or asking it to save
+   memory. It should call native Kody
    tools, confirm scope, retrieve work and memory, verify code state, and identify
    the next action. Do not inject the expected answer or hidden record IDs during
    qualification.

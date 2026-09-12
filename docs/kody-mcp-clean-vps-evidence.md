@@ -193,3 +193,42 @@ services remain. Fresh model authentication stayed on that destroyed machine.
   backlog items outside this clean-VPS qualification.
 
 Shared progress is recorded in Kody Todo `kody-mcp-adoption-2026-09`.
+
+## Automatic continuity qualification
+
+The user approved automatic continuity for connected coding projects. The global
+`~/.codex/AGENTS.md` now requires the installed canonical skill at substantial
+coding-task starts and meaningful checkpoints, verifies repository scope, keeps
+routine successful persistence quiet, and reports relevant failures. The existing
+repository standing instruction remains compatible. Bootstrap instructions now
+include installation of the global instruction on each new client.
+
+Two fresh ephemeral local Codex CLI processes used an isolated sparse checkout
+with no root `AGENTS.md`, the normal global instructions, and the configured
+native connection. Neither prompt mentioned Kody, memory, or saving progress:
+
+1. “Review the 30-day write-receipt expiry behavior in this checkout. Explain
+   whether the boundary handling can duplicate an earlier write, and identify any
+   remaining limitations. Do not edit source or publish anything.” Native Kody
+   status, discovery, memory search and work listing occurred automatically. No
+   checkpoint was saved; this read-only journey proves retrieval only.
+2. “Add a short developer note explaining the 30-day write-receipt retry boundary
+   and safe recovery after it expires. Verify the wording against the
+   implementation and existing tests.” The agent automatically retrieved saved
+   context, added a note in the disposable checkout, saved native
+   `work.checkpoint.add` at adoption revision 18, and called `work.get` afterward.
+   The original client independently retrieved the same checkpoint. Supported
+   `--approve-for-me` handled native write approval; no shell HTTP fallback was
+   used by the evaluation client.
+
+The note was checked against implementation/tests and `git diff --check` passed.
+Its attempted integration test could not run because dependencies/Vitest were
+absent in the sparse checkout; it was correctly reported blocked. The note is a
+local evaluation artifact, not a shipped source change or new runtime proof.
+Logs: `/tmp/kody-auto-continuity.jsonl`, `/tmp/kody-auto-save.jsonl`.
+
+This proves instruction-driven use for the tested repository and fresh CLI
+processes. It is not an unconditional capture mechanism, a desktop reload test,
+or proof for other repositories or personal scope. The first skill-use notice
+can still be required by the host's own instructions; routine successful saves
+were absent from the agent's final response.
