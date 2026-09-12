@@ -24,6 +24,7 @@ import {
   conversationScopeValidator,
 } from "./conversationValidators";
 import {
+  memoryValidator,
   memoryActorValidator,
   memoryEvidenceValidator,
   memoryStatusValidator,
@@ -36,6 +37,19 @@ import { storedAgencyRunSubjectTypeValidator } from "./agencyValidators";
 // `login`. Flexible payloads stay v.any() so brand-defined shapes keep working;
 // invariant fields are typed.
 export default defineSchema({
+  memoryWriteReceipts: defineTable({
+    tenantId: v.string(),
+    actorKind: v.string(),
+    actorId: v.string(),
+    key: v.string(),
+    hash: v.string(),
+    memoryId: v.string(),
+    memory: v.optional(memoryValidator),
+    deleted: v.boolean(),
+    expiresAt: v.number(),
+  })
+    .index("by_request", ["tenantId", "actorKind", "actorId", "key"])
+    .index("by_memory", ["memoryId"]),
   memories: defineTable({
     memoryId: v.string(),
     scopeKind: v.union(v.literal("user"), v.literal("repository")),

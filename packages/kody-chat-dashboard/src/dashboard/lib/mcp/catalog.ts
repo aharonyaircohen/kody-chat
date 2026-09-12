@@ -353,6 +353,14 @@ const memoryIdInput = z.object({ memoryId: memoryDefinitionId }).strict();
 const memoryListInput = z
   .object({
     scope: memoryScope,
+    cursor: z
+      .string()
+      .min(1)
+      .max(10000)
+      .optional()
+      .describe(
+        "Continuation cursor returned by memory.list; keep the same scope.",
+      ),
     limit: z
       .number()
       .int()

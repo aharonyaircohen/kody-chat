@@ -34,6 +34,11 @@ test("creates, verifies, and revokes an agent-agnostic MCP connection", async ({
       });
     }
     if (method === "POST") {
+      expect(route.request().headers()).toMatchObject({
+        "x-kody-token": "ghp_placeholder",
+        "x-kody-owner": "test-owner",
+        "x-kody-repo": "test-repo",
+      });
       createdBody = route.request().postDataJSON();
       const token = {
         tokenId: "11111111-1111-4111-8111-111111111111",
@@ -90,12 +95,14 @@ test("creates, verifies, and revokes an agent-agnostic MCP connection", async ({
 
   await page.getByRole("button", { name: "Create connection" }).click();
   await page.getByLabel("Connection name").fill("My coding agent");
-  await page.getByLabel("Access").selectOption("read");
+  await page.getByLabel("Access", { exact: true }).selectOption("read");
   await page.getByRole("button", { name: "Create token" }).click();
 
   expect(createdBody).toMatchObject({
     name: "My coding agent",
     access: "read",
+    memoryScope: "repository",
+    allowMemoryDelete: false,
   });
   await expect(page.getByText("Connection ready")).toBeVisible();
   await expect(page.getByText("kody_mcp_one_time_secret")).toBeVisible();

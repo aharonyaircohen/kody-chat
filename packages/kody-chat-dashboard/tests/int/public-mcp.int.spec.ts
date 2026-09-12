@@ -811,6 +811,59 @@ describe("public Kody MCP endpoint", () => {
 });
 
 describe("MCP access-token issuance", () => {
+  it.each(["read", "execute"])(
+    "issues project-only %s access without personal or deletion grants",
+    async (access) => {
+      const response = await tokenPOST(
+        new NextRequest(`${endpoint}/tokens`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-kody-token": "github-pat",
+            "x-kody-owner": "acme",
+            "x-kody-repo": "widgets",
+          },
+          body: JSON.stringify({
+            name: "Project trial",
+            access,
+            memoryScope: "repository",
+            allowMemoryDelete: false,
+          }),
+        }),
+      );
+      expect(response.status).toBe(201);
+      expect(backend.mutation).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          scopes:
+            access === "read"
+              ? ["mcp:read", "memory:repository:read"]
+              : [
+                  "mcp:read",
+                  "mcp:execute",
+                  "memory:repository:read",
+                  "memory:repository:write",
+                ],
+        }),
+      );
+    },
+  );
+
+  it("rejects arbitrary memory scope names", async () => {
+    const response = await tokenPOST(
+      new NextRequest(`${endpoint}/tokens`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: "Invalid scope",
+          memoryScope: "another-account",
+        }),
+      }),
+    );
+    expect(response.status).toBe(400);
+    expect(backend.mutation).not.toHaveBeenCalled();
+  });
+
   it("issues a repository-scoped expiring token and returns plaintext once", async () => {
     const req = new NextRequest(`${endpoint}/tokens`, {
       method: "POST",

@@ -64,6 +64,10 @@ function McpConnectionsManagerInner() {
   const [name, setName] = useState("Coding agent");
   const [access, setAccess] = useState<"read" | "execute">("read");
   const [expiresInDays, setExpiresInDays] = useState(90);
+  const [memoryScope, setMemoryScope] = useState<"repository" | "all">(
+    "repository",
+  );
+  const [allowMemoryDelete, setAllowMemoryDelete] = useState(false);
   const [created, setCreated] = useState<CreatedConnection | null>(null);
   const headers = useMemo(
     () => ({ "Content-Type": "application/json", ...buildAuthHeaders(auth) }),
@@ -93,7 +97,13 @@ function McpConnectionsManagerInner() {
         await fetch("/api/kody/mcp/tokens", {
           method: "POST",
           headers,
-          body: JSON.stringify({ name: name.trim(), access, expiresInDays }),
+          body: JSON.stringify({
+            name: name.trim(),
+            access,
+            expiresInDays,
+            memoryScope,
+            allowMemoryDelete,
+          }),
         }),
       );
       const check = await fetch("/api/kody/mcp", {
@@ -167,7 +177,12 @@ function McpConnectionsManagerInner() {
       icon={Plug}
       subtitle={auth ? `${auth.owner}/${auth.repo}` : undefined}
       actions={
-        <Button onClick={() => setCreating(true)}>Create connection</Button>
+        <Button
+          disabled={!auth?.token || !auth.owner || !auth.repo}
+          onClick={() => setCreating(true)}
+        >
+          Create connection
+        </Button>
       }
     >
       <div className="space-y-6">
@@ -278,6 +293,33 @@ function McpConnectionsManagerInner() {
               </select>
             </div>
             <div className="space-y-2">
+              <Label htmlFor="mcp-memory-scope">Memory access</Label>
+              <select
+                id="mcp-memory-scope"
+                value={memoryScope}
+                onChange={(event) =>
+                  setMemoryScope(event.target.value as "repository" | "all")
+                }
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="repository">This project only</option>
+                <option value="all">This project and personal memory</option>
+              </select>
+            </div>
+            {access === "execute" ? (
+              <label className="flex items-center gap-2 text-sm">
+                <Input
+                  type="checkbox"
+                  className="h-4 w-4"
+                  checked={allowMemoryDelete}
+                  onChange={(event) =>
+                    setAllowMemoryDelete(event.target.checked)
+                  }
+                />
+                Allow deleting memories and their history
+              </label>
+            ) : null}
+            <div className="space-y-2">
               <Label htmlFor="mcp-expiry">Expires</Label>
               <select
                 id="mcp-expiry"
@@ -294,7 +336,13 @@ function McpConnectionsManagerInner() {
             </div>
             <Button
               className="w-full"
-              disabled={!name.trim() || createConnection.isPending}
+              disabled={
+                !auth?.token ||
+                !auth.owner ||
+                !auth.repo ||
+                !name.trim() ||
+                createConnection.isPending
+              }
               onClick={() => createConnection.mutate()}
             >
               {createConnection.isPending ? (

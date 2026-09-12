@@ -90,7 +90,11 @@ test("creates a journey from the page", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Journeys" })).toBeVisible({
     timeout: 30_000,
   });
-  await page.getByRole("button", { name: "New journey" }).click();
+  await page
+    .locator("header")
+    .filter({ has: page.getByRole("heading", { name: "Journeys", exact: true }) })
+    .getByRole("button", { name: "New journey", exact: true })
+    .click();
   await page.getByLabel("Name").fill("Review a workflow");
   await page
     .getByRole("textbox", { name: "Goal" })

@@ -238,6 +238,11 @@ export const TABLES: readonly TableDef[] = [
     naturalKey: ["sourceRunId"],
     upsertIndex: "by_source",
   },
+  {
+    table: "memoryWriteReceipts",
+    naturalKey: ["actorKind", "actorId", "key"],
+    upsertIndex: "by_request",
+  },
   { table: "intents", naturalKey: ["intentId"], upsertIndex: "by_tenant" },
   {
     table: "intentDecisions",

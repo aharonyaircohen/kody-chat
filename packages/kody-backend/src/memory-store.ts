@@ -4,6 +4,7 @@ import type {
   MemoryRevision,
   MemoryScope,
   MemoryStore,
+  MemoryWriteRequest,
 } from "@kody-ade/memory";
 import type { ConvexHttpClient } from "convex/browser";
 import { api } from "../convex/_generated/api";
@@ -32,15 +33,31 @@ export function createConvexMemoryStore(
   };
 
   return Object.freeze({
+    async page(scope: MemoryScope, cursor: string | null, limit: number) {
+      return await client.query(api.memories.listPage, {
+        ...callerArgs,
+        scope,
+        paginationOpts: { cursor, numItems: limit },
+      });
+    },
+    async replay(request: MemoryWriteRequest) {
+      return await client.query(api.memories.replay, {
+        ...callerArgs,
+        request,
+      });
+    },
     async create(
       memory: Readonly<Memory>,
       revision: Readonly<MemoryRevision>,
-    ): Promise<void> {
-      await client.mutation(api.memories.create, {
+      request?: MemoryWriteRequest,
+    ): Promise<Readonly<Memory> | void> {
+      const result = await client.mutation(api.memories.create, {
         ...callerArgs,
         memory,
         revision: transportRevision(revision),
+        ...(request ? { request } : {}),
       });
+      if (typeof result !== "string") return result;
     },
 
     async get(id: string): Promise<Readonly<Memory> | null> {
@@ -96,22 +113,28 @@ export function createConvexMemoryStore(
     async revise(
       memory: Readonly<Memory>,
       revision: Readonly<MemoryRevision>,
-    ): Promise<void> {
+      request?: MemoryWriteRequest,
+    ): Promise<Readonly<Memory> | void> {
       if (revision.previousRevisionId === null) {
-        throw new Error("A revised memory must reference its previous revision");
+        throw new Error(
+          "A revised memory must reference its previous revision",
+        );
       }
-      await client.mutation(api.memories.revise, {
+      const result = await client.mutation(api.memories.revise, {
         ...callerArgs,
         expectedRevisionId: revision.previousRevisionId,
         memory,
         revision: transportRevision(revision),
+        ...(request ? { request } : {}),
       });
+      if (typeof result !== "string") return result;
     },
 
-    async remove(id: string): Promise<boolean> {
+    async remove(id: string, request?: MemoryWriteRequest): Promise<boolean> {
       return await client.mutation(api.memories.remove, {
         ...callerArgs,
         memoryId: id,
+        ...(request ? { request } : {}),
       });
     },
   });

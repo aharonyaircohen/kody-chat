@@ -1,5 +1,17 @@
 # Kody Monorepo Rules
 
+## Kody continuity
+
+For substantial work in this repository, use the `kody-mcp` skill at task start
+and meaningful checkpoints. Confirm the connection's repository and grants,
+retrieve relevant Memory and Todo work, and verify recalled claims against the
+current code. Save durable decisions in Memory and progress, blockers, evidence,
+artifact references and the next action in the existing Todo. Read back significant
+writes. Preserve reachable code revisions and explicitly account for uncommitted
+work before a handoff. Do not save every reply, secrets or hidden reasoning. If
+Kody is unavailable, report the unsaved checkpoint and continue independent work.
+This does not authorize scheduled execution or replace native Codex runtime state.
+
 ## Dashboard Runtime State
 
 - Dashboard runtime state is Convex-owned and must never read from or write to

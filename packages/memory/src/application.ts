@@ -13,11 +13,28 @@ import {
   type MemoryScope,
 } from "./domain";
 
+export interface MemoryWriteRequest {
+  readonly key: string;
+  readonly hash: string;
+}
+
 export interface MemoryStore {
+  page?(
+    scope: MemoryScope,
+    cursor: string | null,
+    limit: number,
+  ): Promise<{
+    page: readonly Readonly<Memory>[];
+    isDone: boolean;
+    continueCursor: string;
+  }>;
+
+  replay?(request: MemoryWriteRequest): Promise<Readonly<Memory> | null>;
   create(
     memory: Readonly<Memory>,
     revision: Readonly<MemoryRevision>,
-  ): Promise<void>;
+    request?: MemoryWriteRequest,
+  ): Promise<Readonly<Memory> | void>;
   get(id: string): Promise<Readonly<Memory> | null>;
   list(scopes: readonly MemoryScope[]): Promise<readonly Readonly<Memory>[]>;
   listRevisions(memoryId: string): Promise<readonly Readonly<MemoryRevision>[]>;
@@ -29,8 +46,9 @@ export interface MemoryStore {
   revise(
     memory: Readonly<Memory>,
     revision: Readonly<MemoryRevision>,
-  ): Promise<void>;
-  remove(id: string): Promise<boolean>;
+    request?: MemoryWriteRequest,
+  ): Promise<Readonly<Memory> | void>;
+  remove(id: string, request?: MemoryWriteRequest): Promise<boolean>;
 }
 
 export class MemoryAccessDeniedError extends Error {
@@ -61,6 +79,7 @@ interface MemoryApplicationDependencies {
 }
 
 interface RememberCommand {
+  readonly request?: MemoryWriteRequest;
   readonly principal: Readonly<MemoryPrincipal>;
   readonly scope: MemoryScope;
   readonly kind: MemoryKind;
@@ -71,6 +90,7 @@ interface RememberCommand {
 }
 
 interface CorrectCommand {
+  readonly request?: MemoryWriteRequest;
   readonly principal: Readonly<MemoryPrincipal>;
   readonly memoryId: string;
   readonly kind: MemoryKind;
@@ -82,6 +102,7 @@ interface CorrectCommand {
 }
 
 interface RetireCommand {
+  readonly request?: MemoryWriteRequest;
   readonly principal: Readonly<MemoryPrincipal>;
   readonly memoryId: string;
   readonly expectedRevisionId?: string;
@@ -90,6 +111,7 @@ interface RetireCommand {
 }
 
 interface ForgetCommand {
+  readonly request?: MemoryWriteRequest;
   readonly principal: Readonly<MemoryPrincipal>;
   readonly memoryId: string;
 }
@@ -197,8 +219,7 @@ export function createMemoryApplication({
           ? {}
           : { expiresAt: command.expiresAt }),
       });
-      await store.create(memory, revision);
-      return memory;
+      return (await store.create(memory, revision, command.request)) ?? memory;
     },
 
     async correct(command: CorrectCommand): Promise<Readonly<Memory>> {
@@ -208,7 +229,12 @@ export function createMemoryApplication({
         command.memoryId,
         "write",
       );
+      if (command.request && store.replay) {
+        const replay = await store.replay(command.request);
+        if (replay) return replay;
+      }
       if (
+        command.request === undefined &&
         command.expectedRevisionId !== undefined &&
         command.expectedRevisionId !== current.currentRevisionId
       ) {
@@ -227,8 +253,17 @@ export function createMemoryApplication({
         command.expiresAt === undefined
           ? result.memory
           : createMemory({ ...result.memory, expiresAt: command.expiresAt });
-      await store.revise(revised, result.revision);
-      return revised;
+      return (
+        (await store.revise(
+          revised,
+          {
+            ...result.revision,
+            previousRevisionId:
+              command.expectedRevisionId ?? result.revision.previousRevisionId,
+          },
+          command.request,
+        )) ?? revised
+      );
     },
 
     async retire(command: RetireCommand): Promise<Readonly<Memory>> {
@@ -238,7 +273,12 @@ export function createMemoryApplication({
         command.memoryId,
         "write",
       );
+      if (command.request && store.replay) {
+        const replay = await store.replay(command.request);
+        if (replay) return replay;
+      }
       if (
+        command.request === undefined &&
         command.expectedRevisionId !== undefined &&
         command.expectedRevisionId !== current.currentRevisionId
       ) {
@@ -254,20 +294,46 @@ export function createMemoryApplication({
         createdAt: now(),
       });
       const retired = createMemory({ ...result.memory, status: "superseded" });
-      await store.revise(retired, result.revision);
-      return retired;
+      return (
+        (await store.revise(
+          retired,
+          {
+            ...result.revision,
+            previousRevisionId:
+              command.expectedRevisionId ?? result.revision.previousRevisionId,
+          },
+          command.request,
+        )) ?? retired
+      );
     },
 
     async forget(command: ForgetCommand): Promise<Readonly<{ deleted: true }>> {
-      await findAccessibleMemory(
-        store,
-        command.principal,
-        command.memoryId,
-        "delete",
-      );
-      const deleted = await store.remove(command.memoryId);
+      try {
+        await findAccessibleMemory(
+          store,
+          command.principal,
+          command.memoryId,
+          "delete",
+        );
+      } catch (error) {
+        if (!(error instanceof MemoryNotFoundError) || !command.request)
+          throw error;
+      }
+      const deleted = await store.remove(command.memoryId, command.request);
       if (!deleted) throw new MemoryNotFoundError();
       return Object.freeze({ deleted: true });
+    },
+
+    async page(
+      command: ListCommand & {
+        scope: MemoryScope;
+        cursor: string | null;
+        limit: number;
+      },
+    ) {
+      requireAccessibleScopes(command.principal, [command.scope]);
+      if (!store.page) throw new Error("Memory pagination is unavailable");
+      return store.page(command.scope, command.cursor, command.limit);
     },
 
     async list(command: ListCommand): Promise<readonly Readonly<Memory>[]> {

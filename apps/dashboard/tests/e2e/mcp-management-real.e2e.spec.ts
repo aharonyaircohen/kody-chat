@@ -63,15 +63,29 @@ test("creates, verifies, and revokes a real repository-scoped MCP connection", a
     ).toBeVisible();
     await page.getByRole("button", { name: "Create connection" }).click();
     await page.getByLabel("Connection name").fill(name);
-    await page.getByLabel("Access").selectOption("read");
+    await page.getByLabel("Access", { exact: true }).selectOption("read");
     const verificationResponse = page.waitForResponse(
       (response) =>
         response.url() === `${BASE_URL}/api/kody/mcp` &&
         response.request().method() === "POST",
     );
-    await page
-      .getByRole("button", { name: "Create token" })
-      .dispatchEvent("click");
+    const issuanceResponse = page.waitForResponse(
+      (response) =>
+        response.url() === `${BASE_URL}/api/kody/mcp/tokens` &&
+        response.request().method() === "POST",
+    );
+    await page.getByRole("button", { name: "Create token" }).click();
+    const issued = await issuanceResponse;
+    expect(issued.status()).toBe(201);
+    const issuanceBody = (await issued.json()) as {
+      token: { tokenId: string };
+    };
+    tokenId = issuanceBody.token.tokenId;
+    expect(issued.request().headers()).toMatchObject({
+      "x-kody-owner": owner,
+      "x-kody-repo": repo,
+    });
+    expect(Boolean(issued.request().headers()["x-kody-token"])).toBe(true);
     const verified = await verificationResponse;
     const verificationBody = (await verified.json()) as Record<string, unknown>;
     await expect(
@@ -86,11 +100,7 @@ test("creates, verifies, and revokes a real repository-scoped MCP connection", a
       tokens: Array<{ tokenId: string; name: string; scopes: string[] }>;
     };
     const created = body.tokens.find((token) => token.name === name);
-    expect(created?.scopes).toEqual([
-      "mcp:read",
-      "memory:personal:read",
-      "memory:repository:read",
-    ]);
+    expect(created?.scopes).toEqual(["mcp:read", "memory:repository:read"]);
     tokenId = created?.tokenId ?? "";
 
     expect({ status: verified.status(), body: verificationBody }).toMatchObject(

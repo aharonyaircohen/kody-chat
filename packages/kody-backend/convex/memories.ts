@@ -9,7 +9,8 @@ import {
   type MemoryRevision,
   type MemoryScope,
 } from "@kody-ade/memory";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
+import { paginationOptsValidator } from "convex/server";
 import type { Doc } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { serviceMutation as mutation, serviceQuery as query } from "./lib/auth";
@@ -181,12 +182,64 @@ function validateActor(
   }
 }
 
+const requestValidator = v.optional(
+  v.object({ key: v.string(), hash: v.string() }),
+);
+type WriteRequest = { key: string; hash: string };
+type WriteCaller = {
+  actor: MemoryActor;
+  tenantId: string;
+  request?: WriteRequest;
+};
+async function replayRequest(ctx: MutationCtx, args: WriteCaller) {
+  if (!args.request) return null;
+  const receipt = await ctx.db
+    .query("memoryWriteReceipts")
+    .withIndex("by_request", (q) =>
+      q
+        .eq("tenantId", args.tenantId)
+        .eq("actorKind", args.actor.kind)
+        .eq("actorId", args.actor.id)
+        .eq("key", args.request!.key),
+    )
+    .unique();
+  if (!receipt) return null;
+  if (receipt.expiresAt <= Date.now()) {
+    await ctx.db.delete(receipt._id);
+    return null;
+  }
+  if (receipt.hash !== args.request.hash)
+    throw new ConvexError({
+      code: "idempotency_conflict",
+      message: "Memory idempotency conflict",
+    });
+  return receipt;
+}
+async function saveReceipt(
+  ctx: MutationCtx,
+  args: WriteCaller,
+  memory: Memory,
+) {
+  if (!args.request) return;
+  await ctx.db.insert("memoryWriteReceipts", {
+    tenantId: args.tenantId,
+    actorKind: args.actor.kind,
+    actorId: args.actor.id,
+    ...args.request,
+    memoryId: memory.id,
+    memory,
+    deleted: false,
+    expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
+  });
+}
+
 export const create = mutation({
   args: {
     actor: memoryActorValidator,
     tenantId: v.string(),
     memory: memoryValidator,
     revision: memoryRevisionValidator,
+    request: requestValidator,
   },
   handler: async (ctx, args) => {
     const memory = createMemory(args.memory);
@@ -194,6 +247,15 @@ export const create = mutation({
     requireMemoryPermission(args.actor, args.tenantId, memory.scope, "write");
     validateActor(args.actor, revision);
     validateCreatePair(memory, revision);
+    const replay = await replayRequest(ctx, args);
+    if (replay) {
+      if (replay.deleted || !replay.memory)
+        throw new ConvexError({
+          code: "memory_not_found",
+          message: "Memory request result was deleted",
+        });
+      return replay.memory;
+    }
     if (await findMemory(ctx, memory.id)) {
       throw new Error("Memory already exists");
     }
@@ -205,7 +267,46 @@ export const create = mutation({
 
     await ctx.db.insert("memoryRevisions", revisionDocument(revision));
     await ctx.db.insert("memories", memoryDocument(memory));
-    return memory.id;
+    await saveReceipt(ctx, args, memory);
+    return args.request ? memory : memory.id;
+  },
+});
+
+export const replay = query({
+  args: {
+    actor: memoryActorValidator,
+    tenantId: v.string(),
+    request: v.object({ key: v.string(), hash: v.string() }),
+  },
+  handler: async (ctx, args) => {
+    const receipt = await ctx.db
+      .query("memoryWriteReceipts")
+      .withIndex("by_request", (q) =>
+        q
+          .eq("tenantId", args.tenantId)
+          .eq("actorKind", args.actor.kind)
+          .eq("actorId", args.actor.id)
+          .eq("key", args.request.key),
+      )
+      .unique();
+    if (!receipt || receipt.expiresAt <= Date.now()) return null;
+    if (receipt.hash !== args.request.hash)
+      throw new ConvexError({
+        code: "idempotency_conflict",
+        message: "Memory idempotency conflict",
+      });
+    if (receipt.deleted || !receipt.memory)
+      throw new ConvexError({
+        code: "memory_not_found",
+        message: "Memory request result was deleted",
+      });
+    requireMemoryPermission(
+      args.actor,
+      args.tenantId,
+      receipt.memory.scope,
+      "read",
+    );
+    return receipt.memory;
   },
 });
 
@@ -251,6 +352,37 @@ export const list = query({
   },
 });
 
+export const listPage = query({
+  args: {
+    actor: memoryActorValidator,
+    tenantId: v.string(),
+    scope: memoryScopeValidator,
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, args) => {
+    requireMemoryPermission(args.actor, args.tenantId, args.scope, "read");
+    if (args.paginationOpts.numItems < 1 || args.paginationOpts.numItems > 100)
+      throw new Error("Invalid page size");
+    const scope = scopeFields(args.scope);
+    const result = await ctx.db
+      .query("memories")
+      .withIndex("by_scope_status", (q) =>
+        q
+          .eq("scopeKind", scope.scopeKind)
+          .eq("scopeId", scope.scopeId)
+          .eq("status", "active"),
+      )
+      .order("desc")
+      .paginate(args.paginationOpts);
+    return {
+      ...result,
+      page: result.page
+        .filter((m) => !m.expiresAt || Date.parse(m.expiresAt) > Date.now())
+        .map(memoryFromDoc),
+    };
+  },
+});
+
 export const search = query({
   args: {
     actor: memoryActorValidator,
@@ -267,7 +399,7 @@ export const search = query({
       throw new Error("Memory search limit must be between 1 and 20");
     }
     const scope = scopeFields(args.scope);
-    const docs = await ctx.db
+    const query = ctx.db
       .query("memories")
       .withSearchIndex("search_memory", (search) =>
         search
@@ -275,9 +407,14 @@ export const search = query({
           .eq("scopeKind", scope.scopeKind)
           .eq("scopeId", scope.scopeId)
           .eq("status", "active"),
-      )
-      .take(args.limit);
-    return docs.map(memoryFromDoc);
+      );
+    const results: Memory[] = [];
+    for await (const doc of query) {
+      if (doc.expiresAt && Date.parse(doc.expiresAt) <= Date.now()) continue;
+      results.push(memoryFromDoc(doc));
+      if (results.length === args.limit) break;
+    }
+    return results;
   },
 });
 
@@ -312,17 +449,37 @@ export const revise = mutation({
     expectedRevisionId: v.string(),
     memory: memoryValidator,
     revision: memoryRevisionValidator,
+    request: requestValidator,
   },
   handler: async (ctx, args) => {
     const memory = createMemory(args.memory);
     const revision = createMemoryRevision(args.revision);
+    requireMemoryPermission(args.actor, args.tenantId, memory.scope, "write");
+    validateActor(args.actor, revision);
+    const replay = await replayRequest(ctx, args);
+    if (replay) {
+      if (replay.deleted || !replay.memory)
+        throw new ConvexError({
+          code: "memory_not_found",
+          message: "Memory request result was deleted",
+        });
+      return replay.memory;
+    }
     const currentDoc = await findMemory(ctx, memory.id);
     if (!currentDoc) throw new Error("Memory not found");
     const current = memoryFromDoc(currentDoc);
     requireMemoryPermission(args.actor, args.tenantId, current.scope, "write");
     validateActor(args.actor, revision);
+    if (current.status !== "active")
+      throw new ConvexError({
+        code: "invalid_memory_state",
+        message: "Memory is not active",
+      });
     if (current.currentRevisionId !== args.expectedRevisionId) {
-      throw new Error("Memory changed since it was read");
+      throw new ConvexError({
+        code: "revision_conflict",
+        message: "Memory changed since it was read",
+      });
     }
     if (
       revision.memoryId !== current.id ||
@@ -345,7 +502,8 @@ export const revise = mutation({
 
     await ctx.db.insert("memoryRevisions", revisionDocument(revision));
     await ctx.db.replace(currentDoc._id, memoryDocument(memory));
-    return memory.id;
+    await saveReceipt(ctx, args, memory);
+    return args.request ? memory : memory.id;
   },
 });
 
@@ -354,8 +512,11 @@ export const remove = mutation({
     actor: memoryActorValidator,
     tenantId: v.string(),
     memoryId: v.string(),
+    request: requestValidator,
   },
   handler: async (ctx, args) => {
+    const replay = await replayRequest(ctx, args);
+    if (replay) return replay.deleted;
     const doc = await findMemory(ctx, args.memoryId);
     if (!doc) return false;
     const memory = memoryFromDoc(doc);
@@ -367,6 +528,22 @@ export const remove = mutation({
     for (const revision of revisions) {
       await ctx.db.delete(revision._id);
     }
+    const receipts = await ctx.db
+      .query("memoryWriteReceipts")
+      .withIndex("by_memory", (q) => q.eq("memoryId", args.memoryId))
+      .collect();
+    for (const receipt of receipts)
+      await ctx.db.patch(receipt._id, { memory: undefined, deleted: true });
+    if (args.request)
+      await ctx.db.insert("memoryWriteReceipts", {
+        tenantId: args.tenantId,
+        actorKind: args.actor.kind,
+        actorId: args.actor.id,
+        ...args.request,
+        memoryId: args.memoryId,
+        deleted: true,
+        expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
+      });
     await ctx.db.delete(doc._id);
     return true;
   },

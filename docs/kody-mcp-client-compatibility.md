@@ -71,11 +71,35 @@ and audit logging still apply. Client policy remains authoritative.
 
 Read-only tokens can use read actions. Change-request tokens can also update
 shared Todo work and create approval requests; they cannot approve their own
-requests. Both token types receive matching memory read grants; change-request
-tokens also receive memory write/delete grants for the connected personal scope
-and repository.
+requests. The connection form defaults to **This project only**, with memory
+deletion disabled. Personal memory and memory deletion require separate choices.
+
+API clients request the same project-only setting with `memoryScope: "repository"`
+and disable deletion with `allowMemoryDelete: false`. `memoryScope: "all"`
+includes personal memory. For compatibility, omitted fields retain the previous
+API behavior (all memory scopes, and deletion for execute tokens). Existing tokens
+are unchanged; replace them to reduce grants. These options restrict memory
+permissions; `mcp:execute` still permits the existing work and approval-request actions.
 
 ## Compatibility and migration policy
+
+The continuity candidate adds atomic memory write receipts and cursor-based
+`memory.list`. Deployment status is tracked in `kody-mcp-clean-vps-evidence.md`;
+do not assume the stable endpoint already has these changes.
+
+- Retry the same memory write with the same connection, key, and exact payload.
+  Receipts are valid for 30 days. A changed payload returns
+  `idempotency_conflict`; a stale revision returns `revision_conflict`.
+- Deletion scrubs saved memory snapshots from receipts. Retrying a deleted
+  create cannot resurrect the memory; an exact deletion retry can succeed.
+- Receipt expiry is logical, with lazy cleanup on key reuse. Automatic physical
+  retention cleanup is not implemented.
+- Writes made before receipts were deployed require reconciliation through
+  record reads/history. The new guarantee cannot retroactively cover those
+  writes. Rotating a token also starts a separate retry-key namespace.
+- Follow `nextCursor` until absent. Cursors are signed and bound to the current
+  identity and selected memory scopes. They are not a point-in-time snapshot of
+  all concurrent changes.
 
 - Existing public facade tool names remain stable. `kody_read_tool` is additive;
   older clients may still execute reads through `kody_execute_tool`, but that

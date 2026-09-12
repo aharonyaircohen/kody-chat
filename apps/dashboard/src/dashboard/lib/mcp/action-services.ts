@@ -1,3 +1,4 @@
+import { encodeMemoryCursor, decodeMemoryCursor } from "./memory-cursor";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { Octokit } from "@octokit/rest";
 import { api as backendApi } from "@kody-ade/backend/api";
@@ -118,6 +119,50 @@ function workError(error: unknown): never {
 }
 
 function memoryError(error: unknown): never {
+  const data =
+    error && typeof error === "object" && "data" in error
+      ? error.data
+      : undefined;
+  if (
+    data &&
+    typeof data === "object" &&
+    "code" in data &&
+    "message" in data &&
+    typeof data.code === "string" &&
+    typeof data.message === "string" &&
+    [
+      "idempotency_conflict",
+      "memory_not_found",
+      "revision_conflict",
+      "invalid_memory_state",
+    ].includes(data.code)
+  ) {
+    throw new KodyActionError(data.code, data.message);
+  }
+  if (
+    error instanceof Error &&
+    /only an active memory can be revised/i.test(error.message)
+  )
+    throw new KodyActionError(
+      "invalid_memory_state",
+      "Only an active memory can be revised.",
+    );
+  if (
+    error instanceof Error &&
+    /memory idempotency conflict/i.test(error.message)
+  )
+    throw new KodyActionError(
+      "idempotency_conflict",
+      "The request key was already used with different input.",
+    );
+  if (
+    error instanceof Error &&
+    /memory request result was deleted/i.test(error.message)
+  )
+    throw new KodyActionError(
+      "memory_not_found",
+      "The original request result was deleted.",
+    );
   if (error instanceof MemoryAccessDeniedError)
     throw new KodyActionError(
       "insufficient_scope",
@@ -187,34 +232,15 @@ function memoryEvidence(id: string, supplied: unknown) {
   ];
 }
 
-async function findMemoryRequest(
-  runtime: ReturnType<typeof memoryRuntimeFor>,
-  scopes: ReturnType<typeof memoryScopes>,
-  key: string,
-  hash: string,
+function memoryWriteRequest(
+  input: Record<string, unknown>,
+  principal: McpPrincipal,
 ) {
-  const marker = `mcp:${key}:`;
-  for (const memory of await runtime.application.list({
-    principal: runtime.principal,
-    scopes,
-  })) {
-    const revisions = await runtime.application.history({
-      principal: runtime.principal,
-      memoryId: memory.id,
-    });
-    const match = revisions
-      .flatMap((revision) => revision.evidence)
-      .find((evidence) => evidence.id.startsWith(marker));
-    if (match) {
-      if (match.id !== `${marker}${hash}`)
-        throw new KodyActionError(
-          "idempotency_conflict",
-          "The idempotency key was already used with different memory content.",
-        );
-      return memory;
-    }
-  }
-  return null;
+  const { idempotencyKey, ...payload } = input;
+  return {
+    key: hashRequest({ connection: principal.tokenId, key: idempotencyKey }),
+    hash: hashRequest(payload),
+  };
 }
 
 function writeWorkTodo(
@@ -371,20 +397,53 @@ export function createKodyMcpActionServices({
       for (const scope of scopes)
         requireMemoryGrant(principal, scope.kind, "read");
       try {
-        const now = Date.now();
-        const memories = (
-          await runtime.application.list({
+        const binding = hashRequest({
+          tenant: principal.tenantId,
+          actor: principal.actorGithubId,
+          scopes,
+        });
+        const key = process.env.KODY_SERVICE_KEY ?? "";
+        let state = { binding, index: 0, cursor: null as string | null };
+        if (input.cursor) {
+          try {
+            state = decodeMemoryCursor(String(input.cursor), binding, key);
+          } catch {
+            throw new KodyActionError(
+              "invalid_cursor",
+              "The memory cursor is invalid for this scope.",
+            );
+          }
+        }
+        if (state.index >= scopes.length)
+          throw new KodyActionError(
+            "invalid_cursor",
+            "Memory cursor position is invalid.",
+          );
+        const memories: Array<
+          Awaited<ReturnType<typeof runtime.application.page>>["page"][number]
+        > = [];
+        const limit = Number(input.limit ?? 20);
+        while (state.index < scopes.length && memories.length < limit) {
+          const page = await runtime.application.page({
             principal: runtime.principal,
             scopes,
-          })
-        )
-          .filter(
-            (memory) =>
-              memory.status === "active" &&
-              (!memory.expiresAt || Date.parse(memory.expiresAt) > now),
-          )
-          .slice(0, Number(input.limit ?? 20));
-        return { memories };
+            scope: scopes[state.index],
+            cursor: state.cursor,
+            limit: limit - memories.length,
+          });
+          memories.push(...page.page);
+          state = {
+            binding,
+            index: page.isDone ? state.index + 1 : state.index,
+            cursor: page.isDone ? null : page.continueCursor,
+          };
+          if (!page.isDone) break;
+        }
+        const nextCursor =
+          state.index < scopes.length
+            ? encodeMemoryCursor(state, key)
+            : undefined;
+        return { memories, ...(nextCursor ? { nextCursor } : {}) };
       } catch (error) {
         memoryError(error);
       }
@@ -467,26 +526,11 @@ export function createKodyMcpActionServices({
         scopeKind === "user"
           ? { kind: "user" as const, userId: runtime.principal.actor.id }
           : { kind: "repository" as const, tenantId: principal.tenantId };
-      const requestHash = hashRequest({
-        actionId: input.actionId,
-        scope: input.scope,
-        kind: input.kind,
-        title: input.title,
-        summary: input.summary,
-        body: input.body,
-        reason: input.reason,
-        expiresAt: input.expiresAt,
-      });
-      const marker = `mcp:${String(input.idempotencyKey)}:${requestHash}`;
+      const request = memoryWriteRequest(input, principal);
+      const marker = `mcp:${request.key}:${request.hash}`;
       try {
-        const replay = await findMemoryRequest(
-          runtime,
-          [scope],
-          String(input.idempotencyKey),
-          requestHash,
-        );
-        if (replay) return { memory: replay };
         const memory = await runtime.application.remember({
+          request,
           principal: runtime.principal,
           scope,
           kind: input.kind as never,
@@ -516,19 +560,10 @@ export function createKodyMcpActionServices({
           memoryId: String(input.memoryId),
         });
         requireMemoryGrant(principal, current.scope.kind, "write");
-        const requestHash = hashRequest({ actionId: input.actionId, input });
-        const marker = `mcp:${String(input.idempotencyKey)}:${requestHash}`;
-        const revisions = await runtime.application.history({
-          principal: runtime.principal,
-          memoryId: current.id,
-        });
-        if (
-          revisions.some((revision) =>
-            revision.evidence.some((evidence) => evidence.id === marker),
-          )
-        )
-          return { memory: current };
+        const request = memoryWriteRequest(input, principal);
+        const marker = `mcp:${request.key}:${request.hash}`;
         const memory = await runtime.application.correct({
+          request,
           principal: runtime.principal,
           memoryId: current.id,
           expectedRevisionId: String(input.expectedRevisionId),
@@ -559,19 +594,10 @@ export function createKodyMcpActionServices({
           memoryId: String(input.memoryId),
         });
         requireMemoryGrant(principal, current.scope.kind, "write");
-        const requestHash = hashRequest({ actionId: input.actionId, input });
-        const marker = `mcp:${String(input.idempotencyKey)}:${requestHash}`;
-        const revisions = await runtime.application.history({
-          principal: runtime.principal,
-          memoryId: current.id,
-        });
-        if (
-          revisions.some((revision) =>
-            revision.evidence.some((evidence) => evidence.id === marker),
-          )
-        )
-          return { memory: current };
+        const request = memoryWriteRequest(input, principal);
+        const marker = `mcp:${request.key}:${request.hash}`;
         const memory = await runtime.application.retire({
+          request,
           principal: runtime.principal,
           memoryId: current.id,
           expectedRevisionId: String(input.expectedRevisionId),
@@ -586,14 +612,30 @@ export function createKodyMcpActionServices({
     async deleteMemory(input, principal) {
       const runtime = memoryRuntimeFor(principal);
       try {
-        const current = await runtime.application.get({
-          principal: runtime.principal,
-          memoryId: String(input.memoryId),
-        });
-        requireMemoryGrant(principal, current.scope.kind, "delete");
+        try {
+          const current = await runtime.application.get({
+            principal: runtime.principal,
+            memoryId: String(input.memoryId),
+          });
+          requireMemoryGrant(principal, current.scope.kind, "delete");
+        } catch (error) {
+          if (!(error instanceof MemoryNotFoundError)) throw error;
+          if (
+            !principal.scopes.some(
+              (scope) =>
+                scope === "memory:repository:delete" ||
+                scope === "memory:personal:delete",
+            )
+          )
+            throw new KodyActionError(
+              "insufficient_scope",
+              "The access token cannot delete memories.",
+            );
+        }
         return await runtime.application.forget({
           principal: runtime.principal,
-          memoryId: current.id,
+          memoryId: String(input.memoryId),
+          request: memoryWriteRequest(input, principal),
         });
       } catch (error) {
         memoryError(error);
