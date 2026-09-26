@@ -560,7 +560,7 @@ describe("Fly provider terminal session compatibility", () => {
     expect(body).toMatchObject({ ok: true });
     expect(body).not.toHaveProperty("warnings");
     expect(brainFly.provisionBrain).not.toHaveBeenCalled();
-    expect(bridge.findTerminalBridge).toHaveBeenCalled();
+    expect(bridge.ensureTerminalBridge).toHaveBeenCalled();
   });
 
   it("does not let stale image metadata choose the terminal target", async () => {
@@ -697,7 +697,7 @@ describe("Fly provider terminal session compatibility", () => {
       error: "machine_not_found",
     });
     expect(inventory.listFlyInventory).not.toHaveBeenCalled();
-    expect(bridge.findTerminalBridge).not.toHaveBeenCalled();
+    expect(bridge.ensureTerminalBridge).not.toHaveBeenCalled();
   });
 
   it("uses the recorded running Brain machine when the UI sends a stale Brain target", async () => {
@@ -787,7 +787,7 @@ describe("Fly provider terminal session compatibility", () => {
     expect(await res.json()).toMatchObject({
       error: "machine_not_terminal_capable",
     });
-    expect(bridge.findTerminalBridge).not.toHaveBeenCalled();
+    expect(bridge.ensureTerminalBridge).not.toHaveBeenCalled();
   });
 
   it("uses the saved Brain fallback before selecting the terminal target", async () => {
@@ -819,7 +819,7 @@ describe("Fly provider terminal session compatibility", () => {
         orgSlug: "guy-koren",
       }),
     );
-    expect(bridge.findTerminalBridge).toHaveBeenCalledWith(
+    expect(bridge.ensureTerminalBridge).toHaveBeenCalledWith(
       expect.objectContaining({ orgSlug: "guy-koren" }),
     );
   });
@@ -842,7 +842,7 @@ describe("Fly provider terminal session compatibility", () => {
 
     expect(res.status).toBe(200);
     expect(inventory.listFlyInventory).not.toHaveBeenCalled();
-    expect(bridge.findTerminalBridge).toHaveBeenCalledWith(
+    expect(bridge.ensureTerminalBridge).toHaveBeenCalledWith(
       expect.objectContaining({
         orgSlug: "guy-koren",
         token: "env-fly-token",
@@ -892,7 +892,7 @@ describe("Fly provider terminal session compatibility", () => {
       app: "brain-1",
       machineId: "brain-current",
     });
-    expect(bridge.findTerminalBridge).toHaveBeenCalledWith(
+    expect(bridge.ensureTerminalBridge).toHaveBeenCalledWith(
       expect.objectContaining({ orgSlug: "guy-koren" }),
     );
   });
@@ -935,7 +935,7 @@ describe("Fly provider terminal session compatibility", () => {
         token: "env-fly-token",
       }),
     );
-    expect(bridge.findTerminalBridge).toHaveBeenCalledWith(
+    expect(bridge.ensureTerminalBridge).toHaveBeenCalledWith(
       expect.objectContaining({
         orgSlug: "guy-koren",
         token: "env-fly-token",
@@ -955,7 +955,7 @@ describe("Fly provider terminal session compatibility", () => {
       "started",
       "brain-fly-token",
     );
-    bridge.findTerminalBridge.mockRejectedValueOnce(
+    bridge.ensureTerminalBridge.mockRejectedValueOnce(
       new Error('Fly Machines API 403 on /apps: {"error":"unauthorized"}'),
     );
 
@@ -967,8 +967,8 @@ describe("Fly provider terminal session compatibility", () => {
     );
 
     expect(res.status).toBe(500);
-    expect(bridge.findTerminalBridge).toHaveBeenCalledOnce();
-    expect(bridge.findTerminalBridge).toHaveBeenCalledWith(
+    expect(bridge.ensureTerminalBridge).toHaveBeenCalledOnce();
+    expect(bridge.ensureTerminalBridge).toHaveBeenCalledWith(
       expect.objectContaining({ token: "brain-fly-token" }),
     );
     expect(token.mintTerminalBridgeToken).not.toHaveBeenCalled();

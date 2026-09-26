@@ -6,6 +6,48 @@
  * Helpers for saving a Brain machine as a durable container image.
  */
 
+import type { BrainRuntimeOperation } from "./runtime-store";
+
+export type SettledBrainImageSave =
+  | {
+      status: "completed";
+      jobId: string;
+      imageRef: string;
+      startedAt: string;
+      finishedAt: string;
+    }
+  | { status: "failed"; jobId: string; error: string;
+    };
+
+/** Recover a terminal save result after another poller cleared its job row. */
+export function settledBrainImageSave(
+  operation: BrainRuntimeOperation | undefined,
+  jobId: string,
+): SettledBrainImageSave | null {
+  if (
+    !operation ||
+    operation.id !== jobId ||
+    operation.type !== "save-image" ||
+    operation.status === "running"
+  ) {
+    return null;
+  }
+  if (operation.status === "failed") {
+    return {
+      status: "failed",
+      jobId,
+      error: operation.error || "Brain image save failed",
+    };
+  }
+  return {
+    status: "completed",
+    jobId,
+    imageRef: operation.imageRef,
+    startedAt: operation.startedAt,
+    finishedAt: operation.updatedAt,
+  };
+}
+
 function shellQuote(value: string): string {
   return `'${value.replaceAll("'", "'\\''")}'`;
 }
@@ -186,7 +228,6 @@ cleanup() {
     kill "$keepalive_pid" >/dev/null 2>&1 || true
     wait "$keepalive_pid" >/dev/null 2>&1 || true
   fi
-  flyctl ssh console --app "$app" --org "$org" --machine "$machine" --command "rm -f $remote_archive $remote_script" >/dev/null 2>&1 || true
   rm -rf "$tmpdir"
 }
 trap cleanup EXIT

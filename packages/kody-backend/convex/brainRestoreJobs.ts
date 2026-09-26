@@ -4,7 +4,8 @@ import { internalAction, internalMutation } from "./_generated/server";
 import { serviceMutation as mutation } from "./lib/auth";
 
 const MAX_ATTEMPTS = 3;
-const LEASE_MS = 6 * 60_000;
+const WORKER_TIMEOUT_MS = 9 * 60_000;
+const LEASE_MS = 10 * 60_000;
 
 function newLeaseId(): string {
   return globalThis.crypto.randomUUID();
@@ -13,6 +14,9 @@ function newLeaseId(): string {
 export const enqueue = mutation({
   args: {
     userId: v.string(),
+    githubAccount: v.string(),
+    githubOwner: v.optional(v.string()),
+    githubTokenEncrypted: v.string(),
     operationId: v.string(),
     imageRef: v.string(),
     reset: v.boolean(),
@@ -79,13 +83,18 @@ export const finish = internalMutation({
     jobId: v.id("brainRestoreJobs"),
     leaseId: v.string(),
     status: v.union(v.literal("completed"), v.literal("failed")),
+    retryable: v.optional(v.boolean()),
     error: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const job = await ctx.db.get(args.jobId);
     if (!job || job.leaseId !== args.leaseId) return;
     const now = new Date().toISOString();
-    if (args.status === "failed" && job.attempts < MAX_ATTEMPTS) {
+    if (
+      args.status === "failed" &&
+      args.retryable !== false &&
+      job.attempts < MAX_ATTEMPTS
+    ) {
       await ctx.db.patch(args.jobId, {
         status: "queued",
         updatedAt: now,
@@ -113,14 +122,14 @@ export const requeueStale = internalMutation({
   args: {},
   handler: async (ctx) => {
     const now = new Date().toISOString();
-    const cutoff = Date.parse(now) - 6 * 60_000;
+    const nowMs = Date.parse(now);
     const running = await ctx.db
       .query("brainRestoreJobs")
       .withIndex("by_status", (q) => q.eq("status", "running"))
       .collect();
     let reclaimed = 0;
     for (const job of running) {
-      if (Date.parse(job.updatedAt) > cutoff || job.attempts >= MAX_ATTEMPTS) {
+      if ((job.leaseUntilMs ?? 0) > nowMs || job.attempts >= MAX_ATTEMPTS) {
         if (job.attempts >= MAX_ATTEMPTS) {
           await ctx.db.patch(job._id, {
             status: "failed",
@@ -177,15 +186,38 @@ export const dispatch = internalAction({
           },
           body: JSON.stringify({
             userId: job.userId,
+            githubAccount: job.githubAccount,
+            githubOwner: job.githubOwner,
+            githubTokenEncrypted: job.githubTokenEncrypted,
             operationId: job.operationId,
             imageRef: job.imageRef,
             reset: job.reset,
+            finalAttempt: job.attempts >= MAX_ATTEMPTS,
           }),
-          signal: AbortSignal.timeout(300_000),
+          signal: AbortSignal.timeout(WORKER_TIMEOUT_MS),
         },
       );
       if (!response.ok) {
-        throw new Error(`Dashboard worker rejected restore (HTTP ${response.status})`);
+        const body = await response.json().catch(() => ({})) as {
+          message?: string;
+          error?: string;
+        };
+        const retryable =
+          response.status === 408 ||
+          response.status === 425 ||
+          response.status === 429 ||
+          response.status >= 500;
+        await ctx.runMutation(internal.brainRestoreJobs.finish, {
+          jobId,
+          leaseId,
+          status: "failed",
+          retryable,
+          error:
+            body.message ??
+            body.error ??
+            `Dashboard worker rejected restore (HTTP ${response.status})`,
+        });
+        return;
       }
       await ctx.runMutation(internal.brainRestoreJobs.finish, {
         jobId,
@@ -197,6 +229,7 @@ export const dispatch = internalAction({
         jobId,
         leaseId,
         status: "failed",
+        retryable: true,
         error: error instanceof Error ? error.message : String(error),
       });
     }

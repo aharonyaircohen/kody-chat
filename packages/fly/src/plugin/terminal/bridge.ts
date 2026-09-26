@@ -40,9 +40,9 @@ export function terminalBridgeVersionFor(input: {
 export const TERMINAL_BRIDGE_START_SCRIPT = String.raw`#!/bin/sh
 set -eu
 
-if ! command -v curl >/dev/null 2>&1; then
+if ! command -v curl >/dev/null 2>&1 || ! command -v ssh >/dev/null 2>&1 || ! command -v ssh-agent >/dev/null 2>&1; then
   apt-get update
-  apt-get install -y --no-install-recommends ca-certificates curl
+  apt-get install -y --no-install-recommends ca-certificates curl openssh-client
   rm -rf /var/lib/apt/lists/*
 fi
 

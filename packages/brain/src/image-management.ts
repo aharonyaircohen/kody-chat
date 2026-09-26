@@ -26,7 +26,10 @@ import {
   upsertBrainCatalogImageFile,
 } from "./image-catalog";
 import { brainGhcrAuth } from "./image-runtime";
-import { brainImageSaveProgressFromOutput } from "./image-save";
+import {
+  brainImageSaveProgressFromOutput,
+  settledBrainImageSave,
+} from "./image-save";
 import { brainImageJobTimeoutMs } from "./image-timeouts";
 import { readBrainRuntimeView } from "./runtime-manager";
 import {
@@ -334,6 +337,27 @@ export async function pollBrainImageSave(input: {
 
   const save = await readBrainImageSave(context.account, context.githubToken);
   if (!save) {
+    const settled = settledBrainImageSave(
+      (await readBrainRuntimeView(context.account, context.githubToken))
+        .operation,
+      jobId,
+    );
+    if (settled?.status === "failed") {
+      throw new BrainImageManagementError(
+        settled.error,
+        500,
+        "brain_image_save_failed",
+        { jobId },
+      );
+    }
+    if (settled?.status === "completed") {
+      return {
+        ok: true,
+        phase: "completed" as const,
+        message: "Brain image saved",
+        ...settled,
+      };
+    }
     return { ok: true, status: "idle" as const };
   }
   if (save.jobId !== jobId) {

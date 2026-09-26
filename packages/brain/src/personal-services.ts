@@ -28,6 +28,9 @@ export interface PersonalBrainServices {
   ): Promise<void>;
   enqueueRestore?(input: {
     userId: string;
+    githubAccount: string;
+    githubOwner?: string;
+    githubToken: string;
     operationId: string;
     imageRef: string;
     reset: boolean;

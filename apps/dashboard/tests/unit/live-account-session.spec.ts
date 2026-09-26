@@ -93,14 +93,23 @@ describe("live Kody account session", () => {
   it("signs in through Kody and verifies the resulting session", async () => {
     const post = vi
       .fn()
-      .mockResolvedValue({ ok: () => true, status: () => 200 });
+      .mockResolvedValue({
+        ok: () => true,
+        status: () => 200,
+        headersArray: () => [
+          {
+            name: "set-cookie",
+            value: "kody.session=fresh-session; Path=/; HttpOnly; Secure",
+          },
+        ],
+      });
     const get = vi.fn().mockResolvedValue({
       ok: () => true,
       status: () => 200,
       json: () => Promise.resolve({ user: { id: "quality-user" } }),
     });
 
-    await establishLiveKodyAccountSession(
+    const cookieHeader = await establishLiveKodyAccountSession(
       { post, get },
       "https://quality.example.test",
       { email: EMAIL, password: PASSWORD },
@@ -116,6 +125,7 @@ describe("live Kody account session", () => {
     expect(get).toHaveBeenCalledWith(
       "https://quality.example.test/api/auth/get-session",
     );
+    expect(cookieHeader).toBe("kody.session=fresh-session");
   });
 
   it("can authenticate an unpromoted deployment through a trusted origin", async () => {

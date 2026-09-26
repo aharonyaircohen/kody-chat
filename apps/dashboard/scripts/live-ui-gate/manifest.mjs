@@ -65,6 +65,12 @@ export const LIVE_UI_JOURNEYS = Object.freeze([
       "selects Brain, keeps xterm visible, and accepts input after the stall window",
   },
   {
+    id: "brain-runtime-lifecycle",
+    file: "tests/e2e/brain-runtime-lifecycle-live.e2e.spec.ts",
+    title:
+      "saves, destroys, restores, reconnects, and reads persistent Brain terminal state",
+  },
+  {
     id: "guided-flows-real-definitions",
     file: "tests/e2e/guided-flows-real.e2e.spec.ts",
     title: "loads real Guided Flow definitions",

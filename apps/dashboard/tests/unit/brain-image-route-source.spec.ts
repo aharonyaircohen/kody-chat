@@ -119,9 +119,18 @@ describe("Brain image save route", () => {
       expect(source).not.toContain("prepareRuntimeImage");
     }
     expect(APPLY_ROUTE_SOURCE).toContain("enqueueRestore");
+    expect(APPLY_ROUTE_SOURCE).toContain(
+      "githubAccount: ctx.context.githubAccount",
+    );
+    expect(APPLY_ROUTE_SOURCE).toContain("githubToken: ctx.context.githubToken");
     expect(APPLY_ROUTE_SOURCE).toContain("after(work)");
     expect(APPLY_ROUTE_SOURCE).toContain("isLocalOrigin");
-    expect(APPLY_ROUTE_SOURCE).toContain("const dashboardUrl = requestOrigin(req)");
+    expect(APPLY_ROUTE_SOURCE).toContain("const requestUrl = requestOrigin(req)");
+    expect(APPLY_ROUTE_SOURCE).toContain("const dashboardUrl = secureRequestOrigin(req)");
+    expect(APPLY_ROUTE_SOURCE).toContain("isLocalOrigin(requestUrl)");
+    expect(APPLY_ROUTE_SOURCE.indexOf("secureRequestOrigin(req)")).toBeLessThan(
+      APPLY_ROUTE_SOURCE.indexOf("beginBrainRuntimeApply("),
+    );
     expect(APPLY_ROUTE_SOURCE).not.toContain("NEXT_PUBLIC_SERVER_URL");
     expect(APPLY_ROUTE_SOURCE).toContain('status: "running"');
     expect(APPLY_ROUTE_SOURCE).toContain("const body =");
@@ -149,7 +158,15 @@ describe("Brain image save route", () => {
     expect(APPLY_SERVICE_SOURCE).not.toContain("markBrainImageRunning");
     expect(WORKER_ROUTE_SOURCE).toContain("KODY_SERVICE_KEY");
     expect(WORKER_ROUTE_SOURCE).toContain("resolvePersonalBrainContextForUser");
+    expect(WORKER_ROUTE_SOURCE).toContain("...(githubAccount ? { githubAccount }");
+    expect(WORKER_ROUTE_SOURCE).toContain("failBrainRuntimeApply(");
+    expect(WORKER_ROUTE_SOURCE).toContain("return withPersonalBrainUser(userId");
+    expect(WORKER_ROUTE_SOURCE).toContain("decrypt(githubTokenEncrypted)");
     expect(WORKER_ROUTE_SOURCE).toContain("operationId");
-    expect(WORKER_ROUTE_SOURCE).toContain("new URL(req.url).origin");
+    expect(WORKER_ROUTE_SOURCE).toContain("secureRequestOrigin(req)");
+    expect(WORKER_ROUTE_SOURCE).toContain("maxDuration = 600");
+    expect(WORKER_ROUTE_SOURCE).toContain(
+      "shouldFinalizeBrainRestoreFailure(status, finalAttempt)",
+    );
   });
 });

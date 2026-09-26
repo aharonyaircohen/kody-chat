@@ -57,6 +57,29 @@ export interface BrainRuntimeRunning {
   appliedAt: string;
 }
 
+export type BrainRuntimeStage =
+  | "validating"
+  | "resolving-image"
+  | "resolving-service"
+  | "provisioning"
+  | "installing-agent-access"
+  | "preparing-runtime-image"
+  | "verifying-health"
+  | "recording-runtime"
+  | "recovering-previous";
+
+const BRAIN_RUNTIME_STAGES = new Set<BrainRuntimeStage>([
+  "validating",
+  "resolving-image",
+  "resolving-service",
+  "provisioning",
+  "installing-agent-access",
+  "preparing-runtime-image",
+  "verifying-health",
+  "recording-runtime",
+  "recovering-previous",
+]);
+
 export interface BrainRuntimeOperation {
   id: string;
   type: "apply-image" | "save-image";
@@ -64,6 +87,8 @@ export interface BrainRuntimeOperation {
   imageRef: string;
   startedAt: string;
   updatedAt: string;
+  stage?: BrainRuntimeStage;
+  attempt?: number;
   error?: string;
   recoveredImageRef?: string;
 }
@@ -107,6 +132,9 @@ function isRuntimeOperation(value: unknown): value is BrainRuntimeOperation {
     isValidBrainImageRef(v.imageRef) &&
     typeof v.startedAt === "string" &&
     typeof v.updatedAt === "string" &&
+    (v.stage === undefined || BRAIN_RUNTIME_STAGES.has(v.stage as BrainRuntimeStage)) &&
+    (v.attempt === undefined ||
+      (typeof v.attempt === "number" && Number.isInteger(v.attempt) && v.attempt > 0)) &&
     (v.error === undefined || typeof v.error === "string") &&
     (v.recoveredImageRef === undefined ||
       typeof v.recoveredImageRef === "string")

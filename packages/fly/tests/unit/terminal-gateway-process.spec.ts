@@ -12,7 +12,10 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { mintTerminalBridgeToken } from "@kody-ade/terminal/terminal-token";
-import { TERMINAL_BRIDGE_SCRIPT } from "../../src/plugin/terminal/bridge";
+import {
+  TERMINAL_BRIDGE_SCRIPT,
+  TERMINAL_BRIDGE_START_SCRIPT,
+} from "../../src/plugin/terminal/bridge";
 
 const SECRET = "gateway-process-test-secret";
 const roots: string[] = [];
@@ -94,15 +97,24 @@ function token(
 }
 
 describe("stateless terminal gateway process", () => {
+  it("installs direct SSH transport before serving traffic", () => {
+    expect(TERMINAL_BRIDGE_START_SCRIPT).toContain("openssh-client");
+    expect(TERMINAL_BRIDGE_START_SCRIPT).toContain(
+      "wire_guard_websockets: true",
+    );
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain('spawn("ssh-agent"');
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain(".vm.\" + claims.app + \".internal");
+  });
+
   it("opens one Brain agent per socket and forwards the same revision on reconnect", async () => {
     const root = mkdtempSync(join(tmpdir(), "kody-gateway-"));
     roots.push(root);
     const gatewayPath = join(root, "bridge.mjs");
-    const flyctlPath = join(root, "flyctl");
+    const sshAgentPath = join(root, "ssh-agent");
     const logPath = join(root, "agent-requests.jsonl");
     writeFileSync(gatewayPath, TERMINAL_BRIDGE_SCRIPT);
     writeFileSync(
-      flyctlPath,
+      sshAgentPath,
       `#!/usr/bin/env node
 const fs = require("node:fs");
 const readline = require("node:readline");
@@ -110,7 +122,7 @@ const lines = readline.createInterface({ input: process.stdin });
 let generation = 1;
 lines.on("line", (line) => {
   const value = JSON.parse(line);
-  fs.appendFileSync(process.env.AGENT_LOG, JSON.stringify(value) + "\\n");
+  fs.appendFileSync(process.env.AGENT_LOG, JSON.stringify({ ...value, brainHost: process.env.KODY_BRAIN_HOST }) + "\\n");
   if (value.type === "open") {
     process.stdout.write(JSON.stringify({ type: "state", sessionId: value.session.id, generation, state: "ready" }) + "\\n");
     process.stdout.write(JSON.stringify({ type: "output", sessionId: value.session.id, generation, revision: 1, data: "durable screen" }) + "\\n");
@@ -120,7 +132,7 @@ lines.on("line", (line) => {
 });
 `,
     );
-    chmodSync(flyctlPath, 0o755);
+    chmodSync(sshAgentPath, 0o755);
     const port = await unusedPort();
     const child = spawn(process.execPath, [gatewayPath], {
       env: {
@@ -155,6 +167,18 @@ lines.on("line", (line) => {
       revision: 1,
       data: "durable screen",
     });
+    const accepted = nextMessages(first, 1);
+    first.send(
+      JSON.stringify({
+        type: "input",
+        sessionId: "terminal-1",
+        inputId: "input-1",
+        data: "pwd\r",
+      }),
+    );
+    await expect(accepted).resolves.toEqual([
+      expect.objectContaining({ type: "input-accepted", inputId: "input-1" }),
+    ]);
     first.close();
 
     const second = new WebSocket(
@@ -182,8 +206,17 @@ lines.on("line", (line) => {
       .split("\n")
       .map((line) => JSON.parse(line) as Record<string, unknown>)
       .filter((value) => value.type === "open");
+    const inputs = readFileSync(logPath, "utf8")
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line) as Record<string, unknown>)
+      .filter((value) => value.type === "input");
     expect(opens).toHaveLength(2);
-    expect(opens[0]).toMatchObject({ afterRevision: 0 });
+    expect(inputs).toHaveLength(1);
+    expect(opens[0]).toMatchObject({
+      afterRevision: 0,
+      brainHost: "machine-1.vm.brain-test.internal",
+    });
     expect(opens[1]).toMatchObject({ afterRevision: 1 });
   });
 
@@ -202,6 +235,7 @@ lines.on("line", (line) => {
         PATH: `${root}:${process.env.PATH ?? ""}`,
         PORT: String(port),
         BRIDGE_AUTH_SECRET: SECRET,
+        TERMINAL_UPSTREAM_TRANSPORT: "flyctl",
       },
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -214,7 +248,11 @@ lines.on("line", (line) => {
     const direct = await fetch(`http://127.0.0.1:${port}/exec`, {
       method: "POST",
       headers: { ...auth, "Content-Type": "application/json" },
-      body: JSON.stringify({ command: "printf direct-output", local: true }),
+      body: JSON.stringify({
+        command:
+          'test "$FLY_API_TOKEN" = "FlyV1 test" && printf direct-output',
+        local: true,
+      }),
     });
     await expect(direct.json()).resolves.toMatchObject({
       ok: true,
@@ -272,6 +310,7 @@ lines.on("line", (line) => {
         PATH: `${root}:${process.env.PATH ?? ""}`,
         PORT: String(port),
         BRIDGE_AUTH_SECRET: SECRET,
+        TERMINAL_UPSTREAM_TRANSPORT: "flyctl",
       },
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -326,6 +365,7 @@ readline.createInterface({ input: process.stdin }).on("line", (line) => {
         ATTEMPTS_PATH: attemptsPath,
         TERMINAL_UPSTREAM_RETRY_BASE_MS: "10",
         TERMINAL_UPSTREAM_RETRY_MAX_MS: "20",
+        TERMINAL_UPSTREAM_TRANSPORT: "flyctl",
       },
       stdio: ["ignore", "pipe", "pipe"],
     });

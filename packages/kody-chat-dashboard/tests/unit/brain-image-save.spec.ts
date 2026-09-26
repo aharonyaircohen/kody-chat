@@ -117,8 +117,13 @@ describe("Brain image save helpers", () => {
     expect(command).toContain("org=");
     expect(command).toContain("guy-koren");
     expect(command).toContain('--org "$org"');
-    expect(command.match(/flyctl /g)?.length).toBe(4);
-    expect(command.match(/--org "\$org"/g)?.length).toBeGreaterThanOrEqual(4);
+    expect(command.match(/flyctl /g)?.length).toBe(3);
+    expect(command.match(/--org "\$org"/g)?.length).toBeGreaterThanOrEqual(3);
+    const cleanup = command.slice(
+      command.indexOf("cleanup()"),
+      command.indexOf("trap cleanup EXIT"),
+    );
+    expect(cleanup).not.toContain("flyctl");
   });
 
   it("rejects non-GHCR saved image refs", () => {

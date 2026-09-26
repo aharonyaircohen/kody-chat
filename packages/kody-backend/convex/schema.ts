@@ -916,6 +916,9 @@ export default defineSchema({
 
   brainRestoreJobs: defineTable({
     userId: v.string(),
+    githubAccount: v.optional(v.string()),
+    githubOwner: v.optional(v.string()),
+    githubTokenEncrypted: v.optional(v.string()),
     operationId: v.string(),
     imageRef: v.string(),
     reset: v.boolean(),

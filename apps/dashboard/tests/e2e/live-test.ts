@@ -121,6 +121,7 @@ export const test = base.extend<{
     async ({ page }, use) => {
       const baseUrl = process.env.BASE_URL ?? "";
       if (!baseUrl) throw new Error("Kody Quality requires BASE_URL");
+      const authBaseUrl = process.env.E2E_AUTH_BASE_URL?.trim() || baseUrl;
       const credentials = await loadLiveKodyAccountCredentialsFromDashboard(
         page.request,
         baseUrl,
@@ -128,10 +129,32 @@ export const test = base.extend<{
       );
       await establishLiveKodyAccountSession(
         page.request,
-        baseUrl,
+        authBaseUrl,
         credentials,
         process.env.E2E_AUTH_ORIGIN,
       );
+      if (new URL(authBaseUrl).origin !== new URL(baseUrl).origin) {
+        const sessionCookies = await page.context().cookies(authBaseUrl);
+        if (sessionCookies.length === 0) {
+          throw new Error("Trusted Kody sign-in returned no session cookie");
+        }
+        await page.context().addCookies(
+          sessionCookies.map(({ domain: _domain, path: _path, ...cookie }) => ({
+            ...cookie,
+            url: new URL(baseUrl).origin,
+          })),
+        );
+        const copiedCookies = await page.context().cookies(baseUrl);
+        const session = await page.request.get(`${baseUrl}/api/auth/get-session`);
+        const sessionBody = (await session.json().catch(() => null)) as {
+          user?: { id?: unknown };
+        } | null;
+        if (!session.ok() || typeof sessionBody?.user?.id !== "string") {
+          throw new Error(
+            `Preview Kody session was not established (${session.status()}); response keys: ${Object.keys(sessionBody ?? {}).join(", ") || "none"}; copied cookies: ${copiedCookies.map(({ name }) => name).join(", ") || "none"}`,
+          );
+        }
+      }
       await use();
     },
     { auto: true },

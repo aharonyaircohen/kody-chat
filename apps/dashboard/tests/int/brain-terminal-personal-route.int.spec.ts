@@ -24,7 +24,7 @@ vi.mock("@kody-ade/fly/infrastructure/server-machines", async (original) => ({
   startServerProviderMachine: mocks.start,
 }));
 vi.mock("@kody-ade/fly/infrastructure/server-terminal", () => ({
-  findServerProviderTerminalBridge: mocks.bridge,
+  ensureServerProviderTerminalBridge: mocks.bridge,
 }));
 vi.mock("@kody-ade/terminal/terminal-token", () => ({
   mintTerminalBridgeToken: mocks.mint,

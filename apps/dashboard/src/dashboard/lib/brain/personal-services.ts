@@ -2,7 +2,7 @@ import "server-only";
 
 import { AsyncLocalStorage } from "node:async_hooks";
 
-import { decrypt } from "@kody-ade/base/vault/crypto";
+import { decrypt, encrypt } from "@kody-ade/base/vault/crypto";
 import { setPersonalBrainServices } from "@kody-ade/brain/personal-services";
 import { getCurrentKodySessionUser } from "@dashboard/lib/auth/kody-auth-server";
 import {
@@ -103,7 +103,10 @@ setPersonalBrainServices({
     });
   },
 
-  async enqueueRestore(input) {
-    await getConvexClient().mutation(backendApi.brainRestoreJobs.enqueue, input);
+  async enqueueRestore({ githubToken, ...input }) {
+    await getConvexClient().mutation(backendApi.brainRestoreJobs.enqueue, {
+      ...input,
+      githubTokenEncrypted: encrypt(githubToken),
+    });
   },
 });

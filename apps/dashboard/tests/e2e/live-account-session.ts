@@ -9,6 +9,7 @@ type LiveAccountResponse = {
   ok(): boolean;
   status(): number;
   json?(): Promise<unknown>;
+  headersArray?(): Array<{ name: string; value: string }>;
 };
 
 type LiveAccountRequest = {
@@ -99,7 +100,7 @@ export async function establishLiveKodyAccountSession(
   baseUrl: string,
   credentials: LiveAccountCredentials,
   trustedOrigin = baseUrl,
-): Promise<void> {
+): Promise<string> {
   const origin = new URL(trustedOrigin).origin;
   const signIn = await request.post(`${baseUrl}/api/auth/sign-in/email`, {
     data: {
@@ -120,4 +121,9 @@ export async function establishLiveKodyAccountSession(
       `Kody account session was not established (${session.status()})`,
     );
   }
+  return (signIn.headersArray?.() ?? [])
+    .filter(({ name }) => name.toLowerCase() === "set-cookie")
+    .map(({ value }) => value.split(";", 1)[0])
+    .filter(Boolean)
+    .join("; ");
 }

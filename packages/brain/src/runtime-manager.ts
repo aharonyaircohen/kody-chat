@@ -17,12 +17,19 @@ import {
   writeBrainRuntimeState,
   type BrainRuntimeOperation,
   type BrainRuntimeRunning,
+  type BrainRuntimeStage,
   type BrainRuntimeStateFile,
 } from "./runtime-store";
 
 const beginLocks = new Map<string, Promise<void>>();
 const STALE_SAVE_OPERATION_MS = 15 * 60_000;
 const STALE_ORPHAN_OPERATION_MS = 15 * 60_000;
+const STALE_APPLY_OPERATION_MS = 15 * 60_000;
+
+function operationAgeMs(operation: BrainRuntimeOperation): number {
+  const updatedAt = Date.parse(operation.updatedAt);
+  return Number.isFinite(updatedAt) ? Date.now() - updatedAt : Infinity;
+}
 
 async function withBeginLock<T>(
   login: string,
@@ -134,6 +141,7 @@ export async function beginBrainRuntimeApply(
     ).toISOString();
     let staleSave = false;
     let staleOrphan = false;
+    let staleApply = false;
     if (current?.operation?.status === "running") {
       const save =
         current.operation.type === "save-image"
@@ -146,9 +154,11 @@ export async function beginBrainRuntimeApply(
           STALE_SAVE_OPERATION_MS;
       staleOrphan =
         !current.running &&
-        Date.now() - Date.parse(current.operation.updatedAt) >
-          STALE_ORPHAN_OPERATION_MS;
-      if (staleSave || staleOrphan) {
+        operationAgeMs(current.operation) > STALE_ORPHAN_OPERATION_MS;
+      staleApply =
+        current.operation.type === "apply-image" &&
+        operationAgeMs(current.operation) > STALE_APPLY_OPERATION_MS;
+      if (staleSave || staleOrphan || staleApply) {
         // A completed worker can outlive the status writer. A missing save
         // record means the old save no longer owns the Brain operation.
       } else {
@@ -167,6 +177,7 @@ export async function beginBrainRuntimeApply(
       imageRef,
       startedAt: now,
       updatedAt: now,
+      ...(type === "apply-image" ? { stage: "validating" as const, attempt: 1 } : {}),
     };
     const next: BrainRuntimeStateFile = {
       version: 1,
@@ -184,7 +195,9 @@ export async function beginBrainRuntimeApply(
         login,
         token,
         next,
-        current && !staleSave && !staleOrphan ? current.updatedAt : undefined,
+        current && !staleSave && !staleOrphan && !staleApply
+          ? current.updatedAt
+          : undefined,
       );
     } catch (error) {
       // A separate worker may have advanced the Convex revision between the
@@ -202,8 +215,9 @@ export async function beginBrainRuntimeApply(
         !active ||
         (!current?.running &&
           competing &&
-          Date.now() - Date.parse(competing.updatedAt) >
-            STALE_ORPHAN_OPERATION_MS) ||
+          operationAgeMs(competing) > STALE_ORPHAN_OPERATION_MS) ||
+        (competing?.type === "apply-image" &&
+          operationAgeMs(competing) > STALE_APPLY_OPERATION_MS) ||
         (competing?.type === "save-image" &&
           save?.jobId !== competing.id &&
           Date.now() - Date.parse(competing.updatedAt) >
@@ -213,6 +227,79 @@ export async function beginBrainRuntimeApply(
     }
     return next;
   });
+}
+
+export async function resumeBrainRuntimeApply(
+  login: string,
+  token: string,
+  operationId: string,
+  imageRef: string,
+): Promise<BrainRuntimeStateFile> {
+  let current = await readBrainRuntimeState(login, token, true);
+  for (let writeAttempt = 0; writeAttempt < 2; writeAttempt += 1) {
+    if (
+      current?.operation?.id !== operationId ||
+      current.operation.type !== "apply-image" ||
+      current.operation.imageRef !== imageRef ||
+      current.operation.status === "completed"
+    ) {
+      throw Object.assign(new Error("Brain restore job is no longer current"), {
+        status: 409,
+        code: "brain_operation_conflict",
+      });
+    }
+    if (current.operation.status === "running") return current;
+    const now = nextTimestamp(current.updatedAt);
+    const { error: _error, recoveredImageRef: _recovered, ...operation } =
+      current.operation;
+    const next: BrainRuntimeStateFile = {
+      ...current,
+      operation: {
+        ...operation,
+        status: "running",
+        stage: "validating",
+        attempt: (current.operation.attempt ?? 1) + 1,
+        updatedAt: now,
+      },
+      updatedAt: now,
+    };
+    try {
+      await writeBrainRuntimeState(login, token, next, current.updatedAt);
+      return next;
+    } catch (error) {
+      if (writeAttempt > 0) throw error;
+      current = await readBrainRuntimeState(login, token, true);
+    }
+  }
+  throw new Error("Brain restore operation could not be resumed");
+}
+
+export async function setBrainRuntimeApplyStage(
+  login: string,
+  token: string,
+  operationId: string,
+  imageRef: string,
+  stage: BrainRuntimeStage,
+): Promise<BrainRuntimeStateFile> {
+  let current = await readBrainRuntimeState(login, token, true);
+  assertActiveOperation(current, operationId, imageRef);
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const now = nextTimestamp(current!.updatedAt);
+    const next: BrainRuntimeStateFile = {
+      ...current!,
+      operation: { ...current!.operation!, stage, updatedAt: now },
+      updatedAt: now,
+    };
+    try {
+      await writeBrainRuntimeState(login, token, next, current!.updatedAt);
+      return next;
+    } catch (error) {
+      if (attempt > 0) throw error;
+      current = await readBrainRuntimeState(login, token, true);
+      assertActiveOperation(current, operationId, imageRef);
+    }
+  }
+  throw new Error("Brain runtime stage could not be recorded");
 }
 
 export async function completeBrainRuntimeApply(
@@ -246,6 +333,8 @@ export async function completeBrainRuntimeApply(
     imageRef: input.imageRef,
     startedAt: current?.operation?.startedAt ?? now,
     updatedAt: now,
+    ...(current?.operation?.stage ? { stage: current.operation.stage } : {}),
+    ...(current?.operation?.attempt ? { attempt: current.operation.attempt } : {}),
   };
   const next: BrainRuntimeStateFile = {
     version: 1,
@@ -289,6 +378,8 @@ export async function failBrainRuntimeApply(
     imageRef,
     startedAt: current?.operation?.startedAt ?? now,
     updatedAt: now,
+    ...(current?.operation?.stage ? { stage: current.operation.stage } : {}),
+    ...(current?.operation?.attempt ? { attempt: current.operation.attempt } : {}),
     error,
     ...(recoveredRunning
       ? { recoveredImageRef: recoveredRunning.imageRef }
@@ -312,6 +403,12 @@ export async function failBrainRuntimeApply(
     assertActiveOperation(latest, operationId, imageRef);
     await writeBrainRuntimeState(login, token, next);
   }
+}
+
+function nextTimestamp(previous: string): string {
+  return new Date(
+    Math.max(Date.now(), (Date.parse(previous) || 0) + 1),
+  ).toISOString();
 }
 
 function assertActiveOperation(

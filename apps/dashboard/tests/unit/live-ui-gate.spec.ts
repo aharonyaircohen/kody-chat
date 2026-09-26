@@ -19,6 +19,7 @@ import {
   selectLiveJourneys,
   summarizePlaywrightReport,
   validateLiveGateEnvironment,
+  validateBrainLifecycleEnvironment,
 } from "../../scripts/live-ui-gate/core.mjs";
 import {
   EXPECTED_LIVE_UI_TESTS,
@@ -94,6 +95,53 @@ describe("live UI gate environment", () => {
     );
   });
 
+});
+
+describe("Brain lifecycle gate environment", () => {
+  it("requires an explicitly disposable destructive identity", () => {
+    expect(validateBrainLifecycleEnvironment(validEnvironment())).toEqual([
+      "KODY_LIVE_ALLOW_SAVE must be exactly 1",
+      "KODY_LIVE_ALLOW_DESTRUCTIVE must be exactly 1",
+      "KODY_LIVE_BRAIN_DISPOSABLE must be exactly 1 for the dedicated test identity",
+    ]);
+  });
+
+  it("accepts the complete destructive lifecycle contract", () => {
+    expect(
+      validateBrainLifecycleEnvironment({
+        KODY_LIVE_ALLOW_SAVE: "1",
+        KODY_LIVE_ALLOW_DESTRUCTIVE: "1",
+        KODY_LIVE_BRAIN_DISPOSABLE: "1",
+      }),
+    ).toEqual([]);
+  });
+});
+
+describe("production browser gate target", () => {
+  it("lets the Playwright config provide the isolated local server URL", () => {
+    for (const file of [
+      "auth-buttons.spec.ts",
+      "brain-repo-route.spec.ts",
+      "chat-brain-mocked.spec.ts",
+      "chat-kody-attachments.spec.ts",
+      "production-email-signin.spec.ts",
+    ]) {
+      const source = readFileSync(
+        new URL(`../e2e/${file}`, import.meta.url),
+        "utf8",
+      );
+      expect(source).not.toMatch(
+        /process\.env\.PW_LOCAL\s*\?\s*["']http:\/\/127\.0\.0\.1:3333/,
+      );
+      expect(source).toContain("process.env.BASE_URL");
+    }
+
+    const rendererSource = readFileSync(
+      new URL("../e2e/chat-renderer-output.spec.ts", import.meta.url),
+      "utf8",
+    );
+    expect(rendererSource).toContain("process.env.BASE_URL");
+  });
 });
 
 describe("live UI gate report", () => {
@@ -383,16 +431,17 @@ describe("live UI gate manifest", () => {
       "tests/e2e/chat-real-system.spec.ts",
       "tests/e2e/ci-repair-chat-real.e2e.spec.ts",
       "tests/e2e/chat-terminal-live-ui.spec.ts",
+      "tests/e2e/brain-runtime-lifecycle-live.e2e.spec.ts",
       "tests/e2e/guided-flows-real.e2e.spec.ts",
       "tests/e2e/vibe-live-full-flow.spec.ts",
       "tests/e2e/view-renderers-real.e2e.spec.ts",
       "tests/e2e/master-journeys-real.e2e.spec.ts",
       "tests/e2e/views-real-browser-live.e2e.spec.ts",
     ]);
-    expect(EXPECTED_LIVE_UI_TESTS).toBe(28);
-    expect(LIVE_UI_JOURNEYS).toHaveLength(28);
+    expect(EXPECTED_LIVE_UI_TESTS).toBe(29);
+    expect(LIVE_UI_JOURNEYS).toHaveLength(29);
     expect(new Set(LIVE_UI_JOURNEYS.map((journey) => journey.id)).size).toBe(
-      28,
+      29,
     );
   });
 

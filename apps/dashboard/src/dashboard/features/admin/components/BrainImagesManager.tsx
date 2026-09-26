@@ -69,6 +69,17 @@ interface BrainImagesResponse {
     operation?: {
       type?: "apply-image" | "save-image";
       status?: "running" | "completed" | "failed";
+      stage?:
+        | "validating"
+        | "resolving-image"
+        | "resolving-service"
+        | "provisioning"
+        | "installing-agent-access"
+        | "preparing-runtime-image"
+        | "verifying-health"
+        | "recording-runtime"
+        | "recovering-previous";
+      attempt?: number;
       imageRef?: string;
       startedAt?: string;
       updatedAt?: string;
@@ -98,6 +109,7 @@ interface BrainImageApplyState {
   status: "running" | "failed";
   startedAt: string;
   error?: string;
+  message?: string;
 }
 
 function imageTag(imageRef: string): string {
@@ -226,6 +238,7 @@ export function BrainImagesManager() {
           imageRef: operation.imageRef,
           status: "running",
           startedAt: operation.startedAt ?? new Date().toISOString(),
+          message: restoreStageMessage(operation.stage, operation.attempt),
         });
       } else if (
         operation?.type === "apply-image" &&
@@ -594,8 +607,8 @@ export function BrainImagesManager() {
                   Restoring Brain image
                 </div>
                 <div className="mt-1 text-violet-100/70">
-                  {imageLabel(applyState.imageRef)} · The terminal will
-                  reconnect when the new machine is ready.
+                  {imageLabel(applyState.imageRef)} · {applyState.message ??
+                    "The terminal will reconnect when the new machine is ready."}
                 </div>
               </div>
             )}
@@ -790,4 +803,28 @@ export function BrainImagesManager() {
       />
     </PageShell>
   );
+}
+
+function restoreStageMessage(
+  stage: NonNullable<
+    NonNullable<BrainImagesResponse["runtime"]>["operation"]
+  >["stage"],
+  attempt?: number,
+): string | undefined {
+  const messages: Record<string, string> = {
+    validating: "Validating restore",
+    "resolving-image": "Finding saved image",
+    "resolving-service": "Connecting to Brain infrastructure",
+    provisioning: "Provisioning Brain",
+    "installing-agent-access": "Installing secure agent access",
+    "preparing-runtime-image": "Preparing Brain image",
+    "verifying-health": "Verifying Brain health",
+    "recording-runtime": "Finalizing Brain runtime",
+    "recovering-previous": "Recovering previous Brain",
+  };
+  if (typeof stage !== "string") return undefined;
+  const message = messages[stage];
+  return message && attempt && attempt > 1
+    ? `${message} (attempt ${attempt})`
+    : message;
 }

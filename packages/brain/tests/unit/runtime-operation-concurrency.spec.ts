@@ -3,6 +3,9 @@ import {
   beginBrainRuntimeApply,
   completeBrainRuntimeApply,
   finishBrainImageSaveOperation,
+  failBrainRuntimeApply,
+  resumeBrainRuntimeApply,
+  setBrainRuntimeApplyStage,
 } from "../../src/runtime-manager";
 import { _resetBrainRuntimeCache } from "../../src/runtime-store";
 import { setPersonalBrainServices } from "../../src/personal-services";
@@ -83,6 +86,83 @@ describe("runtime operation ownership", () => {
       beginBrainRuntimeApply("a", "", "ghcr.io/a/brain:restore"),
     ).rejects.toThrow("Another Brain operation");
   });
+  it("records the active restore stage", async () => {
+    const started = await beginBrainRuntimeApply(
+      "a",
+      "",
+      "ghcr.io/a/brain:one",
+    );
+    await setBrainRuntimeApplyStage(
+      "a",
+      "",
+      started.operation!.id,
+      "ghcr.io/a/brain:one",
+      "provisioning",
+    );
+    expect(value.operation.stage).toBe("provisioning");
+    expect(value.operation.attempt).toBe(1);
+  });
+  it("resumes the same failed restore for a durable queue retry", async () => {
+    const started = await beginBrainRuntimeApply(
+      "a",
+      "",
+      "ghcr.io/a/brain:one",
+    );
+    await setBrainRuntimeApplyStage(
+      "a",
+      "",
+      started.operation!.id,
+      "ghcr.io/a/brain:one",
+      "verifying-health",
+    );
+    await failBrainRuntimeApply(
+      "a",
+      "",
+      "ghcr.io/a/brain:one",
+      "temporary timeout",
+      started.operation!.id,
+    );
+
+    const resumed = await resumeBrainRuntimeApply(
+      "a",
+      "",
+      started.operation!.id,
+      "ghcr.io/a/brain:one",
+    );
+
+    expect(resumed.operation).toMatchObject({
+      id: started.operation!.id,
+      status: "running",
+      stage: "validating",
+      attempt: 2,
+    });
+    expect(resumed.operation).not.toHaveProperty("error");
+  });
+  it("resumes after a concurrent runtime revision", async () => {
+    const started = await beginBrainRuntimeApply(
+      "a",
+      "",
+      "ghcr.io/a/brain:one",
+    );
+    await failBrainRuntimeApply(
+      "a",
+      "",
+      "ghcr.io/a/brain:one",
+      "temporary timeout",
+      started.operation!.id,
+    );
+    conflictNext = true;
+
+    const resumed = await resumeBrainRuntimeApply(
+      "a",
+      "",
+      started.operation!.id,
+      "ghcr.io/a/brain:one",
+    );
+
+    expect(resumed.operation?.status).toBe("running");
+    expect(resumed.operation?.attempt).toBe(2);
+  });
   it("reclaims an orphaned stale image save before restore", async () => {
     value = {
       version: 1,
@@ -103,5 +183,41 @@ describe("runtime operation ownership", () => {
     );
     expect(started.operation?.type).toBe("apply-image");
     expect(value.operation?.id).not.toBe("orphaned-save");
+  });
+  it("reclaims a stale apply even while the previous Brain is running", async () => {
+    value = {
+      version: 1,
+      running: {
+        imageRef: "ghcr.io/a/brain:old",
+        app: "brain-a",
+        machineId: "m1",
+        orgSlug: "org",
+        appliedAt: "2026-09-08T15:00:00.000Z",
+      },
+      operation: {
+        id: "stalled-restore",
+        type: "apply-image",
+        status: "running",
+        imageRef: "ghcr.io/a/brain:one",
+        stage: "validating",
+        startedAt: "2026-09-08T15:00:00.000Z",
+        updatedAt: "2026-09-08T15:00:00.000Z",
+      },
+      updatedAt: "2026-09-08T15:00:00.000Z",
+    };
+
+    const started = await beginBrainRuntimeApply(
+      "a",
+      "",
+      "ghcr.io/a/brain:one",
+    );
+
+    expect(started.operation).toMatchObject({
+      type: "apply-image",
+      status: "running",
+      stage: "validating",
+    });
+    expect(started.operation?.id).not.toBe("stalled-restore");
+    expect(started.running?.imageRef).toBe("ghcr.io/a/brain:old");
   });
 });

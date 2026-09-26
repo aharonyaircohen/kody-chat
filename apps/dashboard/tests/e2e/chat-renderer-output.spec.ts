@@ -11,7 +11,9 @@ import { expect, test, type Page, type Route } from "@playwright/test";
 import { mockDashboardShellRequests } from "./support/dashboard-shell-mocks";
 
 const LOCAL_BASE_URL =
-  process.env.RENDERER_E2E_BASE_URL ?? "http://127.0.0.1:3333";
+  process.env.RENDERER_E2E_BASE_URL ??
+  process.env.BASE_URL ??
+  "http://127.0.0.1:3333";
 // This is a mocked browser-contract suite. Keep its repository identity
 // hermetic so a developer's live E2E environment cannot select a persisted
 // runner or conversation and disable the fixture composer.

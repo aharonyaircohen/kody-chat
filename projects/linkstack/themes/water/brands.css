@@ -1,0 +1,4 @@
+.button { width: 100%; margin: 0; color: #123b47; background: rgba(255,255,255,.78); border: 1px solid rgba(8,127,140,.3); }
+.button:visited { color: #123b47; }
+.button:hover { color: #087f8c; }
+.icon { filter: none; }

@@ -12,7 +12,10 @@ import { after, NextRequest, NextResponse } from "next/server";
 import { applyBrainImage } from "../image-apply-command";
 import { logger } from "@kody-ade/base/logger";
 import { resolvePersonalBrainContext } from "../personal-context";
-import { requestOrigin } from "@kody-ade/base/request-origin";
+import {
+  requestOrigin,
+  secureRequestOrigin,
+} from "@kody-ade/base/request-origin";
 import { getPersonalBrainServices } from "../personal-services";
 import { beginBrainRuntimeApply, failBrainRuntimeApply } from "../runtime-manager";
 
@@ -59,6 +62,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const requestUrl = requestOrigin(req);
+    const dashboardUrl = secureRequestOrigin(req);
     const started = await beginBrainRuntimeApply(
       ctx.context.account,
       ctx.context.githubToken,
@@ -66,8 +71,7 @@ export async function POST(req: NextRequest) {
     );
     const operationId = started.operation?.id;
     if (!operationId) throw new Error("Brain restore operation was not created");
-    const dashboardUrl = requestOrigin(req);
-    if (isLocalOrigin(dashboardUrl)) {
+    if (isLocalOrigin(requestUrl)) {
       const work = () =>
         applyBrainImage({
           context: ctx.context,
@@ -101,6 +105,11 @@ export async function POST(req: NextRequest) {
       try {
         await enqueue({
           userId: ctx.context.userId,
+          githubAccount: ctx.context.githubAccount ?? "",
+          ...(ctx.context.githubOwner
+            ? { githubOwner: ctx.context.githubOwner }
+            : {}),
+          githubToken: ctx.context.githubToken,
           operationId,
           imageRef,
           reset: body.reset === true,

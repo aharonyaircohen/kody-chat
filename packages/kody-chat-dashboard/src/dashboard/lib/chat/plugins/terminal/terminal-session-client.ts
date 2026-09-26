@@ -376,7 +376,6 @@ export class TerminalSessionClient {
         const message = parseMessage(data);
         if (!message || message.kind === "pong") return;
         if (message.kind === "transport-status") {
-          this.clearReadinessTimer();
           this.publish("connecting", null, null, message.recovery);
           return;
         }

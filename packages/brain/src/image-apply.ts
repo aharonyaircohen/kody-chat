@@ -33,8 +33,9 @@ import {
   beginBrainRuntimeApply,
   completeBrainRuntimeApply,
   failBrainRuntimeApply,
+  resumeBrainRuntimeApply,
+  setBrainRuntimeApplyStage,
 } from "./runtime-manager";
-import { readBrainRuntimeState } from "./runtime-store";
 import type {
   BrainRuntimeRunning,
   BrainRuntimeStateFile,
@@ -73,6 +74,11 @@ export interface ApplyBrainImageResult {
   brain: ProvisionServerBrainResult;
   runtime: BrainRuntimeStateFile;
 }
+
+// A restored Brain image can spend several minutes pulling its filesystem
+// layers before the entrypoint starts. Completion still requires /healthz;
+// this budget covers the image pull and application boot observed in Fly.
+export const BRAIN_RESTORE_HEALTH_TIMEOUT_MS = 5 * 60_000;
 
 async function recoverPreviousBrainRuntime(
   input: ApplyBrainImageInput,
@@ -145,7 +151,7 @@ async function recoverPreviousBrainRuntime(
     orgSlug: brain.org,
     createdAt: new Date().toISOString(),
   });
-  await waitForServerBrainHealth(brain.url, 120_000);
+  await waitForServerBrainHealth(brain.url, BRAIN_RESTORE_HEALTH_TIMEOUT_MS);
   return {
     imageRef: previous.imageRef,
     app: brain.app,
@@ -159,18 +165,44 @@ async function recoverPreviousBrainRuntime(
 export async function applyBrainImageToRuntime(
   input: ApplyBrainImageInput,
 ): Promise<ApplyBrainImageResult> {
-  let image = await readBrainImage(input.account, input.githubToken);
   const imageRef = input.imageRef?.trim();
   if (!imageRef) {
     throw new Error("Image ref is required");
   }
-  const ghcr = brainGhcrAuth({
+  const started = input.operationId
+    ? await resumeBrainRuntimeApply(
+        input.account,
+        input.githubToken,
+        input.operationId,
+        imageRef,
+      )
+    : await beginBrainRuntimeApply(input.account, input.githubToken, imageRef);
+  if (!started.operation) {
+    throw Object.assign(new Error("Brain restore job is no longer current"), {
+      status: 409,
+      code: "brain_operation_conflict",
+    });
+  }
+  const operationId = started.operation.id;
+  const stage = (value: Parameters<typeof setBrainRuntimeApplyStage>[4]) =>
+    setBrainRuntimeApplyStage(
+      input.account,
+      input.githubToken,
+      operationId,
+      imageRef,
+      value,
+    );
+
+  try {
+    await stage("resolving-image");
+    let image = await readBrainImage(input.account, input.githubToken);
+    const ghcr = brainGhcrAuth({
     allSecrets: input.allSecrets,
     githubToken: input.githubToken,
     account: input.githubAccount ?? input.account,
   });
-  let savedImage = image?.images.find((saved) => saved.imageRef === imageRef);
-  if (!savedImage) {
+    let savedImage = image?.images.find((saved) => saved.imageRef === imageRef);
+    if (!savedImage) {
     const discoveredImages = await discoverBrainPackageImages({
       owner: input.owner,
       repo: input.repo,
@@ -189,42 +221,29 @@ export async function applyBrainImageToRuntime(
       });
       await writeBrainImage(input.account, input.githubToken, image);
     }
-  }
-  if (
+    }
+    if (
     !savedImage &&
     input.githubAccount &&
     isOwnedBrainImageRef(imageRef, input)
-  ) {
+    ) {
     savedImage = {
       imageRef,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-  }
-  if (!savedImage) {
+    }
+    if (!savedImage) {
     throw new Error(
       image ? "Brain image is not saved" : "No Brain images saved",
     );
-  }
-  const catalogImage = image;
-  if (!catalogImage) {
+    }
+    const catalogImage = image;
+    if (!catalogImage) {
     throw new Error("No Brain images saved");
-  }
+    }
 
-  const started = input.operationId
-    ? await readBrainRuntimeState(input.account, input.githubToken, true)
-    : await beginBrainRuntimeApply(input.account, input.githubToken, imageRef);
-  if (
-    !started?.operation ||
-    (input.operationId && started.operation.id !== input.operationId)
-  ) {
-    throw Object.assign(new Error("Brain restore job is no longer current"), {
-      status: 409,
-      code: "brain_operation_conflict",
-    });
-  }
-
-  try {
+    await stage("resolving-service");
     const stored = await readBrainApp(input.account, input.githubToken).catch(
       () => null,
     );
@@ -242,15 +261,21 @@ export async function applyBrainImageToRuntime(
       appNameOverride: target.app,
     });
     if (service.reason === "fly_access_denied") {
-      throw new Error("Fly token cannot access this Brain app.");
+      throw Object.assign(new Error("Fly token cannot access this Brain app."), {
+        status: 403,
+        code: "fly_access_denied",
+      });
     }
     const operationFlyToken = service.flyToken;
     const operationOrgSlug = service.orgSlug;
+    await stage("provisioning");
     const brain = await provisionServerBrain({
       ...(input.dashboardUrl
         ? {
-            prepareAgentFiles: (app: string) =>
-              prepareBrainAgentFiles(app, input.dashboardUrl!),
+          prepareAgentFiles: async (app: string) => {
+            await stage("installing-agent-access");
+            return prepareBrainAgentFiles(app, input.dashboardUrl!);
+          },
           }
         : {}),
       providerToken: operationFlyToken,
@@ -269,6 +294,7 @@ export async function applyBrainImageToRuntime(
       resolveRuntimeImageRef: ({ app, imageRef }) =>
         Promise.resolve(brainFlyRuntimeImageRef({ app, imageRef })),
       prepareRuntimeImage: async ({ app, sourceImageRef, runtimeImageRef }) => {
+        await stage("preparing-runtime-image");
         await prepareBrainRuntimeImage({
           owner: input.account,
           repo: input.repo,
@@ -291,13 +317,15 @@ export async function applyBrainImageToRuntime(
       createdAt: new Date().toISOString(),
     });
 
-    await waitForServerBrainHealth(brain.url, 120_000);
+    await stage("verifying-health");
+    await waitForServerBrainHealth(brain.url, BRAIN_RESTORE_HEALTH_TIMEOUT_MS);
 
+    await stage("recording-runtime");
     const runtime = await completeBrainRuntimeApply(
       input.account,
       input.githubToken,
       {
-        operationId: started.operation!.id,
+        operationId,
         imageRef,
         app: brain.app,
         machineId: brain.machineId,
@@ -311,6 +339,7 @@ export async function applyBrainImageToRuntime(
     let recoveredRunning: BrainRuntimeRunning | undefined;
     if (started.running && started.running.imageRef !== imageRef) {
       try {
+        await stage("recovering-previous");
         recoveredRunning = await recoverPreviousBrainRuntime(
           input,
           started.running,
@@ -334,7 +363,7 @@ export async function applyBrainImageToRuntime(
           input.githubToken,
           imageRef,
           failureMessage,
-          started.operation!.id,
+          operationId,
           recoveredRunning,
         )
       : failBrainRuntimeApply(
@@ -342,7 +371,7 @@ export async function applyBrainImageToRuntime(
           input.githubToken,
           imageRef,
           failureMessage,
-          started.operation!.id,
+          operationId,
         );
     await recordFailure.catch((writeErr) => {
       logger.warn(

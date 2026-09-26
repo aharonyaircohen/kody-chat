@@ -17,6 +17,7 @@ import {
   selectLiveJourneys,
   summarizePlaywrightReport,
   validateLiveGateEnvironment,
+  validateBrainLifecycleEnvironment,
 } from "./core.mjs";
 import {
   EXPECTED_LIVE_UI_TESTS,
@@ -68,6 +69,13 @@ try {
 const selectedSpecs = [
   ...new Set(selectedJourneys.map((journey) => journey.file)),
 ];
+if (selectedJourneys.some((journey) => journey.id === "brain-runtime-lifecycle")) {
+  const lifecycleErrors = validateBrainLifecycleEnvironment(process.env);
+  if (lifecycleErrors.length > 0) {
+    for (const error of lifecycleErrors) fail(error);
+    process.exit();
+  }
+}
 
 try {
   const checks = await runLiveServicePreflight(process.env);

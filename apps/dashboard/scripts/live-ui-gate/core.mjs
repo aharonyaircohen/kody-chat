@@ -28,6 +28,7 @@ const SECRET_ENVIRONMENT_NAMES = [
   "BRAIN_CHAT_API_KEY",
   "E2E_KODY_EMAIL",
   "E2E_KODY_PASSWORD",
+  "KODY_LIVE_COOKIE",
 ];
 
 const TEXT_ARTIFACT_EXTENSIONS = new Set([
@@ -116,6 +117,22 @@ export function validateLiveGateEnvironment(environment) {
     errors.push("E2E_GITHUB_REPO must be a github.com owner/repository URL");
   }
 
+  return errors;
+}
+
+export function validateBrainLifecycleEnvironment(environment) {
+  const errors = [];
+  if (exactValue(environment.KODY_LIVE_ALLOW_SAVE) !== "1") {
+    errors.push("KODY_LIVE_ALLOW_SAVE must be exactly 1");
+  }
+  if (exactValue(environment.KODY_LIVE_ALLOW_DESTRUCTIVE) !== "1") {
+    errors.push("KODY_LIVE_ALLOW_DESTRUCTIVE must be exactly 1");
+  }
+  if (exactValue(environment.KODY_LIVE_BRAIN_DISPOSABLE) !== "1") {
+    errors.push(
+      "KODY_LIVE_BRAIN_DISPOSABLE must be exactly 1 for the dedicated test identity",
+    );
+  }
   return errors;
 }
 

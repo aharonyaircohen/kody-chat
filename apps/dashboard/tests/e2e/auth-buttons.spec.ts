@@ -1,8 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-const BASE_URL = process.env.PW_LOCAL
-  ? "http://127.0.0.1:3333"
-  : (process.env.BASE_URL ?? "http://127.0.0.1:3333");
+const BASE_URL = process.env.BASE_URL ?? "http://127.0.0.1:3333";
 
 test("shows a clear error when a social provider is unavailable", async ({
   page,

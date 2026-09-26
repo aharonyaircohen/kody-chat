@@ -36,7 +36,7 @@ import {
 } from "../infrastructure/server-context";
 
 import {
-  findServerProviderTerminalBridge,
+  ensureServerProviderTerminalBridge,
   type ServerProviderTerminalBridgeInfo,
 } from "../infrastructure/server-terminal";
 import {
@@ -155,22 +155,21 @@ function isFlyMachineAlreadyStartingError(err: unknown): boolean {
   );
 }
 
-async function findServerProviderTerminalBridgeForTarget(
+async function ensureServerProviderTerminalBridgeForTarget(
   cfg: ReturnType<typeof terminalFlyConfigForMachine>,
-): Promise<ServerProviderTerminalBridgeInfo | null> {
+): Promise<ServerProviderTerminalBridgeInfo> {
   let lastErr: unknown;
   const candidates = terminalBridgeConfigCandidates(cfg);
   for (const candidate of candidates) {
     try {
-      const bridge = await findServerProviderTerminalBridge(candidate);
-      if (bridge) return bridge;
+      return await ensureServerProviderTerminalBridge(candidate);
     } catch (err) {
       lastErr = err;
       if (!isFlyBridgeAuthError(err)) throw err;
     }
   }
   if (lastErr) throw lastErr;
-  return null;
+  throw new Error("terminal gateway could not be provisioned");
 }
 
 async function startServerProviderMachineForTarget(
@@ -352,14 +351,7 @@ export async function connectTerminalMachine(input: {
     throw targetError("machine_not_running");
   }
   await waitForServerProviderMachineHealth(requested.app);
-  const bridge = await findServerProviderTerminalBridgeForTarget(selectedCfg);
-  if (!bridge) {
-    throw new TerminalSessionError(
-      "terminal_gateway_not_ready",
-      "Terminal gateway is not deployed for this Brain runtime.",
-      503,
-    );
-  }
+  const bridge = await ensureServerProviderTerminalBridgeForTarget(selectedCfg);
   const activityLimitMs = terminalActivityLimitForTarget(
     requested.feature,
     data.activityLimitMs,

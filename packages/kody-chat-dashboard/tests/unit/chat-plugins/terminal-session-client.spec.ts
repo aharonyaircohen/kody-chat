@@ -37,7 +37,10 @@ class FakeSocket implements TerminalClientSocket {
   }
 }
 
-function setup(schedule?: (callback: () => void, delayMs: number) => number) {
+function setup(
+  schedule?: (callback: () => void, delayMs: number) => number,
+  cancelSchedule: (timer: number) => void = () => {},
+) {
   const sockets: FakeSocket[] = [];
   const requests: Array<Record<string, unknown>> = [];
   const events: unknown[] = [];
@@ -72,7 +75,7 @@ function setup(schedule?: (callback: () => void, delayMs: number) => number) {
       schedule ??
       ((callback, delayMs) =>
         globalThis.setTimeout(callback, delayMs) as unknown as number),
-    cancelSchedule: () => {},
+    cancelSchedule,
     onEvent: (event) => events.push(event),
     onState: (state) => states.push(state),
   });
@@ -194,6 +197,32 @@ describe("TerminalSessionClient", () => {
       connection: "connected",
       recovery: null,
     });
+  });
+
+  it("keeps the readiness deadline while the gateway transport reconnects", async () => {
+    const timers = new Map<number, () => void>();
+    const harness = setup(
+      (callback) => {
+        const id = timers.size + 1;
+        timers.set(id, callback);
+        return id;
+      },
+      (timer) => timers.delete(timer),
+    );
+    await harness.client.connect();
+    harness.sockets[0]!.open();
+    harness.sockets[0]!.message({
+      type: "transport-status",
+      phase: "reconnecting",
+      attempt: 2,
+      retryInMs: 1500,
+      message: "Reconnecting to Brain…",
+    });
+
+    expect(timers.size).toBe(1);
+    timers.values().next().value!();
+    expect(harness.sockets[0]!.readyState).toBe(3);
+    expect(harness.client.getState().connection).toBe("connecting");
   });
 
   it("does not accept input on a replacement socket until ready", async () => {

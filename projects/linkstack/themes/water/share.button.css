@@ -1,0 +1,3 @@
+@import url('/assets/linkstack/css/share.button.css');
+.sharebutton { color: #123b47 !important; background: rgba(255,255,255,.72) !important; border: 1px solid rgba(8,127,140,.28) !important; backdrop-filter: blur(12px); }
+.sharebutton .share-icon { color: #123b47 !important; }

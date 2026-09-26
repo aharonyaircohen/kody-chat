@@ -160,11 +160,48 @@ function brainAgentArgs(claims) {
   ];
 }
 
-function spawnBrainAgent(claims) {
-  return spawn("flyctl", brainAgentArgs(claims), {
-    env: { ...process.env, FLY_API_TOKEN: claims.flyToken, FLY_ACCESS_TOKEN: claims.flyToken },
-    stdio: ["pipe", "pipe", "pipe"],
+const DIRECT_SSH_SCRIPT = [
+  'flyctl ssh issue --agent --org "$KODY_FLY_ORG" --hours 1 >/dev/null',
+  'exec ssh -6 -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR "root@$KODY_BRAIN_HOST" "$KODY_BRAIN_COMMAND"',
+].join(" && ");
+
+function brainPrivateHost(claims) {
+  return claims.privateAddress || (claims.machineId + ".vm." + claims.app + ".internal");
+}
+
+function spawnBrainCommand(claims, command, stdio = ["pipe", "pipe", "pipe"]) {
+  const commonEnv = {
+    ...process.env,
+    FLY_API_TOKEN: claims.flyToken,
+    FLY_ACCESS_TOKEN: claims.flyToken,
+  };
+  if (process.env.TERMINAL_UPSTREAM_TRANSPORT === "flyctl") {
+    return spawn("flyctl", [
+      "ssh",
+      "console",
+      "--app",
+      claims.app,
+      ...flyctlOrgArgs(claims.orgSlug),
+      ...(claims.privateAddress ? ["--address", claims.privateAddress] : []),
+      "--machine",
+      claims.machineId,
+      "--command",
+      command,
+    ], { env: commonEnv, stdio });
+  }
+  return spawn("ssh-agent", ["sh", "-c", DIRECT_SSH_SCRIPT], {
+    env: {
+      ...commonEnv,
+      KODY_FLY_ORG: claims.orgSlug || "personal",
+      KODY_BRAIN_HOST: brainPrivateHost(claims),
+      KODY_BRAIN_COMMAND: command,
+    },
+    stdio,
   });
+}
+
+function spawnBrainAgent(claims) {
+  return spawnBrainCommand(claims, "kody-engine brain-terminal-agent --cwd /workspace/repo", ["pipe", "pipe", "pipe"]);
 }
 
 function openRequest(claims, afterRevision) {
@@ -416,22 +453,7 @@ function jsonResponse(res, status, body) {
 
 function runCommand(claims, command, local, timeoutMs, maxOutputBytes, onOutput = () => {}) {
   return new Promise((resolve, reject) => {
-    const args = local
-      ? ["-lc", command]
-      : [
-          "ssh",
-          "console",
-          "--app",
-          claims.app,
-          ...flyctlOrgArgs(claims.orgSlug),
-          ...(claims.privateAddress ? ["--address", claims.privateAddress] : []),
-          "--machine",
-          claims.machineId,
-          "--command",
-          command,
-        ];
-    const executable = local ? "/bin/bash" : "flyctl";
-    const child = spawn(executable, args, {
+    const child = local ? spawn("/bin/bash", ["-lc", command], {
       env: {
         ...process.env,
         FLY_API_TOKEN: claims.flyToken,
@@ -441,7 +463,7 @@ function runCommand(claims, command, local, timeoutMs, maxOutputBytes, onOutput 
         NO_COLOR: "1",
       },
       stdio: ["ignore", "pipe", "pipe"],
-    });
+    }) : spawnBrainCommand(claims, command, ["ignore", "pipe", "pipe"]);
     const stdout = [];
     const stderr = [];
     const decoders = { stdout: new StringDecoder("utf8"), stderr: new StringDecoder("utf8") };

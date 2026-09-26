@@ -20,6 +20,16 @@ import { setTimeout as sleep } from "node:timers/promises";
 
 import dotenv from "dotenv";
 
+import {
+  activeBrainImageSaveJob,
+  brainImageSavePollAction,
+  brainMachineImageAction,
+  classifyBrainImageApply,
+  mergeSessionCookies,
+  needsApiSessionSignIn,
+  shouldStartFreshBrainImageSave,
+} from "./lib/brain-runtime-operation.mjs";
+
 for (const file of [".env.local", ".env"]) {
   if (fs.existsSync(file)) {
     dotenv.config({ path: file, override: false, quiet: true });
@@ -27,7 +37,8 @@ for (const file of [".env.local", ".env"]) {
 }
 
 const startedAt = Date.now();
-const baseUrl = env("KODY_LIVE_BASE_URL") ?? "http://localhost:3333";
+const baseUrl =
+  env("KODY_LIVE_BASE_URL") ?? env("BASE_URL") ?? "http://localhost:3333";
 const token =
   env("KODY_LIVE_GITHUB_TOKEN") ??
   env("E2E_GITHUB_TOKEN") ??
@@ -37,6 +48,7 @@ const token =
 const repo = resolveRepo();
 const allowSave = truthy("KODY_LIVE_ALLOW_SAVE");
 const allowDestructive = truthy("KODY_LIVE_ALLOW_DESTRUCTIVE");
+const requireRestore = process.argv.includes("--require-restore");
 const allowProvision = truthy("KODY_LIVE_ALLOW_PROVISION") || allowDestructive;
 const allowApply = truthy("KODY_LIVE_ALLOW_APPLY") || allowDestructive;
 const allowBrainCheckpointMutation = truthy(
@@ -48,7 +60,9 @@ const marker = `kody-live-${new Date().toISOString()}-${Math.random()
   .toString(36)
   .slice(2, 10)}`;
 const chatSessionId = `live-brain-${Date.now()}`;
+const staleApplyOperationMs = 15 * 60_000;
 let savedRestoreImageRef;
+let sessionCookie = env("KODY_LIVE_COOKIE") ?? "";
 
 if (process.argv.includes("--help")) {
   printHelp();
@@ -57,6 +71,7 @@ if (process.argv.includes("--help")) {
 
 try {
   assertConfig();
+  await establishApiSession();
   step("Auth target", `${repo.owner}/${repo.name} via ${baseUrl}`);
 
   let brain = await ensureBrainMachine();
@@ -136,6 +151,14 @@ function assertConfig() {
       "KODY_LIVE_REPO_SLUG=owner/repo, or KODY_LIVE_OWNER + KODY_LIVE_REPO",
     );
   }
+  if (requireRestore && (!allowSave || !allowDestructive)) {
+    missing.push(
+      "KODY_LIVE_ALLOW_SAVE=1 and KODY_LIVE_ALLOW_DESTRUCTIVE=1",
+    );
+  }
+  if (requireRestore && !truthy("KODY_LIVE_BRAIN_DISPOSABLE")) {
+    missing.push("KODY_LIVE_BRAIN_DISPOSABLE=1 for a dedicated test identity");
+  }
   if (missing.length) {
     throw new Error(`Missing live verifier config: ${missing.join("; ")}`);
   }
@@ -150,7 +173,8 @@ function resolveRepo() {
   const slug =
     env("KODY_LIVE_REPO_SLUG") ??
     env("KODY_REPO_SLUG") ??
-    slugFromUrl(env("KODY_LIVE_REPO_URL"));
+    slugFromUrl(env("KODY_LIVE_REPO_URL")) ??
+    slugFromUrl(env("E2E_GITHUB_REPO"));
   if (slug) {
     const [owner, name] = slug.split("/");
     if (owner && name) return { owner, name };
@@ -182,8 +206,34 @@ function authHeaders() {
     ...(env("KODY_LIVE_STORE_REF")
       ? { "x-kody-store-ref": env("KODY_LIVE_STORE_REF") }
       : {}),
-    ...(env("KODY_LIVE_COOKIE") ? { cookie: env("KODY_LIVE_COOKIE") } : {}),
+    ...(sessionCookie ? { cookie: sessionCookie } : {}),
   };
+}
+
+function captureSessionCookies(response) {
+  const setCookies = response.headers.getSetCookie?.() ?? [];
+  if (setCookies.length) {
+    sessionCookie = mergeSessionCookies(sessionCookie, setCookies);
+  }
+}
+
+async function establishApiSession() {
+  const email = env("KODY_LIVE_ACCOUNT_EMAIL");
+  const password = env("KODY_LIVE_ACCOUNT_PASSWORD");
+  if (!needsApiSessionSignIn({ sessionCookie, email, password })) return;
+  const response = await fetch(new URL("/api/auth/sign-in/email", baseUrl), {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      Origin: env("KODY_LIVE_AUTH_ORIGIN") ?? baseUrl,
+    },
+    body: JSON.stringify({ email, password, callbackURL: "/chat" }),
+    signal: AbortSignal.timeout(60_000),
+  });
+  captureSessionCookies(response);
+  if (!response.ok || !sessionCookie) {
+    throw new Error(`Kody verifier sign-in failed (${response.status})`);
+  }
 }
 
 async function api(method, path, body, options = {}) {
@@ -195,6 +245,7 @@ async function api(method, path, body, options = {}) {
     body: body === undefined ? undefined : JSON.stringify(body),
     signal: AbortSignal.timeout(timeoutMs),
   });
+  captureSessionCookies(res);
   const text = await res.text();
   const data = parseJson(text);
   if (!res.ok) {
@@ -306,7 +357,37 @@ async function brainImageState() {
 }
 
 async function verifyBrainRuntimeSelection() {
-  const image = await brainImageState();
+  let image = await brainImageState();
+  const activeOperation = image.runtime?.operation;
+  if (
+    activeOperation?.type === "apply-image" &&
+    activeOperation.status === "running" &&
+    Date.now() - Date.parse(activeOperation.updatedAt) <= staleApplyOperationMs
+  ) {
+    step(
+      "Brain restore pending",
+      `${activeOperation.stage ?? "running"} (attempt ${activeOperation.attempt ?? 1})`,
+    );
+    const settled = await waitForBrainImageApply(
+      activeOperation.id,
+      activeOperation.imageRef,
+      15 * 60_000,
+      true,
+    );
+    if (settled) image = settled;
+    else {
+      step("Brain restore lease expired", "starting a replacement operation");
+      image = await brainImageState();
+    }
+  } else if (
+    activeOperation?.type === "apply-image" &&
+    activeOperation.status === "running"
+  ) {
+    step(
+      "Brain restore lease expired",
+      "starting a replacement operation",
+    );
+  }
   if (image.imageRef && image.imageRef !== image.runningImageRef) {
     if (allowApply) {
       step(
@@ -340,7 +421,7 @@ async function verifyBrainRuntimeSelection() {
 }
 
 async function verifyBrainMachineImage() {
-  const image = await brainImageState();
+  let image = await brainImageState();
   if (!image.runningImageRef) {
     step("Brain machine image", "skipped because no applied image is recorded");
     return;
@@ -356,14 +437,24 @@ async function verifyBrainMachineImage() {
     );
   }
 
-  const expectedRuntimeRef = runtimeImageRef(
-    image.runningApp,
-    image.runningImageRef,
-  );
-  if (
-    !sameImageRepoTag(image.machineImageRef, expectedRuntimeRef) &&
-    !sameImageRepoTag(image.machineImageRef, image.runningImageRef)
-  ) {
+  const action = brainMachineImageAction({
+    runningApp: image.runningApp,
+    runningImageRef: image.runningImageRef,
+    machineImageRef: image.machineImageRef,
+    allowRebaseline: allowSave && allowDestructive,
+  });
+  if (action === "rebaseline") {
+    step(
+      "Brain runtime drift",
+      "the destructive lifecycle will replace stale metadata with a newly saved baseline",
+    );
+    return;
+  }
+  if (action !== "verified") {
+    const expectedRuntimeRef = runtimeImageRef(
+      image.runningApp,
+      image.runningImageRef,
+    );
     throw new Error(
       `Fly machine image does not match applied Brain image. Applied=${image.runningImageRef} expectedRuntime=${expectedRuntimeRef} machine=${image.machineImageRef}`,
     );
@@ -379,11 +470,6 @@ function runtimeImageRef(app, sourceImageRef) {
   const marker = withoutDigest.lastIndexOf(":");
   const tag = marker === -1 ? "latest" : withoutDigest.slice(marker + 1);
   return `registry.fly.io/${app}:${tag}`;
-}
-
-function sameImageRepoTag(a, b) {
-  const clean = (value) => String(value).split("@")[0];
-  return clean(a) === clean(b);
 }
 
 async function terminalSession(status, resetSession = false) {
@@ -427,12 +513,19 @@ async function verifyTerminalSession(status, { command, expect, label }) {
   for (let attempt = 1; attempt <= 5; attempt += 1) {
     const session = await terminalSession(status, true);
     try {
-      await runTerminalCommand(session.webSocketUrl, command, expect, 120_000);
+      await runTerminalCommand(session.webSocketUrl, command, expect, 45_000);
       step("Terminal verified", label);
       return;
     } catch (err) {
-      lastErr = err;
-      if (attempt >= 5 || !isRetryableTerminalError(err)) throw err;
+      const gatewayDiagnostic = await terminalGatewayProbe(
+        session.webSocketUrl,
+      ).catch((probeError) =>
+        probeError instanceof Error ? probeError.message : String(probeError),
+      );
+      lastErr = new Error(
+        `${err instanceof Error ? err.message : String(err)} Gateway probe: ${gatewayDiagnostic}`,
+      );
+      if (attempt >= 5 || !isRetryableTerminalError(err)) throw lastErr;
       step(
         "Terminal waiting",
         `retrying after transient tunnel error: ${err.message}`,
@@ -441,6 +534,31 @@ async function verifyTerminalSession(status, { command, expect, label }) {
     }
   }
   throw lastErr ?? new Error("Terminal verification did not run");
+}
+
+async function terminalGatewayProbe(webSocketUrl) {
+  const url = new URL(webSocketUrl);
+  url.protocol = url.protocol === "wss:" ? "https:" : "http:";
+  url.pathname = "/exec";
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      command: "kody-engine --version",
+      timeoutMs: 60_000,
+      maxOutputBytes: 64_000,
+    }),
+    signal: AbortSignal.timeout(90_000),
+  });
+  const result = await response.json().catch(() => null);
+  return JSON.stringify({
+    http: response.status,
+    ok: result?.ok,
+    status: result?.status,
+    code: result?.code,
+    error: result?.error,
+    stderr: result?.stderr,
+  });
 }
 
 function isRetryableTerminalError(err) {
@@ -742,28 +860,73 @@ async function deleteCheckpoint(transport, sessionId) {
 
 async function saveBrainImage() {
   step("Saving Brain image", "starting GHCR image save job");
-  const started = await api(
-    "POST",
-    "/api/kody/brain/image",
-    {},
-    {
-      timeoutMs: 180_000,
-    },
-  );
-  if (!started.jobId) {
-    throw new Error(
-      `Brain image save did not return jobId: ${JSON.stringify(started)}`,
-    );
-  }
   const timeoutMs = Number(env("KODY_LIVE_SAVE_TIMEOUT_MS") ?? 2 * 60 * 60_000);
   const deadline = Date.now() + timeoutMs;
-  let last = started;
+  while (Date.now() < deadline) {
+    try {
+      let attachedToExistingSave = false;
+      let started;
+      try {
+        started = await api(
+          "POST",
+          "/api/kody/brain/image",
+          {},
+          { timeoutMs: 180_000 },
+        );
+      } catch (error) {
+        if (error?.status !== 409) throw error;
+        started = activeBrainImageSaveJob(await brainImageState());
+        if (!started) throw error;
+        attachedToExistingSave = true;
+        step("Brain image save resumed", started.jobId);
+      }
+      if (!started.jobId) {
+        throw new Error(
+          `Brain image save did not return jobId: ${JSON.stringify(started)}`,
+        );
+      }
+
+      const completed = await waitForBrainImageSave(
+        started.jobId,
+        deadline,
+        attachedToExistingSave,
+      );
+      if (shouldStartFreshBrainImageSave(attachedToExistingSave)) {
+        step(
+          "Brain image save resumed",
+          "prior save completed; starting a fresh marker-owned image",
+        );
+        continue;
+      }
+      return completed;
+    } catch (err) {
+      if (err?.status >= 500) {
+        step(
+          "Brain image save pending",
+          `transient start error: ${err.data?.message ?? err.message}`,
+        );
+        await sleep(10_000);
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error("Timed out before a fresh Brain image save could start");
+}
+
+async function waitForBrainImageSave(
+  jobId,
+  deadline,
+  attachedToExistingSave = false,
+) {
+  let last = { jobId, status: "running" };
+  let missingSince = null;
   while (Date.now() < deadline) {
     await sleep(10_000);
     try {
       last = await api(
         "GET",
-        `/api/kody/brain/image?jobId=${encodeURIComponent(started.jobId)}`,
+        `/api/kody/brain/image?jobId=${encodeURIComponent(jobId)}`,
         undefined,
         { timeoutMs: 90_000 },
       );
@@ -784,11 +947,36 @@ async function saveBrainImage() {
       }
       throw err;
     }
-    if (last.status === "completed" && last.imageRef) {
+    if (last.status === "idle") missingSince ??= Date.now();
+    else missingSince = null;
+    const action = brainImageSavePollAction(
+      last.status,
+      attachedToExistingSave,
+      missingSince === null ? 0 : Date.now() - missingSince,
+    );
+    if (action === "completed") {
+      if (!last.imageRef) {
+        throw new Error(
+          `Brain image save completed without an image ref: ${JSON.stringify(last)}`,
+        );
+      }
       step("Brain image saved", last.imageRef);
       return last;
     }
-    if (last.status === "failed") {
+    if (action === "drained") {
+      step("Brain image save resumed", "prior save job has drained");
+      return null;
+    }
+    if (action === "missing") {
+      throw new Error(
+        `Brain image save job ${jobId} disappeared before completion`,
+      );
+    }
+    if (action === "reconciling") {
+      step("Brain image save pending", "save metadata is reconciling");
+      continue;
+    }
+    if (action === "failed") {
       throw new Error(
         `Brain image save failed: ${last.message ?? JSON.stringify(last)}`,
       );
@@ -808,21 +996,63 @@ async function destroyBrain() {
 
 async function applyBrainImage(imageRef) {
   step("Applying Brain image", imageRef);
-  await api(
+  const started = await api(
     "POST",
     "/api/kody/brain/image/apply",
     { imageRef },
     { timeoutMs: 15 * 60_000 },
   );
-  const status = await waitForBrain(
-    (next) => next.app && next.machineId && next.state === "running",
-    "applied Brain to be running",
+  if (!started.operationId) {
+    throw new Error(
+      `Brain image apply did not return operationId: ${JSON.stringify(started)}`,
+    );
+  }
+  const image = await waitForBrainImageApply(
+    started.operationId,
+    imageRef,
     15 * 60_000,
   );
-  await verifyBrainRuntimeSelection();
   await verifyBrainMachineImage();
+  const status = await waitForBrain(
+    (next) =>
+      next.app === image.runningApp &&
+      next.machineId === image.runningMachineId &&
+      next.state === "running",
+    "applied Brain to be running",
+    5 * 60_000,
+  );
   step("Brain image applied", `${status.app}/${status.machineId}`);
   return status;
+}
+
+async function waitForBrainImageApply(
+  operationId,
+  imageRef,
+  timeoutMs,
+  allowStaleTakeover = false,
+) {
+  const deadline = Date.now() + timeoutMs;
+  let last = null;
+  while (Date.now() < deadline) {
+    last = await brainImageState();
+    const progress = classifyBrainImageApply(last, operationId, imageRef, {
+      nowMs: Date.now(),
+      staleAfterMs: staleApplyOperationMs,
+    });
+    if (progress.status === "completed") return last;
+    if (progress.status === "stale" && allowStaleTakeover) return null;
+    if (progress.status === "failed" || progress.status === "conflict") {
+      throw new Error(progress.message);
+    }
+    step(
+      "Brain image apply pending",
+      `${last.runtime?.operation?.stage ?? "running"} (attempt ${last.runtime?.operation?.attempt ?? 1})`,
+    );
+    await sleep(5_000);
+  }
+  throw new Error(
+    `Timed out waiting for Brain image apply. Last status: ${JSON.stringify(last)}`,
+  );
 }
 
 function step(name, detail) {
@@ -835,7 +1065,9 @@ function finish() {
 }
 
 function redact(value) {
-  let text = String(value);
+  let text = String(value)
+    .replace(/FlyV1[^\s"']+/g, "[redacted-token]")
+    .replace(/Bearer\s+[^\s"']+/gi, "Bearer [redacted-token]");
   for (const secret of [
     token,
     env("KODY_LIVE_GITHUB_TOKEN"),

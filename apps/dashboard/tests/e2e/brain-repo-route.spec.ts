@@ -6,9 +6,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { mockDashboardShellRequests } from "./support/dashboard-shell-mocks";
 
-const BASE_URL = process.env.PW_LOCAL
-  ? "http://127.0.0.1:3333"
-  : (process.env.BASE_URL ?? "http://127.0.0.1:3333");
+const BASE_URL = process.env.BASE_URL ?? "http://127.0.0.1:3333";
 const OWNER = "test-owner";
 const REPO = "test-repo";
 const BRAIN_URL = `${BASE_URL}/brain`;

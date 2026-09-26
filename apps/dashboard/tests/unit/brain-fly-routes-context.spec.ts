@@ -45,8 +45,8 @@ const HOSTED_BRAIN_ROUTES = [
 describe("Personal Brain route context", () => {
   it("registers host services inside every serverless route bundle", () => {
     for (const routePath of HOSTED_BRAIN_ROUTES) {
-      expect(readRoute(routePath), routePath).toContain(
-        'import "@dashboard/lib/brain/personal-services";',
+      expect(readRoute(routePath), routePath).toMatch(
+        /import(?:\s+[^;]+\s+from)?\s+"@dashboard\/lib\/brain\/personal-services";/,
       );
     }
   });

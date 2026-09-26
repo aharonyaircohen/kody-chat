@@ -10,9 +10,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { mockKodyAccountSession } from "./support/dashboard-shell-mocks";
 import { openChatSetupSection } from "./support/chat-setup";
 
-const BASE_URL = process.env.PW_LOCAL
-  ? "http://127.0.0.1:3333"
-  : (process.env.BASE_URL ?? "http://127.0.0.1:3333");
+const BASE_URL = process.env.BASE_URL ?? "http://127.0.0.1:3333";
 const CHAT_URL = `${BASE_URL}/repo/test-owner/test-repo/chat`;
 
 function sseBody(events: unknown[]): string {

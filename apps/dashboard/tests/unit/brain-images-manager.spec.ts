@@ -91,6 +91,14 @@ describe("BrainImagesManager", () => {
     expect(SOURCE).toMatch(/The terminal will\s+reconnect/);
   });
 
+  it("shows the durable restore stage and retry attempt", () => {
+    expect(SOURCE).toContain("restoreStageMessage(operation.stage, operation.attempt)");
+    expect(SOURCE).toContain('"installing-agent-access": "Installing secure agent access"');
+    expect(SOURCE).toContain('"verifying-health": "Verifying Brain health"');
+    expect(SOURCE).toContain('`${message} (attempt ${attempt})`');
+    expect(SOURCE).toContain("applyState.message");
+  });
+
   it("runs the clicked image as the only image activation action", () => {
     expect(SOURCE).toContain("body: JSON.stringify({ imageRef, reset }),");
     expect(SOURCE).toContain(

@@ -46,6 +46,8 @@ const runtimeManager = vi.hoisted(() => ({
     }),
   ),
   failBrainRuntimeApply: vi.fn(async () => undefined),
+  resumeBrainRuntimeApply: vi.fn(),
+  setBrainRuntimeApplyStage: vi.fn(async () => undefined),
 }));
 
 const runtime = vi.hoisted(() => ({
@@ -165,6 +167,9 @@ describe("applyBrainImageToRuntime", () => {
     });
     store.writeBrainApp.mockResolvedValue(undefined);
     store.writeBrainImage.mockResolvedValue(undefined);
+    runtimeManager.resumeBrainRuntimeApply.mockResolvedValue({
+      operation: { id: "apply-1", status: "running" },
+    });
   });
 
   it("requires the image to run instead of falling back to a selected image", async () => {
@@ -230,6 +235,13 @@ describe("applyBrainImageToRuntime", () => {
       "gh-token",
       "ghcr.io/acme/kody-brain-octocat:selected",
     );
+    expect(runtimeManager.setBrainRuntimeApplyStage).toHaveBeenCalledWith(
+      "octocat",
+      "gh-token",
+      "apply-1",
+      "ghcr.io/acme/kody-brain-octocat:selected",
+      "verifying-health",
+    );
     expect(store.selectBrainImage).not.toHaveBeenCalled();
     expect(runtimeManager.completeBrainRuntimeApply).toHaveBeenCalledWith(
       "octocat",
@@ -243,7 +255,7 @@ describe("applyBrainImageToRuntime", () => {
     );
     expect(brainFly.waitForBrainHealth).toHaveBeenCalledWith(
       "https://kody-brain-octocat.fly.dev",
-      120_000,
+      300_000,
     );
     expect(
       brainFly.waitForBrainHealth.mock.invocationCallOrder[0],
@@ -252,6 +264,58 @@ describe("applyBrainImageToRuntime", () => {
     );
     expect(result.runtime.running?.imageRef).toBe(
       "ghcr.io/acme/kody-brain-octocat:selected",
+    );
+  });
+
+  it("resumes the durable operation when the restore queue retries", async () => {
+    await applyBrainImageToRuntime({
+      owner: "acme",
+      repo: "widgets",
+      account: "octocat",
+      githubToken: "gh-token",
+      allSecrets: {},
+      flyToken: "fly-token",
+      flyOrgSlug: "personal",
+      flyDefaultRegion: "fra",
+      dashboardUrl: "https://dash.test",
+      imageRef: "ghcr.io/acme/kody-brain-octocat:selected",
+      operationId: "apply-1",
+    });
+
+    expect(runtimeManager.resumeBrainRuntimeApply).toHaveBeenCalledWith(
+      "octocat",
+      "gh-token",
+      "apply-1",
+      "ghcr.io/acme/kody-brain-octocat:selected",
+    );
+    expect(runtimeManager.beginBrainRuntimeApply).not.toHaveBeenCalled();
+  });
+
+  it("records image resolution failure after the operation starts", async () => {
+    store.readBrainImage.mockResolvedValueOnce(null);
+    catalog.discoverBrainPackageImages.mockResolvedValueOnce([]);
+
+    await expect(
+      applyBrainImageToRuntime({
+        owner: "acme",
+        repo: "widgets",
+        account: "octocat",
+        githubToken: "gh-token",
+        allSecrets: {},
+        flyToken: "fly-token",
+        flyOrgSlug: "personal",
+        flyDefaultRegion: "fra",
+        dashboardUrl: "https://dash.test",
+        imageRef: "ghcr.io/acme/kody-brain-octocat:missing",
+      }),
+    ).rejects.toThrow("No Brain images saved");
+
+    expect(runtimeManager.failBrainRuntimeApply).toHaveBeenCalledWith(
+      "octocat",
+      "gh-token",
+      "ghcr.io/acme/kody-brain-octocat:missing",
+      "No Brain images saved",
+      "apply-1",
     );
   });
 

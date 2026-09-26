@@ -1,0 +1,29 @@
+services:
+  linkstack:
+    build: .
+    environment:
+      APP_ENV: local
+      APP_DEBUG: "true"
+      APP_KEY: "${LINKSTACK_APP_KEY:-base64:QEZnDGglpkADKnwCt18bPJ4pNIEuDSGIGvgfQ2D1Rzc=}"
+      APP_URL: "http://127.0.0.1:4186"
+      DB_CONNECTION: sqlite
+      LOCALE: en
+      REGISTER_AUTH: auth
+      ALLOW_REGISTRATION: "false"
+      SEED_ADMIN_EMAIL: "${LINKSTACK_ADMIN_EMAIL:-admin@example.test}"
+      SEED_ADMIN_PASSWORD: "${LINKSTACK_ADMIN_PASSWORD:-change-me-now}"
+      TZ: Asia/Jerusalem
+      HTTP_SERVER_NAME: localhost
+      HTTPS_SERVER_NAME: localhost
+    ports:
+      - "4186:80"
+    volumes:
+      - linkstack_database:/htdocs/database
+      - linkstack_uploads:/htdocs/assets/img
+      - linkstack_storage:/htdocs/storage
+    restart: unless-stopped
+
+volumes:
+  linkstack_database:
+  linkstack_uploads:
+  linkstack_storage:
