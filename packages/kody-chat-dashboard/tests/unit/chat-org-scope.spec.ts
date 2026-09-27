@@ -39,12 +39,9 @@ const SYSTEM_PROMPT_SOURCE = readFileSync(
 );
 
 describe("KodyChat org scope", () => {
-  it("forwards org scope to the Kody direct route", () => {
+  it("keeps org selection in the existing chat host", () => {
     expect(KODY_CHAT_SOURCE).toMatch(/selectedOrg/);
-    expect(KODY_CHAT_SOURCE).toMatch(/owner:\s*selectedOrg\.org/);
-    expect(KODY_CHAT_SOURCE).toMatch(
-      /repositories:\s*selectedOrg\.repositories/,
-    );
+    expect(KODY_CHAT_SOURCE).toContain("/api/kody/hermes/sessions/");
   });
 
   it("keeps org context invisible in chat chrome", () => {

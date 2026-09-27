@@ -28,7 +28,8 @@ export function sessionFromList(value: Record<string, unknown>): SessionMeta {
     preview: typeof value.preview === "string" ? value.preview : undefined,
     createdAt: String(value.createdAt),
     updatedAt: String(value.updatedAt),
-    messageCount: 0,
+    messageCount:
+      typeof value.messageCount === "number" ? value.messageCount : 0,
     pinned: value.pinned === true,
     repository:
       storedScope?.kind === "repository" &&

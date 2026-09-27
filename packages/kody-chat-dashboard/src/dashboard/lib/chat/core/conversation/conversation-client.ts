@@ -76,24 +76,77 @@ export type ConversationCommand =
     }
   | { kind: "clear"; actorLogin: string };
 
-function shouldKeepCommandAlive(command: ConversationCommand): boolean {
-  return (
-    command.kind === "runtime" ||
-    (command.kind === "append-message" &&
-      command.role === "assistant" &&
-      command.status === "pending")
-  );
+type HermesListResponse = {
+  sessions: Array<Record<string, unknown>>;
+};
+
+function asIsoDate(value: unknown, fallback: string): string {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return new Date(value < 100_000_000_000 ? value * 1_000 : value).toISOString();
+  }
+  if (typeof value === "string" && value) {
+    const date = new Date(value);
+    if (!Number.isNaN(date.valueOf())) return date.toISOString();
+  }
+  return fallback;
 }
 
-type ConversationListResponse = {
-  conversations: Array<Record<string, unknown> & { conversationId: string }>;
-};
+function fromHermesSession(session: Record<string, unknown>) {
+  const id = String(session.id ?? session.session_id ?? "");
+  const now = new Date().toISOString();
+  const started = asIsoDate(session.started_at, now);
+  const updated = asIsoDate(session.last_active ?? session.started_at, started);
+  return {
+    conversationId: id,
+    title: String(session.title ?? "New conversation"),
+    preview: typeof session.preview === "string" ? session.preview : undefined,
+    messageCount: typeof session.message_count === "number" ? session.message_count : 0,
+    pinned: session.pinned === true,
+    scope: { kind: "global" as const },
+    activeAgent: { slug: "hermes", title: "Hermes" },
+    runtime: { kind: "direct", modelId: String(session.model ?? "default") },
+    machineAccess: "none" as const,
+    createdAt: started,
+    updatedAt: updated,
+  };
+}
+
+function toConversationDetail(payload: {
+  session?: Record<string, unknown>;
+  history?: { messages?: Array<Record<string, unknown>> };
+}) {
+  const session = fromHermesSession(payload.session ?? {});
+  const entries = (payload.history?.messages ?? []).flatMap((message, index) => {
+    if (message.role !== "user" && message.role !== "assistant") return [];
+    return [{
+      entryId: String(message.id ?? `${session.conversationId}:${index}`),
+      seq: index,
+      entry: {
+        kind: "message" as const,
+        role: message.role,
+        content: typeof message.content === "string" ? message.content : "",
+        status: "committed" as const,
+        createdAt: asIsoDate(message.timestamp, new Date().toISOString()),
+      },
+    }];
+  });
+  return {
+    conversation: session,
+    entries,
+    turns: [],
+    checkpoints: [],
+  };
+}
 
 const browserFetch: typeof fetch = (input, init) =>
   globalThis.fetch(input, init);
 
 export class ConversationClient {
   private readonly queues = new Map<string, Promise<unknown>>();
+  private readonly sessionSources = new Map<string, string>();
+  private readonly sessionTitles = new Map<string, string>();
+  private readonly sessionIds = new Map<string, { storedId: string; runtimeId?: string }>();
+  private readonly creations = new Map<string, Promise<void>>();
 
   constructor(
     private readonly fetcher: typeof fetch = browserFetch,
@@ -125,41 +178,104 @@ export class ConversationClient {
 
   async list(
     surface: "global" | "vibe-default" = "global",
-  ): Promise<ConversationListResponse["conversations"]> {
-    const result = await this.request<ConversationListResponse>(
-      `/api/kody/chat/conversations?surface=${surface}`,
+  ): Promise<Array<Record<string, unknown>>> {
+    const source = surface === "vibe-default" ? "kody-vibe-default" : "kody-global";
+    const result = await this.request<HermesListResponse>(
+      `/api/kody/hermes/sessions?limit=100&source=${encodeURIComponent(source)}`,
     );
-    return result.conversations;
+    return result.sessions.map((session) => {
+      const mapped = fromHermesSession(session);
+      this.sessionSources.set(mapped.conversationId, String(session.source ?? source));
+      this.sessionTitles.set(mapped.conversationId, mapped.title);
+      this.sessionIds.set(mapped.conversationId, { storedId: mapped.conversationId });
+      return mapped;
+    });
   }
 
   async get(conversationId: string): Promise<Record<string, unknown>> {
-    return await this.request(
-      `/api/kody/chat/conversations/${encodeURIComponent(conversationId)}`,
+    const storedId = await this.resolveSessionId(conversationId);
+    const payload = await this.request<{
+      session?: Record<string, unknown>;
+      history?: { messages?: Array<Record<string, unknown>> };
+    }>(
+      `/api/kody/hermes/sessions/${encodeURIComponent(storedId)}`,
     );
+    if (payload.session) {
+      this.sessionSources.set(conversationId, String(payload.session.source ?? "kody-global"));
+      this.sessionTitles.set(conversationId, String(payload.session.title ?? "New conversation"));
+      this.sessionIds.set(conversationId, { storedId });
+    }
+    const detail = toConversationDetail(payload);
+    return { ...detail, conversation: { ...detail.conversation, conversationId } };
   }
 
   create(
     input: Record<string, unknown> & { conversationId: string },
   ): Promise<void> {
-    return this.enqueue(input.conversationId, async () => {
-      await this.request("/api/kody/chat/conversations", {
+    const creation = this.enqueue(input.conversationId, async () => {
+      const surface = input.surface === "vibe-default" ? "kody-vibe-default" : "kody-global";
+      this.sessionSources.set(input.conversationId, surface);
+      this.sessionTitles.set(input.conversationId, String(input.title ?? "New conversation"));
+      const result = await this.request<{
+        id?: unknown;
+        session_id?: unknown;
+        stored_session_id?: unknown;
+      }>("/api/kody/hermes/sessions", {
         method: "POST",
-        body: JSON.stringify(input),
+        body: JSON.stringify({
+          sessionId: input.conversationId,
+          title: input.title,
+          source: surface,
+        }),
+      });
+      const storedId = String(result.stored_session_id ?? result.id ?? "");
+      if (!storedId) throw new Error("Hermes returned no stored session id.");
+      this.sessionIds.set(input.conversationId, {
+        storedId,
+        ...(typeof result.session_id === "string" ? { runtimeId: result.session_id } : {}),
       });
     });
+    this.creations.set(input.conversationId, creation);
+    return creation;
+  }
+
+  async resolveSessionId(sessionId: string): Promise<string> {
+    await this.creations.get(sessionId);
+    return this.sessionIds.get(sessionId)?.storedId ?? sessionId;
+  }
+
+  async resolveRuntimeSessionId(sessionId: string): Promise<string | undefined> {
+    await this.creations.get(sessionId);
+    return this.sessionIds.get(sessionId)?.runtimeId;
   }
 
   command(conversationId: string, command: ConversationCommand): Promise<void> {
-    return this.enqueue(conversationId, async () => {
-      await this.request(
-        `/api/kody/chat/conversations/${encodeURIComponent(conversationId)}/commands`,
-        {
+    // Hermes stores real user/assistant turns through /chat/stream. UI-only
+    // messages and tool progress stay in the current browser session.
+    if (command.kind === "clear") {
+      const clearing = this.enqueue(conversationId, async () => {
+        const previousId = this.sessionIds.get(conversationId)?.storedId ?? conversationId;
+        await this.request(`/api/kody/hermes/sessions/${encodeURIComponent(previousId)}`, {
+          method: "DELETE",
+          body: JSON.stringify({ runtimeSessionId: this.sessionIds.get(conversationId)?.runtimeId }),
+        });
+        const replacement = await this.request<{ stored_session_id?: string; session_id?: string }>("/api/kody/hermes/sessions", {
           method: "POST",
-          body: JSON.stringify(command),
-          ...(shouldKeepCommandAlive(command) ? { keepalive: true } : {}),
-        },
-      );
-    });
+          body: JSON.stringify({
+            title: this.sessionTitles.get(conversationId) ?? "New conversation",
+            source: this.sessionSources.get(conversationId) ?? "kody-global",
+          }),
+        });
+        if (!replacement.stored_session_id) throw new Error("Hermes returned no stored session id.");
+        this.sessionIds.set(conversationId, {
+          storedId: replacement.stored_session_id,
+          runtimeId: replacement.session_id,
+        });
+      });
+      this.creations.set(conversationId, clearing);
+      return clearing;
+    }
+    return Promise.resolve();
   }
 
   private enqueue(
@@ -182,18 +298,28 @@ export class ConversationClient {
     conversationId: string,
     metadata: Record<string, unknown>,
   ): Promise<void> {
+    const storedId = await this.resolveSessionId(conversationId);
     await this.request(
-      `/api/kody/chat/conversations/${encodeURIComponent(conversationId)}`,
-      { method: "PATCH", body: JSON.stringify(metadata) },
+      `/api/kody/hermes/sessions/${encodeURIComponent(storedId)}`,
+      { method: "PATCH", body: JSON.stringify({
+        ...metadata, runtimeSessionId: this.sessionIds.get(conversationId)?.runtimeId,
+      }) },
     );
   }
 
   remove(conversationId: string): Promise<void> {
     return this.enqueue(conversationId, async () => {
+      const storedId = this.sessionIds.get(conversationId)?.storedId ?? conversationId;
       await this.request(
-        `/api/kody/chat/conversations/${encodeURIComponent(conversationId)}`,
-        { method: "DELETE" },
+        `/api/kody/hermes/sessions/${encodeURIComponent(storedId)}`,
+        { method: "DELETE", body: JSON.stringify({
+          runtimeSessionId: this.sessionIds.get(conversationId)?.runtimeId,
+        }) },
       );
+      this.sessionSources.delete(conversationId);
+      this.sessionTitles.delete(conversationId);
+      this.sessionIds.delete(conversationId);
+      this.creations.delete(conversationId);
     });
   }
 }
