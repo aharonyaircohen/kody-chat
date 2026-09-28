@@ -33,11 +33,21 @@ export async function getCurrentKodySessionUser(): Promise<{
     requestHeaders.get("host") ??
     "localhost";
   const protocol = requestHeaders.get("x-forwarded-proto") ?? "http";
-  const response = await kodyAuthHandler.GET(
-    new Request(`${protocol}://${host}/api/auth/get-session`, {
-      headers: requestHeaders,
-    }),
-  );
+  // The auth handler fetches the Convex backend to validate the session.
+  // During local CI builds or e2e runs without a Convex deployment that
+  // fetch throws a TypeError. Treat unreachable auth backend as "no
+  // session" so callers (and the layout) can fail closed instead of
+  // surfacing a 500 from the dashboard server.
+  let response: Response;
+  try {
+    response = await kodyAuthHandler.GET(
+      new Request(`${protocol}://${host}/api/auth/get-session`, {
+        headers: requestHeaders,
+      }),
+    );
+  } catch {
+    return null;
+  }
   if (!response.ok) return null;
   const payload = (await response.json().catch(() => null)) as {
     user?: { id?: unknown; name?: unknown; email?: unknown };
