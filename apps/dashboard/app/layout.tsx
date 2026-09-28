@@ -56,7 +56,16 @@ export default async function KodyLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const initialAuthToken = await getKodyAuthToken();
+  // `getKodyAuthToken` fetches the auth token from Convex. During static
+  // prerender of force-static routes there is no request context, so the
+  // fetch is unreachable — fail closed to null so the page still renders.
+  let initialAuthToken: string | null = null;
+  try {
+    const token = await getKodyAuthToken();
+    if (token) initialAuthToken = token;
+  } catch {
+    initialAuthToken = null;
+  }
   return (
     <html
       className={cn(GeistSans.variable, GeistMono.variable, assistant.variable)}
