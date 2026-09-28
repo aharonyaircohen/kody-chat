@@ -5,7 +5,7 @@ import {
   keyboardStreamMessages,
   parseBrowserBinaryFrame,
   parseBrowserStreamServerMessage,
-} from "@dashboard/lib/previews/browser-stream-client";
+} from "@kody-ade/fly/dashboard/browser-stream-client";
 
 describe("browser stream client protocol", () => {
   it("parses compact binary JPEG frames", () => {

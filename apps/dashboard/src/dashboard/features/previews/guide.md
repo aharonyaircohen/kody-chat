@@ -100,5 +100,5 @@ Preview navigation and inspector tools may observe or act only when exposed. Run
 - `apps/dashboard/src/dashboard/features/previews/components/PreviewWorkspace.tsx`
 - `apps/dashboard/src/dashboard/features/previews/components/PreviewActions.tsx`
 - `apps/dashboard/src/dashboard/features/previews/components/PreviewMacrosMenu.tsx`
-- `apps/dashboard/src/dashboard/features/previews/components/FlyPreviewsList.tsx`
-- `apps/dashboard/src/dashboard/features/previews/components/FlyMachinesTable.tsx`
+- `packages/fly/src/dashboard/previews/FlyPreviewsList.tsx`
+- `packages/fly/src/dashboard/previews/FlyMachinesTable.tsx`

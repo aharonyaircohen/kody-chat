@@ -9,15 +9,15 @@ import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const managerSource = readFileSync(
-  resolve(root, "src/dashboard/features/admin/components/RunnerManager.tsx"),
+  resolve(root, "../../packages/fly/src/dashboard/admin/RunnerManager.tsx"),
   "utf8",
 );
 const brainImagesSource = readFileSync(
-  resolve(root, "src/dashboard/features/admin/components/BrainImagesManager.tsx"),
+  resolve(root, "../../packages/fly/src/dashboard/admin/BrainImagesManager.tsx"),
   "utf8",
 );
 const hookSource = readFileSync(
-  resolve(root, "src/dashboard/lib/hooks/useFlyTokenStatus.ts"),
+  resolve(root, "../../packages/fly/src/dashboard/hooks/useFlyTokenStatus.ts"),
   "utf8",
 );
 const routeSource = readFileSync(

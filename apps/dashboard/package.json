@@ -34,7 +34,7 @@
     "test:live:terminal-ui": "playwright test tests/e2e/chat-terminal-live-ui.spec.ts --project=chromium",
     "test:live:mcp": "node scripts/verify-public-mcp.mjs",
     "vault:init": "node scripts/generate-vault-key.mjs",
-    "builder:publish": "node scripts/publish-preview-builder.mjs",
+    "builder:publish": "node ../../packages/fly/scripts/publish-preview-builder.mjs",
     "cms:generate-schema": "node scripts/generate-cms-schema.mjs",
     "push:init": "node scripts/generate-vapid-keys.mjs",
     "picker:pack": "node scripts/pack-extension.mjs",

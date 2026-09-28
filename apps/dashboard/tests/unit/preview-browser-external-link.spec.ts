@@ -14,7 +14,7 @@ const PREVIEW_BROWSER_PATH = resolve(
 );
 const REMOTE_SURFACE_PATH = resolve(
   __dirname,
-  "../../src/dashboard/features/previews/components/FlyRemoteBrowserSurface.tsx",
+  "../../../../packages/fly/src/dashboard/previews/FlyRemoteBrowserSurface.tsx",
 );
 const BROWSER_START_PATH = resolve(
   __dirname,
@@ -34,7 +34,7 @@ const PREVIEW_ENV_SWITCHER_PATH = resolve(
 );
 const FLY_MACHINES_TABLE_PATH = resolve(
   __dirname,
-  "../../src/dashboard/features/previews/components/FlyMachinesTable.tsx",
+  "../../../../packages/fly/src/dashboard/previews/FlyMachinesTable.tsx",
 );
 
 const SOURCE = readFileSync(PREVIEW_BROWSER_PATH, "utf8");

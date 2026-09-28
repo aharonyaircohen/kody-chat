@@ -12,7 +12,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const SOURCE = readFileSync(
   resolve(
     __dirname,
-    "../../src/dashboard/features/admin/components/BrainImagesManager.tsx",
+    "../../../../packages/fly/src/dashboard/admin/BrainImagesManager.tsx",
   ),
   "utf8",
 );

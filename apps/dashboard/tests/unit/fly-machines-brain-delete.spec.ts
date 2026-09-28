@@ -12,7 +12,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const SOURCE = readFileSync(
   resolve(
     __dirname,
-    "../../src/dashboard/features/previews/components/FlyMachinesTable.tsx",
+    "../../../../packages/fly/src/dashboard/previews/FlyMachinesTable.tsx",
   ),
   "utf8",
 );

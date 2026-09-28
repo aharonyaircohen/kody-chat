@@ -26,7 +26,9 @@ const component = (file: string) =>
   read(file.startsWith("src/") ? file : join(componentsRoot(file), file));
 const sourceFile = (file: string) =>
   read(
-    file.startsWith("src/") || file.startsWith("node_modules/")
+    file.startsWith("src/") ||
+    file.startsWith("node_modules/") ||
+    file.startsWith("../../packages/")
       ? file
       : join(componentsRoot(file), file),
   );
@@ -107,7 +109,7 @@ describe("repo-scoped panel route surfaces", () => {
       "VariablesManager.tsx",
       "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/chat/plugins/commands/SlashCommandMenu.tsx",
       "OperatorsWarningBanner.tsx",
-      "RunnerManager.tsx",
+      "../../packages/fly/src/dashboard/admin/RunnerManager.tsx",
       "NotificationsManager.tsx",
     ]) {
       expect(sourceFile(file), file).not.toMatch(directRepoOwnedLinkHref);

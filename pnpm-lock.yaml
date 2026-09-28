@@ -557,6 +557,12 @@ importers:
 
   packages/fly:
     dependencies:
+      "@kody-ade/backend":
+        specifier: workspace:*
+        version: link:../kody-backend
+      "@tanstack/react-query":
+        specifier: 5.95.0
+        version: 5.95.0(react@19.2.7)
       "@kody-ade/base":
         specifier: workspace:*
         version: link:../base
@@ -572,9 +578,15 @@ importers:
       fflate:
         specifier: 0.8.2
         version: 0.8.2
+      lucide-react:
+        specifier: ^0.562.0
+        version: 0.562.0(react@19.2.7)
       react:
         specifier: 19.2.7
         version: 19.2.7
+      sonner:
+        specifier: ^2.0.7
+        version: 2.0.7(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       zod:
         specifier: ^4.3.5
         version: 4.4.3

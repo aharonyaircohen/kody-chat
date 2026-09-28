@@ -11,7 +11,7 @@ export const revalidate = false;
 export const fetchCache = "force-cache";
 
 import BrainPage from "@kody-ade/kody-chat-dashboard/pages/brain";
-import { BrainFlyCard } from "@dashboard/features/admin/components/BrainFlyCard";
+import { BrainFlyCard } from "@kody-ade/fly/dashboard/admin/BrainFlyCard";
 
 export default function PersonalBrainPage() {
   return (

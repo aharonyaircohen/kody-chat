@@ -11,7 +11,7 @@ const sourcePath = fileURLToPath(
 );
 const surfaceSourcePath = fileURLToPath(
   new URL(
-    "../../src/dashboard/features/previews/components/FlyRemoteBrowserSurface.tsx",
+    "../../../../packages/fly/src/dashboard/previews/FlyRemoteBrowserSurface.tsx",
     import.meta.url,
   ),
 );
