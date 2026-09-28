@@ -20,6 +20,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - run: node scripts/verify-flyhub-checkout.mjs
       - uses: pnpm/action-setup@v4
         with:
           version: 9

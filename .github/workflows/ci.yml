@@ -16,6 +16,11 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Verify Flyhub checkout
+        run: node scripts/verify-flyhub-checkout.mjs
 
       - uses: pnpm/action-setup@v4
 
@@ -53,6 +58,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
 
       - uses: pnpm/action-setup@v4
 
@@ -85,6 +92,8 @@ jobs:
       KODY_SERVICE_KEY: ${{ secrets.KODY_SERVICE_KEY }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: true
 
       - uses: pnpm/action-setup@v4
 

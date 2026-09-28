@@ -177,9 +177,13 @@ Prerequisites:
   [`apps/dashboard/README.md`](apps/dashboard/README.md)
 
 ```bash
+git submodule update --init
 pnpm install
 pnpm dev
 ```
+
+`packages/fly` is the [flyhub](https://github.com/aharonyaircohen/flyhub)
+submodule. A fresh clone can also use `git clone --recurse-submodules`.
 
 This starts both the Dashboard and the local Convex backend. The backend keeps
 the Dashboard's database functions synchronized while you develop.
@@ -231,7 +235,7 @@ definition.
 | `packages/agency-domain`       | `@kody-ade/agency-domain`       | Infrastructure-free Agency domain contracts                             |
 | `packages/brain`               | `@kody-ade/brain`               | Brain runtime control and proxy                                         |
 | `packages/terminal`            | `@kody-ade/terminal`            | Local and remote terminal sessions and checkpoints                      |
-| `packages/fly`                 | `@kody-ade/fly`                 | Fly previews, runners, machines, and builder integration                |
+| `packages/fly`                 | `@kody-ade/fly`                 | [Flyhub](https://github.com/aharonyaircohen/flyhub) submodule: previews, runners, machines, and builder integration |
 | `packages/cms`                 | `@kody-ade/cms`                 | CMS model, adapters, routes, tools, and MCP surface                     |
 | `packages/memory`              | `@kody-ade/memory`              | Pure memory domain and application contracts                            |
 | `packages/engine-contracts`    | `@kody-ade/engine-contracts`    | Provider-neutral Engine request contracts                               |
