@@ -9,7 +9,7 @@ function source(path: string): string {
 describe("rate limit polling guardrails", () => {
   it("keeps the first six hot internal pages on slower or cached paths", () => {
     expect(
-      source("src/dashboard/features/previews/components/FlyPreviewsList.tsx"),
+      source("../../packages/fly/src/dashboard/previews/FlyPreviewsList.tsx"),
     ).toContain("const REFRESH_MS = 60_000");
     expect(
       source(
@@ -17,7 +17,7 @@ describe("rate limit polling guardrails", () => {
       ),
     ).toContain("const BRAIN_IMAGE_SAVE_POLL_INTERVAL_MS = 10_000");
     expect(
-      source("src/dashboard/features/admin/components/BrainImagesManager.tsx"),
+      source("../../packages/fly/src/dashboard/admin/BrainImagesManager.tsx"),
     ).toContain("/api/kody/brain/image?jobId=");
     expect(
       source(

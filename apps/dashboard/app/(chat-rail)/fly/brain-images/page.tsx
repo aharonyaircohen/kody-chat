@@ -5,7 +5,7 @@
  *
  * Dedicated Brain image management page.
  */
-import { BrainImagesManager } from "@dashboard/features/admin/components/BrainImagesManager";
+import { BrainImagesManager } from "@kody-ade/fly/dashboard/admin/BrainImagesManager";
 import { buildKodyMetadata } from "../../../metadata";
 
 export const dynamic = "force-static";

@@ -180,7 +180,7 @@ Agents may use configuration, Capability, CMS, Store, notification, variable, an
 - `apps/dashboard/src/dashboard/features/admin/components/CmsManager.tsx`
 - `apps/dashboard/src/dashboard/features/admin/components/ContentModelManager.tsx`
 - `apps/dashboard/src/dashboard/features/admin/components/RepoConfigManager.tsx`
-- `apps/dashboard/src/dashboard/features/admin/components/RunnerManager.tsx`
+- `packages/fly/src/dashboard/admin/RunnerManager.tsx`
 - `apps/dashboard/src/dashboard/features/admin/components/NotificationsManager.tsx`
 - `apps/dashboard/src/dashboard/features/admin/components/OrgManager.tsx`
 - `apps/dashboard/src/dashboard/features/admin/components/StoreCatalogManager.tsx`

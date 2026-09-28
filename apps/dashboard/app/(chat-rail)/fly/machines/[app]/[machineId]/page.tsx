@@ -5,7 +5,7 @@
  * @ai-summary Selected Fly machine route. Keeps machine selection addressable
  * at `/fly/machines/<app>/<machineId>`.
  */
-import { RunnerManager } from "@dashboard/features/admin/components/RunnerManager";
+import { RunnerManager } from "@kody-ade/fly/dashboard/admin/RunnerManager";
 import { buildKodyMetadata } from "../../../../../metadata";
 
 export const dynamic = "force-static";

@@ -94,8 +94,8 @@ export function buildAgentList(
     key: live.id,
     agentId: live.id,
     modelId: null,
-    name: live.name,
-    description: live.description,
+    name: "Hermes",
+    description: "Uses the default model in Hermes",
     icon: live.icon,
     reasoning: null,
   });

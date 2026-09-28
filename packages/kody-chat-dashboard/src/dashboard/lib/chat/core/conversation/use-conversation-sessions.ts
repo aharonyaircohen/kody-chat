@@ -90,6 +90,8 @@ export interface UseConversationSessionsResult {
     options?: { persist?: boolean },
   ) => void;
   getSessionMessages: (sessionId: string) => ChatMessage[];
+  resolveSessionId: (sessionId: string) => Promise<string>;
+  resolveRuntimeSessionId: (sessionId: string) => Promise<string | undefined>;
   createSession: (opts?: {
     agentKey?: string;
     machineAccess?: MachineAccess;
@@ -814,6 +816,8 @@ export function useConversationSessions(
     setMessages,
     setSessionMessages,
     getSessionMessages: (sessionId) => messagesBySession[sessionId] ?? [],
+    resolveSessionId: (sessionId) => conversationClient.resolveSessionId(sessionId),
+    resolveRuntimeSessionId: (sessionId) => conversationClient.resolveRuntimeSessionId(sessionId),
     createSession,
     switchSession,
     renameSession,

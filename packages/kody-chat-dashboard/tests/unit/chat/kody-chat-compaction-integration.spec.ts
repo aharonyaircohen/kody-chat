@@ -31,14 +31,9 @@ describe("automatic compaction integration", () => {
     );
   });
 
-  it("feeds compact memory through Direct, Brain, and Live boundaries", () => {
-    expect(sendSource).toContain(
-      "conversationSummary: conversationContext.summary",
-    );
-    expect(sendSource).toContain(
-      "/compact-${conversationContext.checkpoint.revision}",
-    );
-    expect(sendSource).toContain("restartInteractiveSession(liveStartOptions)");
+  it("sends chat turns to Hermes, which owns context compaction", () => {
+    expect(sendSource).toContain("/api/kody/hermes/sessions/");
+    expect(sendSource).not.toContain("conversationSummary: conversationContext.summary");
   });
 
   it("shows accessible progress without adding a transcript message", () => {

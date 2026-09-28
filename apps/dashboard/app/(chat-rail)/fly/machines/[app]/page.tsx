@@ -4,7 +4,7 @@
  * @pattern fly-app-machines-page
  * @ai-summary Fly machines filtered to one provider app.
  */
-import { RunnerManager } from "@dashboard/features/admin/components/RunnerManager";
+import { RunnerManager } from "@kody-ade/fly/dashboard/admin/RunnerManager";
 import { buildKodyMetadata } from "../../../../metadata";
 
 export const dynamic = "force-static";

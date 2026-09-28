@@ -4,7 +4,7 @@
  * @pattern fly-volumes-page
  * @ai-summary Fly persistent volume inventory and safe operations.
  */
-import { FlyVolumesManager } from "@dashboard/features/admin/components/FlyVolumesManager";
+import { FlyVolumesManager } from "@kody-ade/fly/dashboard/admin/FlyVolumesManager";
 import { buildKodyMetadata } from "../../../metadata";
 
 export const dynamic = "force-static";

@@ -116,7 +116,7 @@ Repair: one atomic execution lease with attempt fencing, progress/renewal, and t
 
 The terminal host listens to a `window` custom event emitted by Images and affects only the active logical Brain terminal. A terminal in another tab does not receive it; a terminal without the Images component mounted does not observe its polling. The personal terminal route resolves the current machine but does not gate attachment against the active restore operation. Reconnect rejects a changed session ID rather than adopting an authoritative replacement unless another layer explicitly resets the client.
 
-References: [window event listener](../packages/kody-chat-dashboard/src/dashboard/lib/components/kody-chat-terminal-host.tsx#L204), [Images polling](../apps/dashboard/src/dashboard/features/admin/components/BrainImagesManager.tsx#L219), [terminal route](../packages/brain/src/routes/terminal-session.ts#L65).
+References: [window event listener](../packages/kody-chat-dashboard/src/dashboard/lib/components/kody-chat-terminal-host.tsx#L204), [Images polling](../packages/fly/src/dashboard/admin/BrainImagesManager.tsx#L219), [terminal route](../packages/brain/src/routes/terminal-session.ts#L65).
 
 Repair: publish Brain operation and runtime generation through the existing Convex-owned runtime view. Every terminal observes it independently of the Images page. The server rejects unsafe attachment during replacement, and returns the current machine/generation when attachment is safe. Window events may improve responsiveness but cannot be the source of truth.
 

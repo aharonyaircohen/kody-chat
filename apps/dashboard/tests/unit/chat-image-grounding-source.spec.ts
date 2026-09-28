@@ -16,34 +16,21 @@ const KODY_CHAT_SOURCE = readFileSync(
   resolve(__dirname, "../../node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/components/kody-chat-send.ts"),
   "utf8",
 );
-const KODY_ROUTE_SOURCE = readFileSync(
-  resolve(
-    __dirname,
-    "../../node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/kody/route.ts",
-  ),
+const HERMES_RUNTIME_SOURCE = readFileSync(
+  resolve(__dirname, "../../src/dashboard/lib/hermes/runtime.ts"),
   "utf8",
 );
 
 describe("image-grounded chat turns", () => {
-  it("does not append hidden preview context when the current turn has an image", () => {
-    expect(KODY_CHAT_SOURCE).toContain("imageTurnHasVisualEvidence");
-    expect(KODY_CHAT_SOURCE).toContain('a.mimeType.startsWith("image/")');
-    expect(KODY_CHAT_SOURCE).toContain("shouldCollectPreviewContextForTurn");
-    expect(KODY_CHAT_SOURCE).toContain(
-      "hasImageAttachments: imageTurnHasVisualEvidence",
-    );
-    expect(KODY_CHAT_SOURCE).toContain(
-      "await collectPreviewContextRef.current()\n    : null",
-    );
+  it("sends image bytes through the Hermes bridge", () => {
+    expect(KODY_CHAT_SOURCE).toContain('attachment.mimeType.startsWith("image/")');
+    expect(KODY_CHAT_SOURCE).toContain("images.push({ name: attachment.name, dataUrl: attachment.data })");
+    expect(HERMES_RUNTIME_SOURCE).toContain('rpc("image.attach_bytes"');
   });
 
-  it("adds a server-side image grounding rule for multimodal turns", () => {
-    expect(KODY_ROUTE_SOURCE).toContain("const hasImageParts");
-    expect(KODY_ROUTE_SOURCE).toContain("const groundedSystemPrompt");
-    expect(KODY_ROUTE_SOURCE).toContain("This turn includes an image");
-    expect(KODY_ROUTE_SOURCE).toContain("groundedSystemPrompt,");
-    expect(KODY_ROUTE_SOURCE).toContain(
-      "system: buildTurnSystemPrompt(additionalSystemInstructions)",
+  it("stages images before submitting the Hermes prompt", () => {
+    expect(HERMES_RUNTIME_SOURCE.indexOf('rpc("image.attach_bytes"')).toBeLessThan(
+      HERMES_RUNTIME_SOURCE.indexOf('rpc("prompt.submit"'),
     );
   });
 });

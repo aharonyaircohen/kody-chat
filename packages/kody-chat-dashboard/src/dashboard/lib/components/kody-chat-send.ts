@@ -3,9 +3,8 @@
  * @domain kody
  * @pattern kody-chat-send-pipeline
  * @ai-summary The send orchestration extracted from KodyChat (phase
- *   1.6b): `runSendText` owns the full per-turn pipeline for all four
- *   backends (brain / kody-direct / kody-live append / kody-engine
- *   trigger) and `runSendMessage` owns the composer submit path
+ *   1.6b): `runSendText` sends turns to Hermes and `runSendMessage`
+ *   owns the composer submit path
  *   (/init, plugin send-middleware, waiting-instruction route). Behavior
  *   is identical to the pre-extraction inline code — component state is
  *   injected via the explicit `SendTextDeps` / `SendMessageDeps` objects
@@ -32,101 +31,42 @@
 
 import type { MutableRefObject } from "react";
 import { toast } from "sonner";
-import { AGENT_KODY, AGENTS, type AgentId } from "../agents";
+import { type AgentId } from "../agents";
 import type { ChatDropdownEntry } from "../chat/platform/agent-entries";
 import {
-  requestChatOperation,
   trace,
   type createChatPluginRegistry,
 } from "../chat/platform";
-import {
-  repoBrainConversationKey,
-  repoBrainScopeKey,
-} from "@kody-ade/brain/repo-scope";
-import { getStoredAuth } from "../integration-api";
 import type { KodyTask } from "@kody-ade/base/types";
-import {
-  authHeaders,
-  stickyBrainChatId,
-  isBrainChatPinned,
-  liveAuthHeaders,
-  brainHeaders,
-} from "../kody-chat-live-session";
-import {
-  brainTransport,
-  type BrainTurnConfig,
-} from "../chat/core/transports/brain";
+import { authHeaders } from "../kody-chat-live-session";
 import {
   KodyDirectConnectionDroppedError,
-  kodyDirectTransport,
-  type KodyDirectTurnConfig,
 } from "../chat/core/transports/kody-direct";
+import { ChatTurnStalledError } from "../chat/core/transports/turn-coordinator";
+import type { TransportTurnState } from "./kody-chat-transport-events";
 import {
-  kodyLiveTransport,
-  type KodyLiveTurnConfig,
-} from "../chat/core/transports/kody-live";
-import {
-  ChatTurnStalledError,
-  runChatTurn,
-} from "../chat/core/transports/turn-coordinator";
-import { createAssistantTurnPersistenceObserver } from "../chat/core/conversation/turn-persistence-observer";
-import {
-  createTransportTurnHandler,
-  type TransportTurnState,
-} from "./kody-chat-transport-events";
-import {
-  composeUserWireContent,
-  formatFileSize,
-  shouldCollectPreviewContextForTurn,
-} from "./kody-chat-helpers";
-import { formatAttachmentForTextBackend } from "../chat/core/attachment-text";
-import {
-  chatToMessage,
-  messageToChat,
   type Message,
   type ToolCall,
   type Attachment,
   type KodyChatProps,
 } from "./kody-chat-types";
-import type { AttachmentRef, ChatContext, MachineAccess } from "../chat-types";
+import type { ChatContext, MachineAccess } from "../chat-types";
 import type { useConversationSessions } from "../chat/core/conversation/use-conversation-sessions";
-import { persistPendingAttachment } from "../attachment-store";
-import { prepareUiConversationTurn } from "../chat/core/conversation/prepare-ui-turn";
-import type { ConversationRuntime } from "../chat/core/conversation/prepare-turn";
-import {
-  buildAgentHandoffContext,
-  latestAgentHandoff,
-} from "../chat/core/agent-handoff";
+import { consumeHermesStream } from "../chat/core/transports/hermes-stream";
 import type { useLiveRunner } from "./kody-chat-live-runner";
 import { parseReasoning, stripReasoning } from "../chat/core/reasoning";
 import { SILENT_ASSISTANT_NOTICE } from "../chat/core/silent-turn";
-import {
-  extractFirstStaffMentionCandidate,
-  type StaffMentionTrigger,
-} from "../mentions/agent-mentions";
-import {
-  pickVibeRequestIssueNumber,
-  vibeLiveTaskContext,
-  vibeTurnFields,
-  type RecentVibeIssue,
-} from "../chat/plugins/vibe";
+import type { StaffMentionTrigger } from "../mentions/agent-mentions";
+import type { RecentVibeIssue } from "../chat/plugins/vibe";
 import type { TerminalIntentEffectPayload } from "../chat/plugins/terminal/intent-middleware";
 import type { ChatTerminalMode } from "../chat/plugins/terminal/types";
 import type { SlashExpansionEffectPayload } from "../chat/plugins/commands";
-import {
-  isDashboardNavigateDirective,
-  isPreviewActDirective,
-  isSwitchAgentDirective,
-  type DashboardNavigateDirective,
-  type PreviewActDirective,
+import type {
+  DashboardNavigateDirective,
+  PreviewActDirective,
 } from "../chat-ui-actions";
 import { SHOW_VIEW_TOOL } from "../chat-output-tools";
-import { extractKodyTerminalPayload } from "@kody-ade/terminal/kody-terminal-directive";
-import { prependConversationSummary } from "../chat/core/conversation-compaction";
-import {
-  compactConversationForTurn,
-  type CompactionStatus,
-} from "./kody-chat-compaction";
+import type { CompactionStatus } from "./kody-chat-compaction";
 import {
   completeActiveAssistant,
   removeActiveAssistant,
@@ -279,12 +219,6 @@ export function applySettleDecision(
       );
       return;
   }
-}
-
-/** Brain finish: clear typing + unmark every loading bubble. */
-function applyBrainFinish(io: SettleIO): void {
-  io.setLoading(false);
-  io.setMessages(completeActiveAssistant);
 }
 
 /**
@@ -489,1182 +423,200 @@ async function runSendTextInner(
   options: SendTextOptions = {},
 ): Promise<string | null> {
   const {
-    selectedAgentId,
     selectedModelId,
     effectiveReasoningEffort,
     selectedMachineAccess,
     selectedTask,
     selectedCapability,
-    selectedOrg,
-    selectedReport,
-    selectedApp,
-    onIssueCreated,
     vibeMode,
-    context,
-    actorLogin,
-    repoAgentSlugs,
-    selectedAgencyAgentSlug,
     agentList,
     sessionHook,
-    messages,
     setMessagesForSession,
     setLoading,
     setToolCalls,
-    selectAgentEntry,
-    setVoiceOverlayOpen,
-    setCompactionStatus,
+    kodyDirectHeaders,
     currentPageRef,
-    collectPreviewContextRef,
-    recentVibeIssueRef,
-    brainAbortRef,
-    brainAbortBySessionRef,
     kodyAbortRef,
     kodyAbortBySessionRef,
-    interactiveStateRef,
-    interactiveSessionIdRef,
-    startInteractiveSession,
-    restartInteractiveSession,
-    dispatchLive,
-    connectSSE,
-    runPreviewActionFromDirective,
-    runDashboardNavigateFromDirective,
   } = deps;
-
   if (!messageContent.trim() && currentAttachments.length === 0) return null;
 
-  // Voice streaming: emit the spoken-so-far text (think tags stripped)
-  // on each delta so the voice loop can speak completed sentences while
-  // the rest of the reply is still generating. No-op outside voice mode.
-  const emitVoiceDelta =
-    options.voiceMode && options.onVoiceDelta
-      ? (full: string) => options.onVoiceDelta!(stripReasoning(full))
-      : null;
-
-  // Voice mode is a MODALITY. It does NOT swap agents — the user's
-  // dropdown choice still drives the brain and tools. The server
-  // appends a TTS-friendly overlay to that agent's system prompt
-  // when we set `voiceMode: true` on the request. For agents whose
-  // backend isn't the in-process chat path (brain, kody-engine,
-  // kody-live), we still route through /api/kody/chat/kody for
-  // voice — the kody route falls back to AGENT_KODY for those and
-  // applies the overlay there.
-  const voiceMode = options.voiceMode === true;
-  const effectiveAgentId: AgentId = options.forceAgentId ?? selectedAgentId;
-  const effectiveAgent = AGENTS[effectiveAgentId] ?? AGENT_KODY;
-
-  const timestamp = new Date().toISOString();
-  const currentMessageId = crypto.randomUUID();
   const selectedEntryKey = agentList.find(
-    (entry) =>
-      entry.agentId === selectedAgentId &&
-      (entry.modelId ?? null) === selectedModelId,
+    (entry) => entry.agentId === deps.selectedAgentId && (entry.modelId ?? null) === selectedModelId,
   )?.key;
-  const uiSessionId =
-    sessionHook.activeSession?.id ??
-    sessionHook.createSession({
-      ...(selectedEntryKey ? { agentKey: selectedEntryKey } : {}),
-      machineAccess: selectedMachineAccess,
-    });
-  let turnMessages =
-    sessionHook.activeSession?.id === uiSessionId
-      ? messages
-      : sessionHook.getSessionMessages(uiSessionId).map(chatToMessage);
-  const setMessages = (
-    updater: Message[] | ((prev: Message[]) => Message[]),
-  ) => {
-    turnMessages =
-      typeof updater === "function" ? updater(turnMessages) : updater;
-    setMessagesForSession(uiSessionId, turnMessages, { persist: false });
+  const sessionId = sessionHook.activeSession?.id ?? sessionHook.createSession({
+    ...(selectedEntryKey ? { agentKey: selectedEntryKey } : {}),
+    machineAccess: selectedMachineAccess,
+  });
+  const setLocalMessages = (updater: MessagesUpdater) => {
+    setMessagesForSession(sessionId, (previous) => {
+      return typeof updater === "function" ? updater(previous) : updater;
+    }, { persist: false });
   };
-  const displayContent = options.displayContent ?? messageContent;
-  const optimisticAttachmentRefs: AttachmentRef[] = currentAttachments.map(
-    (attachment) => ({
-      id: attachment.id,
-      name: attachment.name,
-      mimeType: attachment.mimeType,
-      size: attachment.size,
-    }),
-  );
 
-  // A send must feel immediate. Storage, context collection, compaction, and
-  // attachment upload can take seconds, so render the user's bubble before
-  // awaiting any of them.
-  setMessages((prev) => [
-    ...prev,
+  const messageId = crypto.randomUUID();
+  const displayContent = options.displayContent ?? messageContent;
+  setLocalMessages((previous) => [
+    ...previous,
     {
-      id: currentMessageId,
+      id: messageId,
       role: "user",
       content: displayContent,
-      timestamp,
-      attachments:
-        optimisticAttachmentRefs.length > 0
-          ? optimisticAttachmentRefs
-          : undefined,
+      timestamp: new Date().toISOString(),
+      ...(currentAttachments.length ? {
+        attachments: currentAttachments.map((file) => ({
+          id: file.id, name: file.name, mimeType: file.mimeType, size: file.size,
+        })),
+      } : {}),
       ...(options.hidden ? { hidden: true } : {}),
+    },
+    {
+      id: `assistant:${messageId}`,
+      turnId: messageId,
+      role: "assistant",
+      content: "",
+      isLoading: true,
+      timestamp: new Date().toISOString(),
     },
   ]);
-
-  // Upload pending attachment blobs to the conversation store before the
-  // message is committed. Only the canonical attachment ids and metadata
-  // remain in UI state; the data URL is used for this outgoing turn only.
-  const attachmentRefs: AttachmentRef[] = await Promise.all(
-    currentAttachments.map((attachment) =>
-      persistPendingAttachment(uiSessionId, {
-        id: attachment.id,
-        name: attachment.name,
-        mimeType: attachment.mimeType,
-        size: attachment.size,
-      }),
-    ),
-  );
-  if (attachmentRefs.length > 0) {
-    setMessages((previous) =>
-      previous.map((message) =>
-        message.id === currentMessageId
-          ? { ...message, attachments: attachmentRefs }
-          : message,
-      ),
-    );
-  }
-
-  // Persistence is intentionally not on the model's critical path. The
-  // conversation client still serializes create -> append operations, while
-  // the hook reports any failure through the visible persistence banner.
-  void sessionHook
-    .persistUserMessage(uiSessionId, {
-      id: currentMessageId,
-      role: "user",
-      text: displayContent,
-      timestamp,
-      attachments: attachmentRefs.length > 0 ? attachmentRefs : undefined,
-      ...(options.hidden ? { hidden: true } : {}),
-    })
-    .catch(() => undefined);
-
-  // The user's bubble shows just the typed text — the attachment chips
-  // are rendered separately from `attachments`. No base64 in the text.
-  // Callers can override via `options.displayContent` when the model
-  // should see something different (e.g. an expanded slash-command
-  // prompt — the user bubble still shows the typed input).
-  // Preview page context is invisible in the UI. Kody-direct receives it
-  // as a separate context field so renderer/tool routing sees only the
-  // user's real words; text-only backends still need it appended. Image
-  // turns are different: the screenshot is the evidence, and hidden DOM
-  // text can pull vision models toward a stale/wrong page description.
-  const imageTurnHasVisualEvidence = currentAttachments.some((a) =>
-    a.mimeType.startsWith("image/"),
-  );
-  const previewContext = shouldCollectPreviewContextForTurn({
-    hidden: options.hidden === true,
-    hasImageAttachments: imageTurnHasVisualEvidence,
-  })
-    ? await collectPreviewContextRef.current()
-    : null;
-  const wireContent = composeUserWireContent({
-    messageContent,
-    previewContext,
-    backend: effectiveAgent.backend,
-  });
-  const priorTurnMessages =
-    sessionHook.activeSession?.id === uiSessionId
-      ? messages
-      : sessionHook.getSessionMessages(uiSessionId).map(chatToMessage);
-  // Build the prior-conversation transcript for the Kody backend. It
-  // gets the cleaned-up text only; older attachments are referenced by
-  // ref count only (not re-uploaded) — Kody's stateless route only
-  // needs the current turn's images.
-  // Build the transcript we send back to the model. Three rules:
-  //
-  // 1. Strip <think>…</think> blocks from any assistant content. The
-  //    chat client wraps model thought summaries in those tags so
-  //    the collapsed reasoning panel can render them, but the model
-  //    should never see its own private thoughts replayed as prior
-  //    "assistant" turns — it triggers a narration loop where the
-  //    next reply continues thinking-style ("I must acknowledge…").
-  // 2. Drop synthetic error bubbles. isError: true catches the
-  //    tagged ones; the "Error: " content prefix catches legacy
-  //    persisted bubbles saved before the flag existed.
-  // 3. Drop empty assistant bubbles (no real text after stripping).
-  //    They come from aborted turns or turns where the model only
-  //    produced reasoning. Sending them back makes the model "continue
-  //    from nothing" and often regress into apologies.
-  const cleanedTurnMessages = priorTurnMessages
-    .map((m) => {
-      if (m.role !== "assistant") return m;
-      if (m.isError) return null;
-      if (m.content.startsWith("Error: ")) return null;
-      const cleaned = stripReasoning(m.content);
-      if (!cleaned) return null;
-      return { ...m, content: cleaned };
-    })
-    .filter((m): m is Message => m !== null);
-  const priorMessages = cleanedTurnMessages.map((m) => ({
-    role: m.role,
-    content: m.content,
-    timestamp: m.timestamp ?? timestamp,
-  }));
-  const runtime: ConversationRuntime =
-    effectiveAgent.backend === "brain"
-      ? { kind: "brain", brainId: effectiveAgentId }
-      : effectiveAgent.backend === "kody-live"
-        ? effectiveAgentId === "kody-live"
-          ? { kind: "live", profileId: effectiveAgentId }
-          : { kind: "engine", profileId: effectiveAgentId }
-        : { kind: "direct", modelId: selectedModelId ?? "default" };
-  const preparedTurn = prepareUiConversationTurn({
-    session: sessionHook.activeSession ?? {
-      id: uiSessionId,
-      title: "New conversation",
-      createdAt: timestamp,
-      updatedAt: timestamp,
-      messageCount: cleanedTurnMessages.length,
-      agencyAgent: {
-        slug: selectedAgencyAgentSlug,
-        title: selectedAgencyAgentSlug,
-      },
-    },
-    messages: cleanedTurnMessages,
-    current: {
-      id: currentMessageId,
-      content: wireContent,
-      timestamp,
-    },
-    runtime,
-  });
-  const agentHandoff = latestAgentHandoff(
-    sessionHook.activeSession?.agentHandoffs ?? [],
-  );
-  const previousAgentMessages = preparedTurn.previousAgentContext.map(
-    (message) => ({
-      role: message.role,
-      content: message.content,
-      timestamp: message.createdAt,
-    }),
-  );
-  const activeAgentMessages = preparedTurn.activeHistory.map((message) => ({
-    role: message.role,
-    content: message.content,
-    timestamp: message.createdAt,
-  }));
-  const agentHandoffContext = buildAgentHandoffContext(previousAgentMessages);
-
-  const previousCheckpoint =
-    sessionHook.activeSession?.id === uiSessionId
-      ? sessionHook.activeSession.contextCheckpoint
-      : undefined;
-  const compaction = await compactConversationForTurn({
-    messages: activeAgentMessages,
-    checkpoint: previousCheckpoint,
-    nextUserContent: wireContent,
-    model: selectedModelId,
-    headers: deps.kodyDirectHeaders ?? authHeaders(),
-    onStatus: setCompactionStatus,
-    onCheckpoint: (checkpoint) =>
-      sessionHook.setSessionCheckpoint(uiSessionId, checkpoint),
-  });
-  const conversationContext = compaction.context;
-
-  const directAgentSlug =
-    !options.hidden && !voiceMode && !options.forceAgentId
-      ? extractFirstStaffMentionCandidate(displayContent, repoAgentSlugs)
-      : null;
-
-  // Resolve the session id only for backends that actually need one
-  // (engine + brain). The kody-direct route is stateless and doesn't
-  // use it. We defer createSession() to those branches because calling
-  // it eagerly here creates a *second* session — the first setMessages
-  // above already auto-created one, but `sessionHook.activeSession` is
-  // a stale closure and reads as null, tripping createSession() into
-  // splitting user/assistant across two sessions.
-  const resolveSessionId = (): string => {
-    return uiSessionId;
-  };
-
   setLoading(true);
   setToolCalls([]);
-  const durableTurnId = crypto.randomUUID();
-  const persistSettledAssistant = async () => {
-    const currentUserIndex = turnMessages.findIndex(
-      (item) => item.id === currentMessageId,
-    );
-    const turnReplies = turnMessages.slice(currentUserIndex + 1);
-    const message =
-      turnReplies.find((item) => item.id === `assistant:${durableTurnId}`) ??
-      [...turnReplies]
-        .reverse()
-        .find((item) => item.role === "assistant" && !item.isLoading);
-    if (!message || message.isLoading) return;
-    const stored = messageToChat(message);
-    const persistence =
-      effectiveAgent.backend === "kody-direct"
-        ? sessionHook.settlePendingAssistantMessage
-        : sessionHook.persistAssistantMessage;
-    await persistence(uiSessionId, {
-      ...stored,
-      id: stored.id ?? `assistant:${durableTurnId}`,
-      role: "assistant",
-      turnId: durableTurnId,
-    }).catch(() => undefined);
+
+  kodyAbortBySessionRef.current.get(sessionId)?.abort();
+  const abort = new AbortController();
+  kodyAbortBySessionRef.current.set(sessionId, abort);
+  kodyAbortRef.current = abort;
+  const headers = { ...authHeaders(), ...kodyDirectHeaders };
+  const source = vibeMode ? "kody-vibe-default" : "kody-global";
+  const fileRefs: string[] = [];
+  const images: Array<{ name: string; dataUrl: string }> = [];
+  let answer = "";
+  const toolCalls: ToolCall[] = [];
+  const updateAssistant = (change: (message: Message) => Message) => {
+    setLocalMessages((previous) => previous.map((message) =>
+      message.id === `assistant:${messageId}` ? change(message) : message,
+    ));
   };
+  const voiceDelta = options.voiceMode && options.onVoiceDelta
+    ? (text: string) => options.onVoiceDelta!(stripReasoning(text))
+    : undefined;
 
-  // Placeholder assistant message — will be replaced by SSE events
-  const pendingAssistantMessage = {
-    id: `assistant:${durableTurnId}`,
-    turnId: durableTurnId,
-    role: "assistant" as const,
-    content: "",
-    isLoading: true,
-    timestamp: new Date().toISOString(),
-  };
-  setMessages((prev) => [...prev, pendingAssistantMessage]);
-
-  // ─── Brain backend: sync SSE stream from a Brain server ───
-  // Two flavors share this branch, distinguished by selectedAgentId:
-  //   - 'brain'     → user-managed external server, URL/key from Settings
-  //                   (sent as x-brain-url/x-brain-key headers).
-  //                   Routes to /api/kody/chat/brain.
-  //   - 'brain-fly' -> Repo Brain on a user-owned Fly runtime. Credentials
-  //                    are resolved server-side from FLY_API_TOKEN in the
-  //                    repo vault. Routes to /api/kody/chat/brain-fly,
-  //                    no client-side credentials.
-  // Voice mode rides through Brain when the selected agent's
-  // `supportsVoice` flag is true (the brain server applies the voice
-  // overlay server-side, per the shared contract in
-  // src/dashboard/lib/voice/overlay.ts).
-  const isBrainAgent =
-    !directAgentSlug &&
-    (effectiveAgentId === "brain" || effectiveAgentId === "brain-fly");
-  if (isBrainAgent) {
-    const brainEndpoint =
-      effectiveAgentId === "brain-fly"
-        ? "/api/kody/chat/brain-fly"
-        : "/api/kody/chat/brain";
-    const brainExtraHeaders: Record<string, string> =
-      effectiveAgentId === "brain-fly" ? {} : brainHeaders();
-    brainAbortBySessionRef.current.get(uiSessionId)?.abort();
-    const abort = new AbortController();
-    brainAbortBySessionRef.current.set(uiSessionId, abort);
-    brainAbortRef.current = abort;
-
-    // Scope chat memory per user + per task so every issue gets its own
-    // Brain session. `sessionId` alone (a bare issue number) would collide
-    // across users working on the same task.
-    const userKey = actorLogin ?? "anon";
-    const brainSessionId = resolveSessionId();
-    // Logical key is the stable conversation identity *without* userKey —
-    // it must not change when actorLogin transiently flips to "anon".
-    //
-    // Scope it by the selected repo too: Brain clones a worktree on the
-    // first turn of a chatId and keeps it for the life of that chat. If the
-    // key ignored the repo, switching repos in the dashboard would reuse
-    // the same Brain chat — still bound to the *old* repo's worktree — and
-    // bare issue numbers (`task-5`) would collide across repos. Prefixing
-    // with owner/repo makes a repo switch start a fresh Brain chat that
-    // clones the correct repo, keeping dashboard selection and Brain in sync.
-    const repoScope = repoBrainScopeKey(getStoredAuth());
-    const brainLogicalKeyBase = selectedTask
-      ? repoBrainConversationKey(repoScope, {
-          type: "task",
-          id: selectedTask.id,
-        })
-      : selectedCapability
-        ? repoBrainConversationKey(repoScope, {
-            type: "capability",
-            slug: selectedCapability.slug,
-          })
-        : repoBrainConversationKey(repoScope, {
-            type: "global",
-            sessionId: brainSessionId,
-          });
-    // A compacted UI conversation gets a fresh Brain chat id. The user stays
-    // in the same visible session; only Brain's hidden runtime context rotates.
-    const brainModelScope = selectedModelId
-      ? `/${effectiveAgentId}/${selectedModelId.replace(/[^a-zA-Z0-9._-]/g, "-")}`
-      : "";
-    const brainConversationKey = `${brainLogicalKeyBase}${brainModelScope}`;
-    const brainEpochKey = `${brainConversationKey}/epoch-${preparedTurn.agentEpochId.replace(/[^a-zA-Z0-9._-]/g, "-")}`;
-    const brainLogicalKey = conversationContext.checkpoint
-      ? `${brainEpochKey}/compact-${conversationContext.checkpoint.revision}`
-      : brainEpochKey;
-    // First turn = no chatId pinned yet for this conversation. Must be
-    // read *before* stickyBrainChatId (which pins). Used to send the
-    // dashboard Context block once — Brain is stateful and keeps it.
-    const brainFirstTurn = !isBrainChatPinned(brainLogicalKey);
-    const brainChatId = stickyBrainChatId(
-      brainLogicalKey,
-      `${userKey}--${brainLogicalKey}`,
-    );
-    const brainWireContent =
-      brainFirstTurn && conversationContext.summary
-        ? prependConversationSummary(conversationContext.summary, wireContent)
-        : wireContent;
-    const selectedBrainEntry = agentList.find(
-      (entry) =>
-        entry.agentId === effectiveAgentId && entry.modelId === selectedModelId,
-    );
-
-    // When chatting about a specific task, pass a compact context blob so
-    // Brain answers in the context of that issue. Brain's route injects it
-    // server-side before forwarding to the Brain chat server.
-    const taskContext = selectedTask
-      ? {
-          issueNumber: selectedTask.issueNumber,
-          title: selectedTask.title,
-          body: selectedTask.body,
-          state: selectedTask.state,
-          labels: selectedTask.labels,
-          column: selectedTask.column,
-          pipeline: selectedTask.pipeline
-            ? {
-                state: selectedTask.pipeline.state,
-                currentStage: selectedTask.pipeline.currentStage,
-              }
-            : undefined,
-          associatedPR: selectedTask.associatedPR
-            ? {
-                number: selectedTask.associatedPR.number,
-                state: selectedTask.associatedPR.state,
-                html_url: selectedTask.associatedPR.html_url,
-              }
-            : undefined,
-        }
-      : undefined;
-
-    // For Brain we send the clean user text plus attachments as a separate
-    // structured field so the Brain server can build a proper multimodal
-    // prompt (text + image blocks) rather than treating data URLs as text.
-    const brainAttachments = currentAttachments.map((a) => ({
-      name: a.name,
-      mimeType: a.mimeType,
-      data: a.data,
-    }));
-
-    // Everything protocol-shaped — the reconnect loop (the Vercel
-    // proxy is hard-killed at ~300s, so a long turn arrives across
-    // several connections), the cold-start retry gate, and the SSE
-    // parsing — lives in the brain transport adapter
-    // (chat/core/transports/brain.ts). This branch assembles the
-    // request body from component state, maps the adapter's
-    // ChatEvents back onto the UI via the shared turn handler, and
-    // keeps its historical abort/error semantics.
-    const brainTurnConfig = {
-      endpoint: brainEndpoint,
-      chatId: brainChatId,
-      initialBody: {
-        chatId: brainChatId,
-        // Brain's private chat id rotates for model/agent/compaction epochs;
-        // persistence must continue writing to the visible Dashboard thread.
-        conversationId: brainSessionId,
-        message: brainWireContent,
-        ...(selectedModelId ? { modelId: selectedModelId } : {}),
-        ...(selectedBrainEntry?.runtime
-          ? { runtime: selectedBrainEntry.runtime }
-          : {}),
-        // Brain has no ambient-context slot either; the route
-        // prefixes this onto the forwarded user message.
-        ...(currentPageRef.current
-          ? { currentPage: currentPageRef.current }
-          : {}),
-        // Send the dashboard Context block once, on the first
-        // turn — the route loads it server-side (vault access)
-        // and prefixes it onto the message. Brain keeps it for
-        // the chat's life, so later turns skip the token cost.
-        ...(brainFirstTurn ? { includeContext: true } : {}),
-        ...(taskContext ? { taskContext } : {}),
-        ...(selectedCapability
-          ? {
-              capabilityContext: {
-                slug: selectedCapability.slug,
-                title: selectedCapability.title,
-                body: selectedCapability.body,
-              },
-            }
-          : {}),
-        ...(brainAttachments.length > 0
-          ? { attachments: brainAttachments }
-          : {}),
-        // Voice modality. Brain forwards this to the upstream
-        // chat server, which is responsible for appending the
-        // voice overlay to its system prompt for this turn.
-        ...(voiceMode ? { voiceMode: true } : {}),
-        // Thinking level. Brain chat rows don't surface a
-        // `reasoning` dropdown in the picker (Brain owns its
-        // own reasoning config), but we forward the field when
-        // it's set so a future Brain server version can pick
-        // it up without a route change.
-        ...(effectiveReasoningEffort
-          ? { reasoningEffort: effectiveReasoningEffort }
-          : {}),
-        workspaceMode: "host",
-      },
-    } satisfies BrainTurnConfig;
-    const brainTurn = createTransportTurnHandler({
-      setMessages,
-      setLoading,
-      emitVoiceDelta,
-      voiceMode,
-    });
-    try {
-      // Run under the shared turn coordinator so Brain gets the same
-      // lifecycle guarantees as kody-direct: an inactivity deadline (a
-      // socket the Brain server holds open but never writes to can no
-      // longer pin the UI in "thinking" forever) and the done-or-error
-      // protocol invariant.
-      await runChatTurn({
-        transport: brainTransport,
-        input: {
-          preparedTurn,
-          sessionId: uiSessionId,
-          text: brainWireContent,
-          agentId: effectiveAgentId,
-          ...(effectiveReasoningEffort
-            ? { reasoningEffort: effectiveReasoningEffort }
-            : {}),
-          context: brainTurnConfig,
-        },
-        context: {
-          authHeaders: { ...authHeaders(), ...brainExtraHeaders },
-          signal: abort.signal,
-          emit: brainTurn.handleEvent,
-        },
-        inactivityMs: BRAIN_INACTIVITY_MS,
-        turnId: durableTurnId,
-      });
-
-      // Reconnect budget ran out — the handler already surfaced the
-      // error bubble; nothing to hand to TTS.
-      if (brainTurn.state.exhausted) {
-        return null;
-      }
-
-      // FINISH_STRATEGIES.brain — clear typing, unmark loading bubbles.
-      applyBrainFinish({ setMessages, setLoading });
-      await persistSettledAssistant();
-      // Voice mode: defense-in-depth strip of `<think>` blocks before
-      // handing the reply to TTS. The brain server is expected to drop
-      // them when voiceMode is set, but the dashboard should never
-      // narrate them even if an old server leaks them through.
-      const spokenText = voiceMode
-        ? stripReasoning(brainTurn.state.latestAssistantText)
-        : brainTurn.state.latestAssistantText;
-      return spokenText || null;
-    } catch (error) {
-      // Settle seam: abort pops the optimistic slice, real errors
-      // surface an error bubble (SETTLE_STRATEGIES.brain).
-      applySettleDecision(settleDecision("brain", classifyTurnFailure(error)), {
-        setMessages,
-        setLoading,
-      });
-      await persistSettledAssistant();
-      return null;
-    } finally {
-      if (brainAbortBySessionRef.current.get(uiSessionId) === abort) {
-        brainAbortBySessionRef.current.delete(uiSessionId);
-      }
-      if (brainAbortRef.current === abort) {
-        brainAbortRef.current = null;
-      }
-    }
-  }
-
-  // ─── Kody direct backend: in-process LLM stream, no Actions/Brain ───
-  // Any agent with backend === 'kody-direct' routes here. Voice on
-  // a kody-direct agent rides this branch with `voiceMode: true` on
-  // the body so the route appends the voice overlay to the agent's
-  // system prompt. Voice on a brain agent rides the Brain branch
-  // above and is overlay'd server-side by the brain server.
-  if (effectiveAgent.backend === "kody-direct" || directAgentSlug) {
-    // Forward task context when the user is chatting about a specific
-    // task — same shape Brain receives, so the server can anchor the
-    // reply in the right issue/PR.
-    const kodyTaskContext = selectedTask
-      ? {
-          issueNumber: selectedTask.issueNumber,
-          title: selectedTask.title,
-          body: selectedTask.body,
-          state: selectedTask.state,
-          labels: selectedTask.labels,
-          column: selectedTask.column,
-          pipeline: selectedTask.pipeline
-            ? {
-                state: selectedTask.pipeline.state,
-                currentStage: selectedTask.pipeline.currentStage,
-              }
-            : undefined,
-          associatedPR: selectedTask.associatedPR
-            ? {
-                number: selectedTask.associatedPR.number,
-                state: selectedTask.associatedPR.state,
-                html_url: selectedTask.associatedPR.html_url,
-              }
-            : undefined,
-        }
-      : // Bridge: if we JUST created a vibe issue but the task scope hasn't
-        // propagated yet, still scope this turn to that issue so the server
-        // can bind the hand-off (and strip create tools) correctly.
-        (() => {
-          const bridged = pickVibeRequestIssueNumber({
-            selectedTaskIssueNumber: null,
-            vibeMode: vibeMode === true,
-            recent: recentVibeIssueRef.current,
-            nowMs: Date.now(),
-          });
-          return bridged != null ? { issueNumber: bridged } : undefined;
-        })();
-
-    // Build the user-turn content. If we have attachments, send them as
-    // structured parts (text + image) so the model sees real images,
-    // not base64 strings stuffed into the text. Without attachments,
-    // send a plain string to keep the request shape identical to before.
-    const userTurnContent: unknown =
-      currentAttachments.length > 0
-        ? [
-            ...(wireContent.trim()
-              ? [{ type: "text" as const, text: wireContent }]
-              : []),
-            ...currentAttachments.map((a) =>
-              a.mimeType.startsWith("image/")
-                ? {
-                    type: "image" as const,
-                    image: a.data,
-                    mimeType: a.mimeType,
-                  }
-                : {
-                    type: "file" as const,
-                    data: a.data,
-                    mediaType: a.mimeType,
-                    filename: a.name,
-                  },
-            ),
-          ]
-        : wireContent;
-
-    const kodyMessages = [
-      ...conversationContext.recentMessages.map((m) => ({
-        role: m.role,
-        content: m.content,
-      })),
-      { role: "user" as const, content: userTurnContent },
-    ];
-
-    // Fresh AbortController per turn — Stop button calls .abort() on
-    // whichever request is in-flight. Cancel any prior controller in
-    // the unlikely case a previous turn never settled.
-    kodyAbortBySessionRef.current.get(uiSessionId)?.abort();
-    const kodyAbort = new AbortController();
-    kodyAbortBySessionRef.current.set(uiSessionId, kodyAbort);
-    kodyAbortRef.current = kodyAbort;
-    // Protocol mechanics — the SSE parse, tool bookkeeping, and
-    // directive shape detection — live in the kody-direct transport
-    // adapter (chat/core/transports/kody-direct.ts). This branch
-    // assembles the request body from component state, maps the
-    // adapter's ChatEvents onto the UI via the shared turn handler,
-    // then applies the deferred directives after the stream settles.
-    const kodyTurn = createTransportTurnHandler({
-      setMessages,
-      setLoading,
-      emitVoiceDelta,
-      voiceMode,
-    });
-    const directPersistence = createAssistantTurnPersistenceObserver({
-      persistPending: () =>
-        sessionHook.persistPendingAssistantMessage(uiSessionId, {
-          id: pendingAssistantMessage.id,
-          turnId: durableTurnId,
-          role: "assistant",
-          text: "",
-          isLoading: true,
-          timestamp: pendingAssistantMessage.timestamp,
-          agent: preparedTurn.speaker,
-        }),
-      readSettledMessage: () => {
-        const message = turnMessages.find(
-          (item) => item.id === pendingAssistantMessage.id,
-        );
-        if (!message || message.isLoading) return null;
-        const stored = messageToChat(message);
-        return {
-          ...stored,
-          id: stored.id ?? pendingAssistantMessage.id,
-          role: "assistant" as const,
-          turnId: durableTurnId,
-        };
-      },
-      persistSettled: (message) =>
-        sessionHook.settlePendingAssistantMessage(uiSessionId, message),
-    });
-    try {
-      const kodyTurnConfig = {
-        endpoint: "/api/kody/chat/kody",
-        body: {
-          messages: kodyMessages,
-          ...(conversationContext.summary
-            ? { conversationSummary: conversationContext.summary }
-            : {}),
-          task: kodyTaskContext,
-          agentId:
-            directAgentSlug || deps.lockedAgentSlug ? "kody" : effectiveAgentId,
-          ...(directAgentSlug ||
-          deps.lockedAgentSlug ||
-          selectedAgencyAgentSlug !== "kody"
-            ? {
-                agentSlug:
-                  directAgentSlug ??
-                  deps.lockedAgentSlug ??
-                  selectedAgencyAgentSlug,
-              }
-            : {}),
-          ...(agentHandoff ? { agentHandoff } : {}),
-          ...(agentHandoffContext ? { agentHandoffContext } : {}),
-          // Voice modality flag. When true the server appends the
-          // voice overlay (no markdown, short sentences, etc.) to
-          // the selected agent's system prompt and prefers the
-          // speech-flagged model if no model is explicitly set.
-          ...(voiceMode ? { voiceMode: true } : {}),
-          // Vibe flips the system prompt to "you ARE the executor" and
-          // strips the @kody dispatch tools. Only meaningful when the
-          // chat is hosted on /vibe; the dashboard rail leaves it off.
-          // (Wire shape owned by chat/plugins/vibe/turn-context.ts.)
-          ...vibeTurnFields(vibeMode),
-          // Forward the active gateway model id when one is active. The
-          // server validates against the configured + built-in catalog,
-          // so a stale value falls back to the configured default.
-          ...(selectedModelId ? { model: selectedModelId } : {}),
-          // Forward the user's picked thinking level. Server translates
-          // to the provider's wire shape (anthropic_budget, openai_effort,
-          // gemini_budget, etc.) at request time. Omitted when the
-          // active model has no reasoning config.
-          ...(effectiveReasoningEffort
-            ? { reasoningEffort: effectiveReasoningEffort }
-            : {}),
-          machineAccess: selectedMachineAccess,
-          ...(actorLogin ? { actorLogin } : {}),
-          // The dashboard page the user is on, so "what am I viewing?"
-          // resolves. Surfaced as a `## Current page` system section.
-          ...(currentPageRef.current
-            ? { currentPage: currentPageRef.current }
-            : {}),
-          ...(previewContext ? { previewContext } : {}),
-          ...(selectedOrg
-            ? {
-                org: {
-                  owner: selectedOrg.org,
-                  repositories: selectedOrg.repositories ?? [],
-                },
-              }
-            : {}),
-          ...(selectedCapability
-            ? {
-                capability: {
-                  slug: selectedCapability.slug,
-                  title: selectedCapability.title,
-                  body: selectedCapability.body,
-                },
-              }
-            : {}),
-          ...(selectedReport
-            ? {
-                report: {
-                  slug: selectedReport.slug,
-                  title: selectedReport.title,
-                  body: selectedReport.body,
-                },
-              }
-            : {}),
-          ...(selectedApp ? { app: selectedApp } : {}),
-          ...(options.retryAssessmentTurnId
-            ? { retryAssessmentTurnId: options.retryAssessmentTurnId }
-            : {}),
-        },
-      } satisfies KodyDirectTurnConfig;
-      await runChatTurn({
-        transport: kodyDirectTransport,
-        input: {
-          preparedTurn,
-          sessionId: uiSessionId,
-          text: wireContent,
-          agentId:
-            directAgentSlug || deps.lockedAgentSlug ? "kody" : effectiveAgentId,
-          ...(selectedModelId ? { modelId: selectedModelId } : {}),
-          ...(effectiveReasoningEffort
-            ? { reasoningEffort: effectiveReasoningEffort }
-            : {}),
-          context: kodyTurnConfig,
-        },
-        context: {
-          authHeaders: deps.kodyDirectHeaders ?? authHeaders(),
-          signal: kodyAbort.signal,
-          emit: kodyTurn.handleEvent,
-        },
-        inactivityMs: KODY_DIRECT_INACTIVITY_MS,
-        turnId: durableTurnId,
-        observer: directPersistence.observer,
-        settle: () => {
-          const assistantText = kodyTurn.state.textBuf.trim();
-          let assistantDisplayOverride: string | null | void = undefined;
-          if (options.onAssistantTextComplete) {
-            try {
-              assistantDisplayOverride =
-                options.onAssistantTextComplete(assistantText);
-            } catch (err) {
-              toast.error(
-                err instanceof Error
-                  ? err.message
-                  : "Failed to handle Kody terminal response",
-              );
-            }
-          }
-          finalizeKodyDirectTurn({
-            io: { setMessages, setLoading },
-            turn: kodyTurn.state,
-            assistantDisplayOverride,
-          });
-        },
-      });
-
-      // Per-turn results accumulated by the event handler. Pending UI
-      // directives are applied AFTER the stream settles (below) so the
-      // agent flip / navigation / preview chain doesn't race the
-      // in-flight assistant render.
-      const {
-        textBuf,
-        pendingSwitchAgent,
-        pendingDashboardNavigate,
-        pendingPreviewAct,
-        pendingCreatedIssue,
-      } = kodyTurn.state;
-
-      // Storage follows the lifecycle in order, but never delays the reply.
-      void directPersistence.flush();
-      // Apply any UI-control directives the model emitted. Done after
-      // the assistant bubble settles so the agent flip doesn't race
-      // the in-flight render or interrupt voice TTS that is still
-      // speaking the confirmation sentence.
-      if (pendingSwitchAgent && isSwitchAgentDirective(pendingSwitchAgent)) {
-        const target = pendingSwitchAgent;
-        // Mirror the model-emitted switch onto the active session so
-        // a refresh / session re-open keeps the same agent. The
-        // directive carries only `agentId` (no modelId) so we match
-        // the dropdown row by agentId and forward its entry key —
-        // for `kody` rows we keep the previously-selected modelId
-        // (the directive didn't ask to change it).
-        const targetEntry = agentList.find(
-          (e) =>
-            e.agentId === target.agentId &&
-            (e.agentId !== "kody" || e.modelId === selectedModelId),
-        );
-        if (targetEntry) {
-          selectAgentEntry(targetEntry);
-        }
-        // If voice is active and the new agent isn't backed by the
-        // in-process chat path, close the overlay. The overlay is
-        // appended server-side on /api/kody/chat/kody only — engine
-        // and brain agents proxy to backends that don't honor the
-        // voice overlay, so leaving the mic open after a switch to
-        // them would speak markdown-heavy replies.
-        const targetBackend = AGENTS[target.agentId]?.backend;
-        if (voiceMode && targetBackend !== "kody-direct") {
-          setVoiceOverlayOpen(false);
-        }
-        // Defer the kickoff dispatch to a useEffect so we can wait
-        // for the new agent + matching task scope to settle before
-        // sending. See the comment on `pendingKickoff` near the top
-        // of the component for why both must align first — and why
-        // the issue-number gate is load-bearing.
-        if (target.autoKickoff && target.autoKickoff.trim().length > 0) {
-          dispatchLive({
-            type: "KICKOFF_QUEUED",
-            content: target.autoKickoff,
-            issueNumber: target.autoKickoffIssueNumber ?? null,
-          });
-        }
-      }
-      // Preview action: hand the spec to the inspector extension, run
-      // it in the preview frame, then push the result back into the
-      // conversation as a synthetic user turn. The model sees that on
-      // its next turn and decides whether to keep going (multi-step
-      // flows) or finish.
-      if (pendingPreviewAct && isPreviewActDirective(pendingPreviewAct)) {
-        const directive = pendingPreviewAct as PreviewActDirective;
-        void runPreviewActionFromDirective(directive);
-      }
-      if (
-        pendingDashboardNavigate &&
-        isDashboardNavigateDirective(pendingDashboardNavigate)
-      ) {
-        runDashboardNavigateFromDirective(pendingDashboardNavigate);
-      }
-      // Issue-creation navigation: the unified chat thread does NOT
-      // migrate per-issue. The conversation that created the issue
-      // stays in the global session; the host just navigates to the
-      // new issue and the next turn's system-prompt block carries
-      // `## Current task = #N` so the model acknowledges the new
-      // scope without losing history.
-      if (pendingCreatedIssue !== null && onIssueCreated) {
-        const newIssueNumber = pendingCreatedIssue;
-        // Remember the just-created issue so the NEXT turn(s) scope to it
-        // even if the page's task-scope flip hasn't propagated yet (the
-        // "turn 2 carries no issue → wrong hand-off" bug).
-        recentVibeIssueRef.current = {
-          issueNumber: newIssueNumber,
-          at: Date.now(),
-        };
-        try {
-          onIssueCreated(newIssueNumber);
-        } catch {
-          // Host callback errors should never break the chat.
-        }
-      }
-      // Voice mode needs the spoken text only — no reasoning, no
-      // empty string. `textBuf` is the answer the model would render
-      // in a normal text bubble. We additionally strip any
-      // `<think>…</think>` blocks the model wrote INTO the text
-      // stream (some providers route thoughts through text-delta
-      // instead of reasoning-delta, especially under OpenAI-compat
-      // shims) so TTS never narrates them.
-      const spoken = voiceMode ? stripReasoning(textBuf) : textBuf.trim();
-      return spoken || null;
-    } catch (err) {
-      if (shouldRecoverDurableDirectTurn(err)) {
-        setLoading(false);
-        await directPersistence.flush();
-        sessionHook.recoverRunningTurn(uiSessionId);
-        return null;
-      }
-      if (
-        shouldPreservePendingDirectTurn(
-          typeof document === "undefined"
-            ? undefined
-            : document.visibilityState,
-        )
-      ) {
-        return null;
-      }
-      // Stop button fired — fetch/reader throws an AbortError. That's
-      // not a real failure; the settle table maps it to settling the
-      // bubble in place (SETTLE_STRATEGIES["kody-direct"]). Real
-      // failures surface an error bubble.
-      applySettleDecision(
-        settleDecision("kody-direct", classifyTurnFailure(err)),
-        { setMessages, setLoading },
-      );
-      await persistSettledAssistant();
-      return null;
-    } finally {
-      // Drop the controller so the next turn starts fresh.
-      if (kodyAbortRef.current === kodyAbort) {
-        kodyAbortRef.current = null;
-      }
-      if (kodyAbortBySessionRef.current.get(uiSessionId) === kodyAbort) {
-        kodyAbortBySessionRef.current.delete(uiSessionId);
-      }
-    }
-  }
-
-  // ─── Kody Live: long-lived interactive runner ───
-  // First send always auto-starts the runner if there's no live session
-  // (or the previous one ended). The user message gets queued through
-  // /append — the runner reads the session JSONL on its first git pull,
-  // so we don't need to wait for chat.ready before queueing.
-  if (
-    effectiveAgentId === "kody-live" ||
-    effectiveAgentId === "kody-live-fly"
-  ) {
-    const startsFreshLiveContext =
-      compaction.didCompact || !interactiveSessionIdRef.current;
-    const liveWireContent =
-      startsFreshLiveContext && conversationContext.summary
-        ? prependConversationSummary(conversationContext.summary, wireContent)
-        : wireContent;
-    const liveUserContent =
-      currentAttachments.length > 0
-        ? currentAttachments
-            .map((a) => {
-              const sizeStr = formatFileSize(a.size);
-              if (a.mimeType.startsWith("image/"))
-                return `[Image: ${a.name} (${sizeStr})]\n${a.data}`;
-              return `[File: ${a.name} (${a.mimeType}, ${sizeStr})]\n${a.data}`;
-            })
-            .join("\n\n") + (liveWireContent ? `\n\n${liveWireContent}` : "")
-        : liveWireContent;
-
-    const liveTaskContext = vibeLiveTaskContext(
-      vibeMode,
-      context?.kind === "task" ? context.task : null,
-    );
-
-    // First turn into a fresh session: hand the message to /start so it's
-    // written ATOMICALLY with the meta line. Previously we started the
-    // runner then appended in a second request — the two writes raced and
-    // the turn was frequently lost, so the runner booted to an empty
-    // session and idle-exited (handoff "ran" but nothing happened, chat
-    // stuck on a spinner). When start carries the turn, skip the append.
-    let firstTurnPersistedByStart = false;
-    const liveStartOptions = {
-      initialContent: liveUserContent,
-      initialTimestamp: timestamp,
-      taskContext: liveTaskContext,
-      uiSessionId,
-    };
-    if (compaction.didCompact && interactiveSessionIdRef.current) {
-      await restartInteractiveSession(liveStartOptions);
-      firstTurnPersistedByStart = true;
-    } else if (
-      (interactiveStateRef.current === "idle" ||
-        interactiveStateRef.current === "ended") &&
-      !interactiveSessionIdRef.current
-    ) {
-      await startInteractiveSession(liveStartOptions);
-      firstTurnPersistedByStart = true;
-    }
-    const liveSessionId = interactiveSessionIdRef.current;
-    const liveState = interactiveStateRef.current;
-    if (!liveSessionId || (liveState !== "ready" && liveState !== "booting")) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content:
-            "Live runner failed to start. Try again, or check Fly Config.",
-          isLoading: false,
-          isError: true,
-        },
-      ]);
-      return null;
-    }
-
-    // Mark the session as awaiting a reply. The reducer will flip back
-    // to 'ready' on chat.message or chat.done — so even if chat.done
-    // never arrives (engine drops it on commit-only turns), the typing
-    // indicator clears as soon as the assistant message lands.
-    dispatchLive({ type: "TURN_SENT" });
-    // The first turn already rode into the session file via /start — no
-    // append needed (and appending again would duplicate it).
-    if (firstTurnPersistedByStart) {
-      return null;
-    }
-    // The append POST (dispatch mechanics) lives in the kody-live
-    // transport adapter (chat/core/transports/kody-live.ts). The
-    // runner lifecycle — start, rehydration, SSE, phase reducer —
-    // stays here, reducer-driven. Fire-and-ack: the reply arrives via
-    // the runner event stream, so there are no events to map.
-    try {
-      await kodyLiveTransport.send(
-        {
-          preparedTurn,
-          sessionId: liveSessionId,
-          turnId: durableTurnId,
-          text: liveUserContent,
-          agentId: effectiveAgentId,
-          context: {
-            kind: "append",
-            body: {
-              taskId: liveSessionId,
-              content: liveUserContent,
-              timestamp,
-              // Same as the trigger path: the live runner reads the turn from
-              // the session JSONL, so page context travels in the turn.
-              ...(currentPageRef.current
-                ? { currentPage: currentPageRef.current }
-                : {}),
-              ...vibeTurnFields(vibeMode, liveTaskContext),
-            },
-          } satisfies KodyLiveTurnConfig,
-        },
-        {
-          authHeaders: liveAuthHeaders(liveSessionId),
-          emit: () => {},
-        },
-      );
-      return null;
-    } catch (error) {
-      // Settle seam: fire-and-ack has no abort path — every failure
-      // surfaces as an error bubble (SETTLE_STRATEGIES["kody-live"]).
-      applySettleDecision(
-        settleDecision("kody-live", classifyTurnFailure(error)),
-        { setMessages, setLoading },
-      );
-      return null;
-    }
-  }
-
-  // ─── Kody engine backend: async via GH Actions workflow ───
-  const sessionId = resolveSessionId();
-  // The engine's trigger workflow expects plain string content. Keep small
-  // attachments inline, but omit oversized raw data so screenshots do not
-  // blow the model context window before the runner starts.
-  const engineUserContent =
-    currentAttachments.length > 0
-      ? currentAttachments
-          .map((a) => {
-            return formatAttachmentForTextBackend({
-              kind: a.mimeType.startsWith("image/") ? "image" : "file",
-              name: a.name,
-              mimeType: a.mimeType,
-              sizeLabel: formatFileSize(a.size),
-              data: a.data,
-            });
-          })
-          .join("\n\n") + (wireContent ? `\n\n${wireContent}` : "")
-      : wireContent;
-
-  const engineMessages = [
-    ...priorMessages,
-    { role: "user" as const, content: engineUserContent, timestamp },
-  ];
-
-  // The GH Actions dispatch (trigger POST) lives in the kody-live
-  // transport adapter — same fire-and-ack model as append: the reply
-  // streams back through the engine's event feed, not this call.
   try {
-    await kodyLiveTransport.send(
-      {
-        preparedTurn,
-        sessionId,
-        turnId: durableTurnId,
-        text: engineUserContent,
-        agentId: effectiveAgentId,
-        context: {
-          kind: "trigger",
-          body: {
-            taskId: sessionId,
-            messages: engineMessages,
-            dashboardUrl:
-              typeof window !== "undefined"
-                ? window.location.origin
-                : undefined,
-            // Engine has no system slot for ambient context; the route
-            // prefixes this onto the latest user turn the engine reads.
-            ...(currentPageRef.current
-              ? { currentPage: currentPageRef.current }
-              : {}),
-            ...vibeTurnFields(
-              vibeMode,
-              vibeLiveTaskContext(
-                vibeMode,
-                context?.kind === "task" ? context.task : null,
-              ),
-            ),
-          },
-        } satisfies KodyLiveTurnConfig,
-      },
-      { authHeaders: authHeaders(), emit: () => {} },
-    );
+    const hermesSessionId = await sessionHook.resolveSessionId(sessionId);
+    const runtimeSessionId = await sessionHook.resolveRuntimeSessionId(sessionId);
+    for (const attachment of currentAttachments) {
+      if (attachment.mimeType.startsWith("image/")) {
+        images.push({ name: attachment.name, dataUrl: attachment.data });
+        continue;
+      }
+      const response = await fetch(
+        `/api/kody/hermes/sessions/${encodeURIComponent(hermesSessionId)}/attachments`,
+        {
+          method: "POST",
+          headers: { ...headers, "Content-Type": "application/json" },
+          body: JSON.stringify({ name: attachment.name, dataUrl: attachment.data, runtimeSessionId }),
+          signal: abort.signal,
+        },
+      );
+      const result = await response.json().catch(() => null) as { ref_text?: unknown; error?: unknown } | null;
+      if (!response.ok || typeof result?.ref_text !== "string") {
+        throw new Error(typeof result?.error === "string" ? result.error : "Hermes could not attach that file.");
+      }
+      fileRefs.push(result.ref_text);
+    }
 
-    // For task chats a separate useEffect opens the SSE on
-    // selectedTask.id; global chats (no task) would otherwise never
-    // see the engine's reply because nothing watches the session id.
-    // Open the stream here so both modes are covered.
-    connectSSE(sessionId, { uiSessionId });
-    return null;
-  } catch (error) {
-    // Settle seam: mirrors brain — abort pops the optimistic slice,
-    // real errors surface a bubble (SETTLE_STRATEGIES["kody-engine"]).
-    applySettleDecision(
-      settleDecision("kody-engine", classifyTurnFailure(error)),
-      { setMessages, setLoading },
+    const text = [messageContent || (images.length ? "Please describe the attached image." : ""), ...fileRefs]
+      .filter(Boolean).join("\n\n");
+    const context = [
+      currentPageRef.current ? `Current dashboard page: ${currentPageRef.current}` : "",
+      selectedTask ? `Current task: ${selectedTask.title} (#${selectedTask.issueNumber})` : "",
+      selectedCapability ? `Current capability: ${selectedCapability.title}` : "",
+    ].filter(Boolean).join("\n");
+    const response = await fetch(
+      `/api/kody/hermes/sessions/${encodeURIComponent(hermesSessionId)}/chat/stream`,
+      {
+        method: "POST",
+        headers: { ...headers, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: text,
+          images,
+          runtimeSessionId,
+          source,
+          ...(selectedModelId ? { model: selectedModelId } : {}),
+          ...(effectiveReasoningEffort ? { model_options: { reasoning_effort: effectiveReasoningEffort } } : {}),
+          ...(context ? { system_message: context } : {}),
+        }),
+        signal: abort.signal,
+      },
     );
+    if (!response.ok || !response.body) {
+      const result = await response.json().catch(() => null) as { error?: unknown } | null;
+      throw new Error(typeof result?.error === "string" ? result.error : `Hermes request failed (${response.status}).`);
+    }
+
+    let streamError: string | null = null;
+    await consumeHermesStream(response.body, ({ type, payload }) => {
+      if (type === "assistant.delta" && typeof payload.delta === "string") {
+        answer += payload.delta;
+        updateAssistant((message) => ({ ...message, content: answer }));
+        voiceDelta?.(answer);
+      } else if (type === "assistant.completed") {
+        const completed = payload.content ?? payload.text;
+        if (typeof completed === "string") {
+          answer = completed;
+          updateAssistant((message) => ({ ...message, content: answer }));
+        }
+      } else if (type === "session.title" && typeof payload.title === "string") {
+        sessionHook.renameSession(sessionId, payload.title);
+      } else if (type === "tool.started" || type === "tool.start") {
+        toolCalls.push({
+          name: String(payload.tool_name ?? payload.name ?? "tool"),
+          arguments: (payload.args && typeof payload.args === "object" ? payload.args : {}) as Record<string, unknown>,
+          status: "running",
+          startedAt: Date.now(),
+          description: typeof payload.preview === "string" ? payload.preview : undefined,
+        });
+        setToolCalls([...toolCalls]);
+        updateAssistant((message) => ({ ...message, toolCalls: toolCalls.map((call) => ({ ...call })) }));
+      } else if (type === "tool.complete" || type === "tool.completed" || type === "tool.failed") {
+        const name = String(payload.tool_name ?? payload.name ?? "");
+        const call = [...toolCalls].reverse().find((item) => item.name === name && item.status === "running");
+        if (call) {
+          call.status = type === "tool.failed" ? "error" : "success";
+          call.result = payload.result ?? payload.summary ?? payload.result_text;
+          if (typeof payload.duration_s === "number") call.durationMs = payload.duration_s * 1_000;
+          setToolCalls([...toolCalls]);
+          updateAssistant((message) => ({ ...message, toolCalls: toolCalls.map((item) => ({ ...item })) }));
+        }
+      } else if (type === "error" || type === "run.failed") {
+        streamError = typeof payload.message === "string" ? payload.message : "Hermes could not finish this reply.";
+      }
+    });
+    if (streamError) throw new Error(streamError);
+
+    let displayOverride: string | null | void;
+    try {
+      displayOverride = options.onAssistantTextComplete?.(answer.trim());
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not finish this action.");
+    }
+    updateAssistant((message) => ({
+      ...message,
+      content: typeof displayOverride === "string" ? displayOverride : answer,
+      isLoading: false,
+    }));
+    setLoading(false);
+    return answer || null;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Hermes could not finish this reply.";
+    updateAssistant((item) => abort.signal.aborted
+      ? { ...item, isLoading: false }
+      : { ...item, content: `Error: ${message}`, isError: true, isLoading: false });
+    setLoading(false);
     return null;
+  } finally {
+    if (kodyAbortBySessionRef.current.get(sessionId) === abort) kodyAbortBySessionRef.current.delete(sessionId);
+    if (kodyAbortRef.current === abort) kodyAbortRef.current = null;
   }
 }
 
@@ -1675,7 +627,6 @@ export interface SendMessageDeps {
   contextChips: Array<{ id: string; label: string; context: string }>;
   isKodyWaiting: boolean;
   selectedTask: KodyTask | null;
-  // Composer state writers
   setInput: (value: string) => void;
   setContextChips: (chips: SendMessageDeps["contextChips"]) => void;
   setAttachments: (attachments: Attachment[]) => void;
@@ -1683,7 +634,6 @@ export interface SendMessageDeps {
   setSlashSelectedIndex: (index: number) => void;
   setAgentMentionTrigger: (trigger: StaffMentionTrigger | null) => void;
   setMessages: (updater: MessagesUpdater) => void;
-  // Plugin platform
   pluginRegistry: PluginRegistry;
   pluginHost: MiddlewareContext["host"];
   handlePluginHostEffect: MiddlewareContext["dispatchHostEffect"];
@@ -1691,221 +641,40 @@ export interface SendMessageDeps {
   pendingSlashExpansionRef: MutableRefObject<SlashExpansionEffectPayload | null>;
   consumePendingTerminalIntent: () => TerminalIntentEffectPayload | null;
   consumePendingSlashExpansion: () => SlashExpansionEffectPayload | null;
-  // Terminal + preview
   sendInputToTerminal: () => void;
   sendKodyTerminalPayloadToTerminal: (payload: string) => boolean;
   previewActChainRef: MutableRefObject<number>;
-  // The turn pipeline
   sendText: SendTextFn;
 }
 
 export async function runSendMessage(deps: SendMessageDeps): Promise<void> {
   const {
-    chatMode,
     input,
     attachments,
     contextChips,
-    isKodyWaiting,
-    selectedTask,
     setInput,
     setContextChips,
     setAttachments,
     setSlashMenuOpen,
     setSlashSelectedIndex,
     setAgentMentionTrigger,
-    setMessages,
-    pluginRegistry,
-    pluginHost,
-    handlePluginHostEffect,
-    pendingTerminalIntentRef,
-    pendingSlashExpansionRef,
-    consumePendingTerminalIntent,
-    consumePendingSlashExpansion,
-    sendInputToTerminal,
-    sendKodyTerminalPayloadToTerminal,
     previewActChainRef,
     sendText,
   } = deps;
+  if (!input.trim() && attachments.length === 0 && contextChips.length === 0) return;
 
-  if (chatMode === "terminal") {
-    sendInputToTerminal();
-    return;
-  }
-
-  if (!input.trim() && attachments.length === 0 && contextChips.length === 0)
-    return;
-  // A real user prompt restarts the budget for chained preview actions.
   previewActChainRef.current = 0;
   const typedInput = input.trim();
-
-  // Deterministic operations are resolved by the shared headless input
-  // dispatcher. Unknown slash inputs continue into prompt-shortcut expansion.
-  try {
-    const operation = typedInput.startsWith("/")
-      ? await requestChatOperation(typedInput, authHeaders())
-      : { handled: false as const };
-    if (operation.handled) {
-      const summary =
-        typeof operation.result.summary === "string"
-          ? operation.result.summary
-          : `${operation.command} completed.`;
-      const workflow = operation.result.workflow;
-      const workflowUrl =
-        workflow && typeof workflow === "object" && !Array.isArray(workflow)
-          ? (workflow as Readonly<Record<string, unknown>>).htmlUrl
-          : undefined;
-      const nextSteps = Array.isArray(operation.result.nextSteps)
-        ? operation.result.nextSteps.filter(
-            (step): step is string => typeof step === "string",
-          )
-        : [];
-      const content = [
-        `✅ ${summary}`,
-        typeof workflowUrl === "string" ? `\nWorkflow: ${workflowUrl}` : "",
-        nextSteps.length > 0
-          ? `\n**Next steps**\n${nextSteps
-              .map((step, index) => `${index + 1}. ${step}`)
-              .join("\n")}`
-          : "",
-      ]
-        .filter(Boolean)
-        .join("\n");
-      const now = new Date().toISOString();
-      setInput("");
-      setSlashMenuOpen(false);
-      setSlashSelectedIndex(0);
-      setMessages((prev) => [
-        ...prev,
-        { role: "user" as const, content: typedInput, timestamp: now },
-        { role: "assistant" as const, content, timestamp: now },
-      ]);
-      return;
-    }
-  } catch (error) {
-    if (typedInput.startsWith("/")) {
-      const now = new Date().toISOString();
-      setInput("");
-      setSlashMenuOpen(false);
-      setSlashSelectedIndex(0);
-      setMessages((prev) => [
-        ...prev,
-        { role: "user" as const, content: typedInput, timestamp: now },
-        {
-          role: "assistant" as const,
-          content: `❌ Command failed: ${
-            error instanceof Error ? error.message : "chat_operation_failed"
-          }`,
-          timestamp: now,
-        },
-      ]);
-      return;
-    }
-  }
-
-  // Plugin send-middleware chain (Step 4). The terminal plugin's
-  // terminal-intent middleware rewrites
-  // `/terminal <x>` to the Kody terminal prompt; the commands plugin's
-  // slash-expansion middleware (order 200, Step 5b) expands
-  // `/review` / `/explain foo` into the command body with $ARGUMENTS
-  // substituted. The model never sees the slash form (every backend
-  // just gets normal text); unknown slugs pass through unchanged so
-  // users can still type "/"-prefixed text freely. Terminal intents
-  // skip expansion by construction — the order-100 rewrite no longer
-  // starts with "/". Each middleware hands the raw typed text back
-  // through a synchronous host effect for the user bubble. A middleware
-  // that consumes the message stops the send.
-  pendingTerminalIntentRef.current = null;
-  pendingSlashExpansionRef.current = null;
-  const middlewareOutcome = pluginRegistry.runSendMiddleware(typedInput, {
-    host: pluginHost,
-    dispatchHostEffect: handlePluginHostEffect,
-  });
-  if (middlewareOutcome.consumedBy) {
-    setInput("");
-    setSlashMenuOpen(false);
-    setAgentMentionTrigger(null);
-    setSlashSelectedIndex(0);
-    return;
-  }
-  const terminalIntent = consumePendingTerminalIntent();
-  const slashExpansion = consumePendingSlashExpansion();
-
-  // The user bubble shows the raw typed text while the model receives
-  // the chain's output (Kody terminal prompt / expanded command body).
-  const rawInput = terminalIntent
-    ? terminalIntent.rawText
-    : slashExpansion
-      ? slashExpansion.rawText
-      : middlewareOutcome.text;
-  const baseMessage = middlewareOutcome.text;
-  // Append any attached context chips (picked preview elements) to the
-  // outgoing message, so the model sees the element details even though the
-  // composer only showed compact pills.
-  const currentChips = [...contextChips];
-  const userMessage = [baseMessage, ...currentChips.map((c) => c.context)]
-    .filter((s) => s.trim())
+  const message = [typedInput, ...contextChips.map((chip) => chip.context)]
+    .filter((part) => part.trim())
     .join("\n\n");
-  const visibleUserMessage =
-    rawInput || currentChips.map((chip) => chip.label).join("\n");
+  const displayContent = typedInput || contextChips.map((chip) => chip.label).join("\n");
+  const currentAttachments = [...attachments];
   setInput("");
   setContextChips([]);
-  setSlashMenuOpen(false);
-  setAgentMentionTrigger(null);
-  setSlashSelectedIndex(0);
-  const currentAttachments = [...attachments];
   setAttachments([]);
-
-  // If Kody is waiting for instructions, route to the action instruction endpoint
-  if (!terminalIntent && isKodyWaiting && selectedTask?.id) {
-    try {
-      await fetch("/api/kody/action/instruction", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({
-          runId: selectedTask.id,
-          instruction: userMessage,
-        }),
-      });
-      // Add a temporary "instruction sent" message to the chat
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "user" as const,
-          content: visibleUserMessage,
-          timestamp: new Date().toISOString(),
-        },
-        {
-          role: "assistant" as const,
-          content: `📬 Instruction sent to Kody — waiting for response...`,
-          timestamp: new Date().toISOString(),
-        },
-      ]);
-    } catch (err) {
-      console.error("Failed to send instruction:", err);
-    }
-    return;
-  }
-
-  const sendOptions = terminalIntent
-    ? {
-        displayContent: rawInput,
-        forceAgentId: "kody" as const,
-        onAssistantTextComplete: (assistantText: string) => {
-          const payload = extractKodyTerminalPayload(assistantText);
-          if (!payload) {
-            toast.error("Kody did not return a terminal block");
-            return null;
-          }
-          sendKodyTerminalPayloadToTerminal(payload);
-          return "Sent to terminal";
-        },
-      }
-    : slashExpansion || currentChips.length > 0
-      ? { displayContent: visibleUserMessage }
-      : undefined;
-
-  // When a slash command or context chip matched, the user bubble must show
-  // only the user-facing text. The model still receives `userMessage`,
-  // which may include expanded prompt bodies and hidden context payloads.
-  await sendText(userMessage, currentAttachments, sendOptions);
+  setSlashMenuOpen(false);
+  setSlashSelectedIndex(0);
+  setAgentMentionTrigger(null);
+  await sendText(message, currentAttachments, { displayContent });
 }

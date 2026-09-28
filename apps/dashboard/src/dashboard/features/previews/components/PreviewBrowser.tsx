@@ -60,7 +60,7 @@ import {
   type PreviewDevice,
 } from "@dashboard/features/previews/components/PreviewIframe";
 import { PreviewFloatingMenu } from "@dashboard/features/previews/components/PreviewFloatingMenu";
-import { FlyRemoteBrowserSurface } from "@dashboard/features/previews/components/FlyRemoteBrowserSurface";
+import { FlyRemoteBrowserSurface } from "@kody-ade/fly/dashboard/previews/FlyRemoteBrowserSurface";
 import { useBrowserSession } from "@dashboard/lib/previews/use-browser-session";
 import {
   browserControllerReducer,

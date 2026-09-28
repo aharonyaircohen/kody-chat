@@ -1,0 +1,4 @@
+[submodule "packages/fly"]
+	path = packages/fly
+	url = https://github.com/aharonyaircohen/flyhub.git
+	branch = main

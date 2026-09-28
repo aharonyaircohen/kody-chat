@@ -17,17 +17,20 @@ const ROOT = resolve(__dirname, "../..");
 const PAGE_PATH = resolve(ROOT, "app/(chat-rail)/fly/previews/page.tsx");
 const RUNNER_MANAGER_PATH = resolve(
   ROOT,
-  "src/dashboard/features/admin/components/RunnerManager.tsx",
+  "../../packages/fly/src/dashboard/admin/RunnerManager.tsx",
 );
 const PREVIEWS_LIST_PATH = resolve(
   ROOT,
-  "src/dashboard/features/previews/components/FlyPreviewsList.tsx",
+  "../../packages/fly/src/dashboard/previews/FlyPreviewsList.tsx",
 );
 
 describe("Fly Previews page", () => {
   it("has a dedicated /fly/previews page wired to RunnerManager", () => {
     expect(existsSync(PAGE_PATH)).toBe(true);
     const source = readFileSync(PAGE_PATH, "utf8");
+    expect(source).toContain(
+      '@kody-ade/fly/dashboard/admin/RunnerManager',
+    );
     expect(source).toMatch(/title:\s*"Fly Previews/);
     expect(source).toMatch(/path:\s*"\/fly\/previews"/);
     expect(source).toMatch(/<RunnerManager view="previews" \/>/);

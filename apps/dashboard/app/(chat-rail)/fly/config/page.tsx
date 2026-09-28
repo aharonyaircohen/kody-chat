@@ -5,7 +5,7 @@
  * @ai-summary Fly configuration page: token status, runner sizing, and
  * Brain-on-Fly settings. Preview settings live on /fly/previews.
  */
-import { RunnerManager } from "@dashboard/features/admin/components/RunnerManager";
+import { RunnerManager } from "@kody-ade/fly/dashboard/admin/RunnerManager";
 import { buildKodyMetadata } from "../../../metadata";
 
 export const dynamic = "force-static";

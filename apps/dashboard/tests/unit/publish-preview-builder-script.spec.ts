@@ -5,7 +5,7 @@ import {
   builderHostMachineIds,
   isBuilderHostMachine,
   redactBuilderPublishOutput,
-} from "../../scripts/publish-preview-builder.mjs";
+} from "../../../../packages/fly/scripts/publish-preview-builder.mjs";
 
 describe("publish-preview-builder host-machine cleanup", () => {
   it("targets only machines with no preview APP_NAME", () => {
