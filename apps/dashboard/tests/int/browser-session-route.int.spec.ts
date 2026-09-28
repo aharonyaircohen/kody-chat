@@ -130,6 +130,7 @@ describe("browser session route", () => {
         repo: "app",
         actorId: "octocat",
         initialUrl: "https://example.com",
+        image: "ghcr.io/aharonyaircohen/flyhub-browser:latest",
         config: context.config,
       }),
     );
